@@ -47,6 +47,7 @@ async function bootstrap() {
       'http://localhost:3000',
       'http://localhost:3001',
       'https://cms.personalwings.site',
+      'https://personalwings.site',
       process.env.FRONTEND_URL,
     ].filter(Boolean),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
