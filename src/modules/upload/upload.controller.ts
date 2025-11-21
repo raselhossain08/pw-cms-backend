@@ -14,13 +14,17 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { UploadService } from './upload.service';
+import { CloudinaryService } from './cloudinary.service';
 import { UploadResponseDto, MultipleUploadResponseDto } from './dto/upload-response.dto';
 import 'multer';
 
 @ApiTags('Upload')
 @Controller('upload')
 export class UploadController {
-    constructor(private readonly uploadService: UploadService) { }
+    constructor(
+        private readonly uploadService: UploadService,
+        private readonly cloudinaryService: CloudinaryService
+    ) { }
 
     @Post('image')
     @ApiOperation({ summary: 'Upload a single image' })
@@ -119,12 +123,25 @@ export class UploadController {
     })
     async getStatus() {
         const totalFiles = await this.uploadService.getTotalFileCount();
+        const cloudinaryConfigured = this.cloudinaryService.isConfigured();
+        const cloudinaryUsage = cloudinaryConfigured ? await this.cloudinaryService.getUsageStats() : null;
+
         return {
             status: 'operational',
             totalFilesInDatabase: totalFiles,
             uploadsPath: 'uploads/',
             baseUrl: process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`,
             environment: process.env.NODE_ENV || 'development',
+            storage: {
+                cloudinaryConfigured,
+                useCloudinary: process.env.USE_CLOUDINARY !== 'false',
+                activeStorage: cloudinaryConfigured && process.env.USE_CLOUDINARY !== 'false' ? 'cloudinary' : 'local',
+                cloudinaryUsage: cloudinaryUsage ? {
+                    credits: cloudinaryUsage.credits,
+                    used_percent: cloudinaryUsage.used_percent,
+                    limit: cloudinaryUsage.limit
+                } : null
+            },
             timestamp: new Date().toISOString()
         };
     }
@@ -229,5 +246,49 @@ export class UploadController {
     })
     async checkFile(@Param('filename') filename: string) {
         return this.uploadService.checkFileExists(filename);
+    }
+
+    @Get('responsive/:id')
+    @ApiOperation({
+        summary: 'Get responsive image URLs for different screen sizes',
+        description: 'Returns optimized URLs for thumbnail, small, medium, large, and original sizes'
+    })
+    @ApiParam({ name: 'id', description: 'File ID' })
+    @ApiResponse({
+        status: 200,
+        description: 'Responsive URLs retrieved successfully'
+    })
+    @ApiResponse({ status: 404, description: 'File not found' })
+    async getResponsiveUrls(@Param('id') id: string) {
+        const file = await this.uploadService.getFileById(id);
+        if (!file) {
+            throw new NotFoundException('File not found');
+        }
+
+        // If file is stored in Cloudinary and has public ID, generate responsive URLs
+        const fileDoc = await this.uploadService.getFileDocument(id);
+        if (fileDoc?.storageType === 'cloudinary' && fileDoc.cloudinaryPublicId) {
+            const responsiveUrls = this.cloudinaryService.getResponsiveUrls(fileDoc.cloudinaryPublicId, fileDoc.folder);
+            return {
+                id: id,
+                filename: file.filename,
+                storageType: 'cloudinary',
+                responsiveUrls
+            };
+        } else {
+            // For local files, return the single URL for all sizes
+            return {
+                id: id,
+                filename: file.filename,
+                storageType: 'local',
+                responsiveUrls: {
+                    thumbnail: file.url,
+                    small: file.url,
+                    medium: file.url,
+                    large: file.url,
+                    original: file.url
+                }
+            };
+        }
     }
 }

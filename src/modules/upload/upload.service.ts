@@ -6,6 +6,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import sharp from 'sharp';
 import { UploadedFile, UploadedFileDocument } from './entities/uploaded-file.entity';
+import { CloudinaryService } from './cloudinary.service';
 import 'multer';
 
 @Injectable()
@@ -18,7 +19,11 @@ export class UploadService {
         'image/png',
         'image/webp',
         'image/gif',
-        'image/svg+xml'
+        'image/svg+xml',
+        'text/xml',
+        'application/xml',
+        'image/x-icon',
+        'image/vnd.microsoft.icon'
     ];
 
     // Define folder structure for different upload types
@@ -33,9 +38,10 @@ export class UploadService {
 
     constructor(
         @InjectModel(UploadedFile.name) private uploadedFileModel: Model<UploadedFileDocument>,
-        private configService: ConfigService
+        private configService: ConfigService,
+        private cloudinaryService: CloudinaryService
     ) {
-        // Create upload directories if they don't exist
+        // Create upload directories if they don't exist (for local fallback)
         Object.values(this.folderMap).forEach(folder => {
             const fullPath = join(this.baseUploadPath, folder);
             if (!existsSync(fullPath)) {
@@ -57,14 +63,99 @@ export class UploadService {
         return `http://localhost:${port}`;
     }
 
-    async uploadImage(file: Express.Multer.File, folder: string = 'general'): Promise<{
+    private shouldUseCloudinary(): boolean {
+        // Use Cloudinary if configured and enabled
+        const useCloudinary = this.configService.get<boolean>('USE_CLOUDINARY', true);
+        return useCloudinary && this.cloudinaryService.isConfigured();
+    } async uploadImage(file: Express.Multer.File, folder: string = 'general'): Promise<{
         url: string;
         originalName: string;
         size: number;
         mimeType: string;
+        id?: string;
+        responsiveUrls?: any;
     }> {
         // Validate file
         this.validateFile(file);
+
+        try {
+            // Use Cloudinary if configured, otherwise fallback to local storage
+            if (this.shouldUseCloudinary()) {
+                return await this.uploadToCloudinary(file, folder);
+            } else {
+                return await this.uploadToLocal(file, folder);
+            }
+        } catch (error) {
+            console.error('Upload failed:', error);
+            throw new BadRequestException(`Failed to upload image: ${error.message}`);
+        }
+    }
+
+    private async uploadToCloudinary(file: Express.Multer.File, folder: string): Promise<{
+        url: string;
+        originalName: string;
+        size: number;
+        mimeType: string;
+        id: string;
+        responsiveUrls: any;
+    }> {
+        console.log(`☁️  Uploading to Cloudinary: ${file.originalname} to folder: ${folder}`);
+
+        // Upload to Cloudinary
+        const cloudinaryResult = await this.cloudinaryService.uploadImage(file, folder, {
+            width: 1920,
+            height: 1080,
+            quality: 'auto:good'
+        });
+
+        // Check if this is a vector or XML file for proper handling
+        const isVectorOrXml = this.isVectorOrXmlFile(file.mimetype);
+
+        // Generate responsive URLs (only for image files, not SVG/XML)
+        let responsiveUrls = {};
+        if (!isVectorOrXml) {
+            responsiveUrls = this.cloudinaryService.getResponsiveUrls(cloudinaryResult.public_id, folder);
+        }
+
+        // Save file information to database
+        const uploadedFile = new this.uploadedFileModel({
+            filename: isVectorOrXml ? file.originalname : `${cloudinaryResult.public_id}.${cloudinaryResult.format}`,
+            originalName: file.originalname,
+            mimetype: isVectorOrXml ? file.mimetype : `image/${cloudinaryResult.format}`,
+            size: cloudinaryResult.bytes,
+            url: cloudinaryResult.secure_url,
+            cloudinaryPublicId: cloudinaryResult.public_id,
+            cloudinarySecureUrl: cloudinaryResult.secure_url,
+            storageType: 'cloudinary',
+            width: cloudinaryResult.width || 0,
+            height: cloudinaryResult.height || 0,
+            format: isVectorOrXml ? file.originalname.split('.').pop() : cloudinaryResult.format,
+            responsiveUrls: Object.keys(responsiveUrls).length > 0 ? responsiveUrls : undefined,
+            folder,
+            uploadedAt: new Date()
+        });
+        await uploadedFile.save();
+
+        console.log(`✅ Cloudinary upload successful: ${cloudinaryResult.secure_url}`);
+
+        return {
+            url: cloudinaryResult.secure_url,
+            originalName: file.originalname,
+            size: cloudinaryResult.bytes,
+            mimeType: isVectorOrXml ? file.mimetype : `image/${cloudinaryResult.format}`,
+            id: uploadedFile._id.toString(),
+            responsiveUrls: responsiveUrls
+        };
+    }
+
+    private async uploadToLocal(file: Express.Multer.File, folder: string): Promise<{
+        url: string;
+        originalName: string;
+        size: number;
+        mimeType: string;
+        id?: string;
+    }> {
+        console.log(`💾 Uploading to local storage: ${file.originalname} to folder: ${folder}`);
 
         // Get folder path
         const folderPath = this.folderMap[folder] || this.folderMap['general'];
@@ -75,15 +166,35 @@ export class UploadService {
             mkdirSync(uploadPath, { recursive: true });
         }
 
+        // Check if file is SVG or XML (don't process with Sharp)
+        const isVectorOrXml = this.isVectorOrXmlFile(file.mimetype);
+
         // Generate unique filename with folder prefix
         const timestamp = Date.now();
         const folderPrefix = folder === 'general' ? '' : `${folder}-`;
         const filename = `${folderPrefix}${timestamp}-${this.sanitizeFilename(file.originalname)}`;
-        const outputFilename = filename.replace(/\.[^/.]+$/, '.webp');
-        const outputPath = join(uploadPath, outputFilename);
 
-        try {
-            // Process image with sharp (convert to WebP, optimize)
+        let outputFilename: string;
+        let outputPath: string;
+        let processedSize: number;
+        let finalMimeType: string;
+
+        if (isVectorOrXml) {
+            // For SVG/XML files, keep original format
+            outputFilename = filename;
+            outputPath = join(uploadPath, outputFilename);
+
+            // Save file directly without processing
+            await require('fs').promises.writeFile(outputPath, file.buffer);
+            processedSize = file.size;
+            finalMimeType = file.mimetype;
+
+            console.log(`✅ SVG/XML file saved directly: ${outputPath}`);
+        } else {
+            // For regular images, process with Sharp
+            outputFilename = filename.replace(/\.[^/.]+$/, '.webp');
+            outputPath = join(uploadPath, outputFilename);
+
             const processedImage = await sharp(file.buffer)
                 .resize(1920, 1080, {
                     fit: 'inside',
@@ -92,34 +203,40 @@ export class UploadService {
                 .webp({ quality: 85 })
                 .toFile(outputPath);
 
-            // Create full URL with hostname for database storage
-            const baseUrl = this.getBaseUrl();
-            const relativePath = `/uploads/${folderPath}/${outputFilename}`;
-            const fullUrl = `${baseUrl}${relativePath}`;
+            processedSize = processedImage.size;
+            finalMimeType = 'image/webp';
 
-            // Save file information to database
-            const uploadedFile = new this.uploadedFileModel({
-                filename: outputFilename,
-                originalName: file.originalname,
-                mimetype: 'image/webp',
-                size: processedImage.size,
-                path: outputPath,
-                url: fullUrl, // Store full URL with hostname
-                folder,
-                uploadedAt: new Date()
-            });
-            await uploadedFile.save();
-
-            return {
-                url: fullUrl, // Return full URL
-                originalName: file.originalname,
-                size: processedImage.size,
-                mimeType: 'image/webp'
-            };
-        } catch (error) {
-            console.error('Image processing failed:', error);
-            throw new BadRequestException('Failed to process image');
+            console.log(`✅ Image processed with Sharp: ${outputPath}`);
         }
+
+        // Create full URL with hostname for database storage
+        const baseUrl = this.getBaseUrl();
+        const relativePath = `/uploads/${folderPath}/${outputFilename}`;
+        const fullUrl = `${baseUrl}${relativePath}`;
+
+        // Save file information to database
+        const uploadedFile = new this.uploadedFileModel({
+            filename: outputFilename,
+            originalName: file.originalname,
+            mimetype: finalMimeType,
+            size: processedSize,
+            path: outputPath,
+            url: fullUrl,
+            storageType: 'local',
+            folder,
+            uploadedAt: new Date()
+        });
+        await uploadedFile.save();
+
+        console.log(`✅ Local upload successful: ${fullUrl}`);
+
+        return {
+            url: fullUrl,
+            originalName: file.originalname,
+            size: processedSize,
+            mimeType: finalMimeType,
+            id: uploadedFile._id.toString()
+        };
     }
 
     async uploadMultipleImages(files: Express.Multer.File[], folder: string = 'general'): Promise<Array<{
@@ -127,13 +244,21 @@ export class UploadService {
         originalName: string;
         size: number;
         mimeType: string;
+        id?: string;
+        responsiveUrls?: any;
     }>> {
         if (!files || files.length === 0) {
             throw new BadRequestException('No files provided');
         }
 
+        console.log(`📁 Uploading ${files.length} images to folder: ${folder} using ${this.shouldUseCloudinary() ? 'Cloudinary' : 'Local Storage'}`);
+
+        // Upload all files in parallel
         const uploadPromises = files.map(file => this.uploadImage(file, folder));
-        return await Promise.all(uploadPromises);
+        const results = await Promise.all(uploadPromises);
+
+        console.log(`✅ Successfully uploaded ${results.length} images to ${folder}`);
+        return results;
     }
 
     async getFiles(page: number = 1, limit: number = 20, search: string = '', type: string = '') {
@@ -181,6 +306,11 @@ export class UploadService {
             size: file.size,
             path: file.path,
             url: file.url, // Use stored full URL directly
+            storageType: file.storageType || 'local',
+            responsiveUrls: file.responsiveUrls,
+            width: file.width,
+            height: file.height,
+            format: file.format,
             uploadedAt: file.uploadedAt || new Date((file as any).createdAt)
         }));
 
@@ -207,8 +337,14 @@ export class UploadService {
             size: file.size,
             path: file.path,
             url: file.url, // Use stored full URL directly
-            uploadedAt: file.uploadedAt || new Date((file as any).createdAt)
+            uploadedAt: file.uploadedAt || new Date((file as any).createdAt),
+            storageType: file.storageType || 'local',
+            responsiveUrls: file.responsiveUrls
         };
+    }
+
+    async getFileDocument(id: string) {
+        return await this.uploadedFileModel.findById(id).lean();
     }
 
     async deleteFile(id: string): Promise<boolean> {
@@ -218,19 +354,35 @@ export class UploadService {
                 return false;
             }
 
-            // Delete physical file
-            const fullPath = join(process.cwd(), file.path);
-            if (existsSync(fullPath)) {
-                unlinkSync(fullPath);
+            // Delete based on storage type
+            if (file.storageType === 'cloudinary' && file.cloudinaryPublicId) {
+                // Delete from Cloudinary
+                console.log(`☁️  Deleting from Cloudinary: ${file.cloudinaryPublicId}`);
+                const cloudinaryDeleted = await this.cloudinaryService.deleteImage(file.cloudinaryPublicId);
+
+                if (!cloudinaryDeleted) {
+                    console.warn(`⚠️  Failed to delete from Cloudinary: ${file.cloudinaryPublicId}`);
+                }
+            } else if (file.storageType === 'local' && file.path) {
+                // Delete local file
+                console.log(`💾 Deleting local file: ${file.path}`);
+                const fullPath = file.path.startsWith('/') ? file.path : join(process.cwd(), file.path);
+                if (existsSync(fullPath)) {
+                    unlinkSync(fullPath);
+                    console.log(`✅ Local file deleted: ${fullPath}`);
+                } else {
+                    console.warn(`⚠️  Local file not found: ${fullPath}`);
+                }
             }
 
             // Delete from database
             await this.uploadedFileModel.findByIdAndDelete(id);
+            console.log(`✅ Database record deleted: ${id}`);
 
             return true;
         } catch (error) {
             console.error('Error deleting file:', error);
-            throw new BadRequestException('Failed to delete file');
+            throw new BadRequestException(`Failed to delete file: ${error.message}`);
         }
     }
 
@@ -482,5 +634,14 @@ export class UploadService {
             .toLowerCase()
             .replace(/[^a-z0-9.-]/g, '-')
             .replace(/-+/g, '-');
+    }
+
+    /**
+     * Check if file is SVG or XML that shouldn't be processed with Sharp
+     */
+    private isVectorOrXmlFile(mimetype: string): boolean {
+        return mimetype === 'image/svg+xml' ||
+            mimetype === 'text/xml' ||
+            mimetype === 'application/xml';
     }
 }

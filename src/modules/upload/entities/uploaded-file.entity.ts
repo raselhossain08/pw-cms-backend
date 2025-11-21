@@ -15,8 +15,8 @@ export class UploadedFile {
   @Prop({ required: true })
   size: number;
 
-  @Prop({ required: true })
-  path: string;
+  @Prop()
+  path?: string;
 
   @Prop({ required: true })
   url: string;
@@ -26,6 +26,27 @@ export class UploadedFile {
 
   @Prop({ default: Date.now })
   uploadedAt: Date;
+
+  @Prop({ enum: ['local', 'cloudinary'], default: 'local' })
+  storageType: string;
+
+  @Prop()
+  cloudinaryPublicId?: string;
+
+  @Prop()
+  cloudinarySecureUrl?: string;
+
+  @Prop()
+  width?: number;
+
+  @Prop()
+  height?: number;
+
+  @Prop()
+  format?: string;
+
+  @Prop({ type: Object })
+  responsiveUrls?: any;
 
   // Mongoose timestamps will add createdAt and updatedAt
   createdAt?: Date;
