@@ -15,6 +15,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { UploadService } from './upload.service';
 import { UploadResponseDto, MultipleUploadResponseDto } from './dto/upload-response.dto';
+import 'multer';
 
 @ApiTags('Upload')
 @Controller('upload')

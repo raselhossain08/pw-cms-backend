@@ -5,6 +5,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import sharp from 'sharp';
 import { UploadedFile, UploadedFileDocument } from './entities/uploaded-file.entity';
+import 'multer';
 
 @Injectable()
 export class UploadService {
