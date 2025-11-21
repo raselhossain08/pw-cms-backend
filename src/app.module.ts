@@ -46,17 +46,23 @@ import { SeedModule } from './seed/seed.module';
       }
     ),
 
-    // Static file serving
+    // Static file serving with production optimization
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
       serveStaticOptions: {
-        maxAge: '1d', // Cache static files for 1 day
+        maxAge: process.env.NODE_ENV === 'production' ? '7d' : '1d', // Cache longer in production
         etag: true,
         lastModified: true,
         setHeaders: (res, path, stat) => {
           res.header('Access-Control-Allow-Origin', '*');
           res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+
+          // Add security headers for uploaded content
+          if (process.env.NODE_ENV === 'production') {
+            res.header('Cache-Control', 'public, max-age=604800, immutable'); // 7 days
+            res.header('X-Content-Type-Options', 'nosniff');
+          }
         },
       },
     }),

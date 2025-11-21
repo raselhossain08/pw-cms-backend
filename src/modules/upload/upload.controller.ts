@@ -123,6 +123,8 @@ export class UploadController {
             status: 'operational',
             totalFilesInDatabase: totalFiles,
             uploadsPath: 'uploads/',
+            baseUrl: process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`,
+            environment: process.env.NODE_ENV || 'development',
             timestamp: new Date().toISOString()
         };
     }
@@ -196,5 +198,19 @@ export class UploadController {
             message: 'Migration completed',
             ...result
         };
+    }
+
+    @Get('check-file/:filename')
+    @ApiOperation({
+        summary: 'Check if a file exists on the server',
+        description: 'Debug endpoint to verify file existence in the uploads directory'
+    })
+    @ApiParam({ name: 'filename', description: 'Filename to check (e.g., 1763712102357-footer-logo.webp)' })
+    @ApiResponse({
+        status: 200,
+        description: 'File check result'
+    })
+    async checkFile(@Param('filename') filename: string) {
+        return this.uploadService.checkFileExists(filename);
     }
 }

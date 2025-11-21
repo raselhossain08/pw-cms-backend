@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import { join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
@@ -31,7 +32,8 @@ export class UploadService {
     };
 
     constructor(
-        @InjectModel(UploadedFile.name) private uploadedFileModel: Model<UploadedFileDocument>
+        @InjectModel(UploadedFile.name) private uploadedFileModel: Model<UploadedFileDocument>,
+        private configService: ConfigService
     ) {
         // Create upload directories if they don't exist
         Object.values(this.folderMap).forEach(folder => {
@@ -40,6 +42,19 @@ export class UploadService {
                 mkdirSync(fullPath, { recursive: true });
             }
         });
+    }
+
+    private getBaseUrl(): string {
+        const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+        const port = this.configService.get<string>('PORT', '8000');
+
+        // In production, use the actual domain
+        if (nodeEnv === 'production') {
+            return this.configService.get<string>('BASE_URL', 'https://cms.personalwings.site');
+        }
+
+        // In development, use localhost
+        return `http://localhost:${port}`;
     }
 
     async uploadImage(file: Express.Multer.File, folder: string = 'general'): Promise<{
@@ -156,6 +171,7 @@ export class UploadService {
         ]);
 
         // Transform files to include proper URLs
+        const baseUrl = this.getBaseUrl();
         const transformedFiles = files.map(file => ({
             id: file._id.toString(),
             filename: file.filename,
@@ -163,7 +179,7 @@ export class UploadService {
             mimetype: file.mimetype,
             size: file.size,
             path: file.path,
-            url: `http://localhost:8000${file.url}`, // Full URL for frontend
+            url: `${baseUrl}${file.url}`, // Dynamic URL based on environment
             uploadedAt: file.uploadedAt || new Date((file as any).createdAt)
         }));
 
@@ -182,6 +198,7 @@ export class UploadService {
             return null;
         }
 
+        const baseUrl = this.getBaseUrl();
         return {
             id: file._id.toString(),
             filename: file.filename,
@@ -189,7 +206,7 @@ export class UploadService {
             mimetype: file.mimetype,
             size: file.size,
             path: file.path,
-            url: `http://localhost:8000${file.url}`,
+            url: `${baseUrl}${file.url}`,
             uploadedAt: file.uploadedAt || new Date((file as any).createdAt)
         };
     }
@@ -320,6 +337,56 @@ export class UploadService {
 
     async getTotalFileCount(): Promise<number> {
         return this.uploadedFileModel.countDocuments();
+    }
+
+    async checkFileExists(filename: string): Promise<{
+        exists: boolean;
+        inDatabase: boolean;
+        onFileSystem: boolean;
+        possiblePaths: string[];
+        databaseInfo?: any;
+    }> {
+        // Check if file exists in database
+        const dbFile = await this.uploadedFileModel.findOne({
+            $or: [
+                { filename: filename },
+                { originalName: filename },
+                { filename: { $regex: filename, $options: 'i' } }
+            ]
+        }).lean();
+
+        // Check possible file system paths
+        const possiblePaths: string[] = [];
+        const foundPaths: string[] = [];
+
+        // Check all possible folder locations
+        Object.values(this.folderMap).forEach(folder => {
+            const fullPath = join(this.baseUploadPath, folder, filename);
+            possiblePaths.push(fullPath);
+            if (existsSync(fullPath)) {
+                foundPaths.push(fullPath);
+            }
+        });
+
+        // Also check root uploads directory
+        const rootPath = join(this.baseUploadPath, filename);
+        possiblePaths.push(rootPath);
+        if (existsSync(rootPath)) {
+            foundPaths.push(rootPath);
+        }
+
+        return {
+            exists: foundPaths.length > 0,
+            inDatabase: !!dbFile,
+            onFileSystem: foundPaths.length > 0,
+            possiblePaths: foundPaths.length > 0 ? foundPaths : possiblePaths,
+            databaseInfo: dbFile ? {
+                id: dbFile._id.toString(),
+                url: `${this.getBaseUrl()}${dbFile.url}`,
+                path: dbFile.path,
+                folder: dbFile.folder
+            } : null
+        };
     }
 
     private validateFile(file: Express.Multer.File): void {
