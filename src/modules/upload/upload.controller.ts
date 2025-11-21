@@ -200,6 +200,23 @@ export class UploadController {
         };
     }
 
+    @Post('migrate-urls-to-full')
+    @ApiOperation({
+        summary: 'Update existing database records to store full URLs',
+        description: 'Converts relative URLs (/uploads/...) to full URLs (https://cms.personalwings.site/uploads/...)'
+    })
+    @ApiResponse({
+        status: 201,
+        description: 'URL migration completed successfully'
+    })
+    async migrateUrlsToFull() {
+        const result = await this.uploadService.migrateUrlsToFullUrls();
+        return {
+            message: 'URL migration completed',
+            ...result
+        };
+    }
+
     @Get('check-file/:filename')
     @ApiOperation({
         summary: 'Check if a file exists on the server',

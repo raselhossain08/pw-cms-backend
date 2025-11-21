@@ -15,6 +15,7 @@
     "seed": "ts-node -r tsconfig-paths/register src/seed/seed.ts",
     "migrate:atlas": "ts-node -r tsconfig-paths/register src/scripts/migrate-to-atlas.ts",
     "migrate:files": "ts-node -r tsconfig-paths/register src/scripts/migrate-files.ts",
+    "migrate:urls": "ts-node -r tsconfig-paths/register src/scripts/migrate-urls-to-full-urls.ts",
     "backup:restore": "ts-node -r tsconfig-paths/register src/scripts/backup-restore.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",

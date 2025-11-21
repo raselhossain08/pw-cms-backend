@@ -92,8 +92,10 @@ export class UploadService {
                 .webp({ quality: 85 })
                 .toFile(outputPath);
 
-            // Return the exact path structure for database storage
-            const urlPath = `/uploads/${folderPath}/${outputFilename}`;
+            // Create full URL with hostname for database storage
+            const baseUrl = this.getBaseUrl();
+            const relativePath = `/uploads/${folderPath}/${outputFilename}`;
+            const fullUrl = `${baseUrl}${relativePath}`;
 
             // Save file information to database
             const uploadedFile = new this.uploadedFileModel({
@@ -102,14 +104,14 @@ export class UploadService {
                 mimetype: 'image/webp',
                 size: processedImage.size,
                 path: outputPath,
-                url: urlPath,
+                url: fullUrl, // Store full URL with hostname
                 folder,
                 uploadedAt: new Date()
             });
             await uploadedFile.save();
 
             return {
-                url: urlPath,
+                url: fullUrl, // Return full URL
                 originalName: file.originalname,
                 size: processedImage.size,
                 mimeType: 'image/webp'
@@ -170,8 +172,7 @@ export class UploadService {
             this.uploadedFileModel.countDocuments(query)
         ]);
 
-        // Transform files to include proper URLs
-        const baseUrl = this.getBaseUrl();
+        // Transform files - URLs are already full URLs stored in database
         const transformedFiles = files.map(file => ({
             id: file._id.toString(),
             filename: file.filename,
@@ -179,7 +180,7 @@ export class UploadService {
             mimetype: file.mimetype,
             size: file.size,
             path: file.path,
-            url: `${baseUrl}${file.url}`, // Dynamic URL based on environment
+            url: file.url, // Use stored full URL directly
             uploadedAt: file.uploadedAt || new Date((file as any).createdAt)
         }));
 
@@ -198,7 +199,6 @@ export class UploadService {
             return null;
         }
 
-        const baseUrl = this.getBaseUrl();
         return {
             id: file._id.toString(),
             filename: file.filename,
@@ -206,7 +206,7 @@ export class UploadService {
             mimetype: file.mimetype,
             size: file.size,
             path: file.path,
-            url: `${baseUrl}${file.url}`,
+            url: file.url, // Use stored full URL directly
             uploadedAt: file.uploadedAt || new Date((file as any).createdAt)
         };
     }
@@ -283,8 +283,10 @@ export class UploadService {
                                     }
                                 }
 
-                                // Create URL path
-                                const urlPath = `/uploads/${relativeFilePath.replace(/\\/g, '/')}`;
+                                // Create full URL with hostname
+                                const baseUrl = this.getBaseUrl();
+                                const relativePath = `/uploads/${relativeFilePath.replace(/\\/g, '/')}`;
+                                const fullUrl = `${baseUrl}${relativePath}`;
 
                                 // Create database entry
                                 const uploadedFile = new this.uploadedFileModel({
@@ -293,7 +295,7 @@ export class UploadService {
                                     mimetype: mimeType,
                                     size: stats.size,
                                     path: fullPath,
-                                    url: urlPath,
+                                    url: fullUrl, // Store full URL with hostname
                                     folder,
                                     uploadedAt: stats.birthtime || stats.ctime
                                 });
@@ -339,6 +341,74 @@ export class UploadService {
         return this.uploadedFileModel.countDocuments();
     }
 
+    async migrateUrlsToFullUrls() {
+        try {
+            console.log('🚀 Starting URL migration to full URLs...');
+
+            // Get base URL
+            const baseUrl = this.getBaseUrl();
+            console.log(`🌐 Using base URL: ${baseUrl}`);
+
+            // Find all files that have relative URLs (starting with /)
+            const filesToUpdate = await this.uploadedFileModel.find({
+                url: { $regex: '^/', $options: 'i' } // URLs starting with /
+            }).lean();
+
+            console.log(`📁 Found ${filesToUpdate.length} files with relative URLs to update`);
+
+            if (filesToUpdate.length === 0) {
+                return {
+                    updatedCount: 0,
+                    errorCount: 0,
+                    errors: [],
+                    message: 'No files need URL migration'
+                };
+            }
+
+            let updatedCount = 0;
+            let errorCount = 0;
+            const errors: string[] = [];
+
+            for (const file of filesToUpdate) {
+                try {
+                    const relativeUrl = file.url;
+                    const fullUrl = `${baseUrl}${relativeUrl}`;
+
+                    await this.uploadedFileModel.updateOne(
+                        { _id: file._id },
+                        { $set: { url: fullUrl } }
+                    );
+
+                    updatedCount++;
+
+                    if (updatedCount % 10 === 0) {
+                        console.log(`📝 Updated ${updatedCount}/${filesToUpdate.length} files...`);
+                    }
+
+                } catch (error) {
+                    errorCount++;
+                    const errorMsg = `Failed to update ${file.filename}: ${error.message}`;
+                    console.error(`❌ ${errorMsg}`);
+                    errors.push(errorMsg);
+                }
+            }
+
+            console.log(`✅ URL migration completed: ${updatedCount} updated, ${errorCount} errors`);
+
+            return {
+                updatedCount,
+                errorCount,
+                errors,
+                totalProcessed: filesToUpdate.length,
+                success: true
+            };
+
+        } catch (error) {
+            console.error('❌ URL migration failed:', error);
+            throw new BadRequestException(`URL migration failed: ${error.message}`);
+        }
+    }
+
     async checkFileExists(filename: string): Promise<{
         exists: boolean;
         inDatabase: boolean;
@@ -382,7 +452,7 @@ export class UploadService {
             possiblePaths: foundPaths.length > 0 ? foundPaths : possiblePaths,
             databaseInfo: dbFile ? {
                 id: dbFile._id.toString(),
-                url: `${this.getBaseUrl()}${dbFile.url}`,
+                url: dbFile.url, // URL is already stored as full URL with hostname
                 path: dbFile.path,
                 folder: dbFile.folder
             } : null
