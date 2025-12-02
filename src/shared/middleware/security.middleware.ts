@@ -77,12 +77,13 @@ export class SecurityMiddleware implements NestMiddleware {
         return next();
       }
 
-      if (this.blockedIPs.has(clientIp)) {
-        throw new HttpException(
-          'Access denied. Your IP has been blocked due to suspicious activity.',
-          HttpStatus.FORBIDDEN,
-        );
-      }
+      // IP blocking disabled - uncomment to re-enable
+      // if (this.blockedIPs.has(clientIp)) {
+      //   throw new HttpException(
+      //     'Access denied. Your IP has been blocked due to suspicious activity.',
+      //     HttpStatus.FORBIDDEN,
+      //   );
+      // }
 
       this.enforceRateLimit(clientIp);
 
@@ -316,22 +317,25 @@ export class SecurityMiddleware implements NestMiddleware {
   private handleSecurityViolation(ip: string) {
     const violations = this.requestCounts.get(ip)?.count || 0;
 
-    // Block IP after 5 violations
-    const nodeEnv = process.env.NODE_ENV || 'development';
-    const isLocal =
-      ip === '127.0.0.1' ||
-      ip === '::1' ||
-      ip === '::ffff:127.0.0.1' ||
-      ip.startsWith('192.168.') ||
-      ip.startsWith('10.') ||
-      (ip.startsWith('172.') && parseInt(ip.split('.')[1] || '0', 10) >= 16);
-    if (nodeEnv === 'development' && isLocal) {
-      return;
-    }
-    if (violations >= 5) {
-      this.blockedIPs.add(ip);
-      console.error(`[IP BLOCKED] ${ip} - Multiple security violations`);
-    }
+    // Block IP after 5 violations - DISABLED
+    // const nodeEnv = process.env.NODE_ENV || 'development';
+    // const isLocal =
+    //   ip === '127.0.0.1' ||
+    //   ip === '::1' ||
+    //   ip === '::ffff:127.0.0.1' ||
+    //   ip.startsWith('192.168.') ||
+    //   ip.startsWith('10.') ||
+    //   (ip.startsWith('172.') && parseInt(ip.split('.')[1] || '0', 10) >= 16);
+    // if (nodeEnv === 'development' && isLocal) {
+    //   return;
+    // }
+    // if (violations >= 5) {
+    //   this.blockedIPs.add(ip);
+    //   console.error(`[IP BLOCKED] ${ip} - Multiple security violations`);
+    // }
+    
+    // IP blocking is disabled - only log violations
+    console.warn(`[SECURITY VIOLATION] IP: ${ip} - Violation count: ${violations}`);
   }
 
   // Method to manually unblock IP (admin use)
