@@ -1,79 +1,202 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { CacheModule } from '@nestjs/cache-manager';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { join } from 'path';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { HeaderModule } from './modules/header/header.module';
-import { FooterModule } from './modules/footer/footer.module';
-import { UploadModule } from './modules/upload/upload.module';
-import { SystemStatusModule } from './modules/system-status/system-status.module';
-import { SeedModule } from './seed/seed.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import * as path from 'path';
+
+// Core Modules
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { CoursesModule } from './courses/courses.module';
+import { CourseCategoriesModule } from './course-categories/course-categories.module';
+import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
+import { PaymentsModule } from './payments/payments.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { UploadsModule } from './uploads/uploads.module';
+import { HealthModule } from './health/health.module';
+import { ChatModule } from './chat/chat.module';
+
+// LMS Feature Modules
+import { ReviewsModule } from './reviews/reviews.module';
+import { EnrollmentsModule } from './enrollments/enrollments.module';
+import { QuizzesModule } from './quizzes/quizzes.module';
+import { LiveSessionsModule } from './live-sessions/live-sessions.module';
+import { GamificationModule } from './gamification/gamification.module';
+import { WishlistModule } from './wishlist/wishlist.module';
+import { CouponsModule } from './coupons/coupons.module';
+import { CertificatesModule } from './certificates/certificates.module';
+import { DiscussionsModule } from './discussions/discussions.module';
+import { AssignmentsModule } from './assignments/assignments.module';
+
+// Admin & Analytics Modules
+import { AdminModule } from './admin/admin.module';
+import { CampaignsModule } from './campaigns/campaigns.module';
+import { PageTrackingModule } from './page-tracking/page-tracking.module';
+
+// Customer Service Modules
+import { RefundsModule } from './refunds/refunds.module';
+import { AttendanceModule } from './attendance/attendance.module';
+import { SupportModule } from './support/support.module';
+import { AiBotModule } from './ai-bot/ai-bot.module';
+import { SystemConfigModule } from './system-config/system-config.module';
+import { CmsModule } from './cms/cms.module';
+
+// Security Module
+import { SecurityModule } from './shared/security.module';
+import { ApiExtensionsModule } from './shared/api-extensions.module';
+
+// Entities for Tasks
+import {
+  AnalyticsEvent,
+  AnalyticsEventSchema,
+} from './analytics/entities/analytics.entity';
+
+// Tasks
+import { EmailTasksService } from './tasks/email-tasks.service';
+import { AnalyticsTasksService } from './tasks/analytics-tasks.service';
+
+// Gateways
+import { NotificationsGateway } from './notifications/gateways/notifications.gateway';
+import { ChatGateway } from './chat/gateways/chat.gateway';
+import { AiBotGateway } from './ai-bot/ai-bot.gateway';
 
 @Module({
   imports: [
-    // Global configuration
+    // Configuration
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'development'}`],
     }),
 
-    // Global caching for performance optimization
-    CacheModule.register({
-      isGlobal: true,
-      ttl: parseInt(process.env.CACHE_TTL || '300'), // 5 minutes default
-      max: parseInt(process.env.CACHE_MAX_ITEMS || '100'),
+    // Database
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGODB_URI'),
+        dbName: configService.get<string>('DB_NAME'),
+      }),
+      inject: [ConfigService],
     }),
 
-    // Rate limiting for security and performance
-    ThrottlerModule.forRoot([{
-      ttl: parseInt(process.env.THROTTLE_TTL || '60000'), // 60 seconds
-      limit: parseInt(process.env.THROTTLE_LIMIT || '100'), // 100 requests per minute
-    }]),    // Database connection with optimization
-    MongooseModule.forRoot(
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/cms_db',
-      {
-        connectionFactory: (connection) => {
-          // Enable connection pooling for better performance
-          connection.plugin((schema) => {
-            schema.set('autoIndex', process.env.NODE_ENV !== 'production');
-          });
-          return connection;
+    // Rate limiting
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => [
+        {
+          ttl: configService.get<number>('THROTTLE_TTL', 60),
+          limit: configService.get<number>('THROTTLE_LIMIT', 100),
         },
-      }
-    ),
+      ],
+      inject: [ConfigService],
+    }),
 
-    // Static file serving with production optimization
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'uploads'),
-      serveRoot: '/uploads',
-      serveStaticOptions: {
-        maxAge: process.env.NODE_ENV === 'production' ? '7d' : '1d', // Cache longer in production
-        etag: true,
-        lastModified: true,
-        setHeaders: (res, path, stat) => {
-          res.header('Access-Control-Allow-Origin', '*');
-          res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    // Task scheduling
+    ScheduleModule.forRoot(),
 
-          // Add security headers for uploaded content
-          if (process.env.NODE_ENV === 'production') {
-            res.header('Cache-Control', 'public, max-age=604800, immutable'); // 7 days
-            res.header('X-Content-Type-Options', 'nosniff');
-          }
-        },
+    // Register models needed by task services
+    MongooseModule.forFeature([
+      { name: AnalyticsEvent.name, schema: AnalyticsEventSchema },
+    ]),
+
+    // Email
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const host = configService.get<string>('SMTP_HOST');
+        const port = Number(configService.get<string>('SMTP_PORT')) || 2525;
+        const user =
+          configService.get<string>('SMTP_USER') ||
+          configService.get<string>('MAILTRAP_USERNAME');
+        const pass =
+          configService.get<string>('SMTP_PASS') ||
+          configService.get<string>('MAILTRAP_PASSWORD');
+
+        return {
+          transport: {
+            service: host?.includes('gmail') ? 'gmail' : undefined,
+            host,
+            port,
+            secure: false,
+            requireTLS: true,
+            auth: user && pass ? { user, pass } : undefined,
+            tls: { rejectUnauthorized: false },
+          },
+          defaults: {
+            from: `"${configService.get('FROM_NAME')}" <${configService.get('FROM_EMAIL')}>`,
+          },
+          template: {
+            dir: path.resolve(process.cwd(), 'src', 'templates'),
+            adapter: new HandlebarsAdapter(),
+            options: {
+              strict: true,
+            },
+          },
+        };
       },
+      inject: [ConfigService],
     }),
 
-    HeaderModule,
-    FooterModule,
-    UploadModule,
-    SystemStatusModule,
-    SeedModule,
+    // Security Module (MUST BE FIRST)
+    SecurityModule,
+
+    // API Extensions (Bulk, Reports, Progress, Instructor Dashboard)
+    ApiExtensionsModule,
+
+    // Feature modules
+    AuthModule,
+    UsersModule,
+    CoursesModule,
+    CourseCategoriesModule,
+    ProductsModule,
+    NotificationsModule,
+    UploadsModule,
+    OrdersModule,
+    PaymentsModule,
+    AnalyticsModule,
+    HealthModule,
+    ChatModule,
+
+    // LMS Feature Modules
+    ReviewsModule,
+    EnrollmentsModule,
+    QuizzesModule,
+    LiveSessionsModule,
+    GamificationModule,
+    WishlistModule,
+    CouponsModule,
+    CertificatesModule,
+    DiscussionsModule,
+    AssignmentsModule,
+
+    // Admin & Analytics Modules
+    AdminModule,
+    CampaignsModule,
+    PageTrackingModule,
+
+    // Customer Service Modules
+    RefundsModule,
+    AttendanceModule,
+    SupportModule,
+    AiBotModule,
+    SystemConfigModule,
+
+    // CMS Module (Header, Footer, etc.)
+    CmsModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    // Background tasks
+    EmailTasksService,
+    AnalyticsTasksService,
+
+    // WebSocket gateways
+    NotificationsGateway,
+    ChatGateway,
+    AiBotGateway,
+  ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { 
+            font-family: 'Arial', sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            background-color: #f4f4f4;
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 20px auto; 
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; 
+            padding: 30px 20px; 
+            text-align: center; 
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .certificate-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .certificate-id {
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .button { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; 
+            padding: 14px 28px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            display: inline-block;
+            font-weight: bold;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+        }
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .congrats {
+            color: #28a745;
+            font-weight: bold;
+            font-size: 20px;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">🎓</div>
+            <h1>Certificate Achievement!</h1>
+        </div>
+        
+        <div class="content">
+            <p class="congrats">Congratulations, {{name}}! 🎉</p>
+            
+            <p>We are thrilled to inform you that you have successfully completed <strong>{{courseName}}</strong> and earned your certificate!</p>
+            
+            <div class="certificate-box">
+                <p style="margin: 0 0 10px 0;"><strong>Certificate Details:</strong></p>
+                <ul style="margin: 10px 0;">
+                    <li><strong>Course:</strong> {{courseName}}</li>
+                    <li><strong>Recipient:</strong> {{name}}</li>
+                    <li><strong>Certificate ID:</strong></li>
+                </ul>
+                <div class="certificate-id">{{certificateId}}</div>
+            </div>
+            
+            <p>Your certificate is now available for viewing, downloading, and sharing. You can:</p>
+            <ul>
+                <li>📄 View and download your certificate as PDF</li>
+                <li>🔗 Share your achievement on social media</li>
+                <li>✅ Verify authenticity using the certificate ID</li>
+                <li>💼 Add it to your professional profile</li>
+            </ul>
+            
+            <div class="button-container">
+                <a href="{{certificateUrl}}" class="button">View My Certificate</a>
+            </div>
+            
+            <p>This is a significant milestone in your learning journey, and we're proud to be part of your success!</p>
+            
+            <p>Keep up the excellent work, and we look forward to seeing you achieve even more with Personal Wings.</p>
+            
+            <p style="margin-top: 30px;">Best regards,<br>
+            <strong>The Personal Wings Team</strong></p>
+        </div>
+        
+        <div class="footer">
+            <p>Have questions? Contact us at <a href="mailto:{{supportEmail}}" style="color: #667eea;">{{supportEmail}}</a></p>
+            <p style="margin: 5px 0; color: #999; font-size: 12px;">
+                This email was sent to you because you completed a course on Personal Wings.<br>
+                © {{year}} Personal Wings. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
