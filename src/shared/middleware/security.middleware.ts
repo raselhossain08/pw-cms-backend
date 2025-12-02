@@ -30,79 +30,20 @@ export class SecurityMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const clientIp = this.getClientIP(req);
 
+    // SECURITY MIDDLEWARE DISABLED - All validation and blocking bypassed
+    // Only adding security headers and passing through
     try {
-      const nodeEnv = process.env.NODE_ENV || 'development';
-      const isDevLocal =
-        nodeEnv === 'development' &&
-        (clientIp === '127.0.0.1' ||
-          clientIp === '::1' ||
-          clientIp === '::ffff:127.0.0.1' ||
-          clientIp.startsWith('192.168.') ||
-          clientIp.startsWith('10.') ||
-          clientIp.startsWith('172.16.') ||
-          clientIp.startsWith('172.17.') ||
-          clientIp.startsWith('172.18.') ||
-          clientIp.startsWith('172.19.') ||
-          clientIp.startsWith('172.20.') ||
-          clientIp.startsWith('172.21.') ||
-          clientIp.startsWith('172.22.') ||
-          clientIp.startsWith('172.23.') ||
-          clientIp.startsWith('172.24.') ||
-          clientIp.startsWith('172.25.') ||
-          clientIp.startsWith('172.26.') ||
-          clientIp.startsWith('172.27.') ||
-          clientIp.startsWith('172.28.') ||
-          clientIp.startsWith('172.29.') ||
-          clientIp.startsWith('172.30.') ||
-          clientIp.startsWith('172.31.'));
-      const isDocsOrFavicon =
-        req.path?.startsWith('/api/docs') || req.path === '/favicon.ico';
-      const isPublicPath = req.path?.startsWith('/api/public/');
-      const isCmsActiveGet =
-        req.method === 'GET' &&
-        /^\/api\/cms\/[^/]+\/active$/.test(req.path || '');
-
-      // Check if IP is whitelisted
-      if (this.whitelistedIPs.has(clientIp)) {
-        this.addSecurityHeaders(res);
-        const requestSignature = this.generateRequestSignature(req);
-        (req as any).securitySignature = requestSignature;
-        return next();
-      }
-
-      if (isDocsOrFavicon || isPublicPath || isCmsActiveGet || isDevLocal) {
-        this.addSecurityHeaders(res);
-        const requestSignature = this.generateRequestSignature(req);
-        (req as any).securitySignature = requestSignature;
-        return next();
-      }
-
-      // IP blocking disabled - uncomment to re-enable
-      // if (this.blockedIPs.has(clientIp)) {
-      //   throw new HttpException(
-      //     'Access denied. Your IP has been blocked due to suspicious activity.',
-      //     HttpStatus.FORBIDDEN,
-      //   );
-      // }
-
-      this.enforceRateLimit(clientIp);
-
-      this.validateHeaders(req);
-      this.scanForThreats(req, clientIp);
-      this.validateContentType(req);
-
       this.addSecurityHeaders(res);
       const requestSignature = this.generateRequestSignature(req);
       (req as any).securitySignature = requestSignature;
-
       next();
     } catch (error) {
-      console.error(
-        `[SECURITY ALERT] IP: ${clientIp}, Path: ${req.path}`,
+      console.warn(
+        `[SECURITY MIDDLEWARE ERROR] IP: ${clientIp}, Path: ${req.path}`,
         error?.message,
       );
-      this.handleSecurityViolation(clientIp);
-      throw error;
+      // Don't throw error, just pass through
+      next();
     }
   }
 
@@ -333,7 +274,7 @@ export class SecurityMiddleware implements NestMiddleware {
     //   this.blockedIPs.add(ip);
     //   console.error(`[IP BLOCKED] ${ip} - Multiple security violations`);
     // }
-    
+
     // IP blocking is disabled - only log violations
     console.warn(`[SECURITY VIOLATION] IP: ${ip} - Violation count: ${violations}`);
   }
