@@ -16,6 +16,7 @@ import {
   LiveSessionSchema,
 } from '../live-sessions/entities/live-session.entity';
 import { Coupon, CouponSchema } from '../coupons/entities/coupon.entity';
+import { SecurityMiddleware } from '../shared/middleware/security.middleware';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { Coupon, CouponSchema } from '../coupons/entities/coupon.entity';
     ]),
   ],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, SecurityMiddleware],
   exports: [AdminService],
 })
-export class AdminModule {}
+export class AdminModule { }

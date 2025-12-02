@@ -19,7 +19,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
   // ==================== DASHBOARD ====================
   @Get('dashboard/stats')
@@ -279,5 +279,31 @@ export class AdminController {
       new Date(startDate),
       new Date(endDate),
     );
+  }
+
+  // ==================== SECURITY MANAGEMENT ====================
+  @Get('security/blocked-ips')
+  getBlockedIPs() {
+    return this.adminService.getBlockedIPs();
+  }
+
+  @Post('security/unblock-ip')
+  unblockIP(@Body('ip') ip: string) {
+    return this.adminService.unblockIP(ip);
+  }
+
+  @Get('security/whitelisted-ips')
+  getWhitelistedIPs() {
+    return this.adminService.getWhitelistedIPs();
+  }
+
+  @Post('security/whitelist-ip')
+  whitelistIP(@Body('ip') ip: string) {
+    return this.adminService.whitelistIP(ip);
+  }
+
+  @Delete('security/whitelist-ip/:ip')
+  removeFromWhitelist(@Param('ip') ip: string) {
+    return this.adminService.removeFromWhitelist(ip);
   }
 }

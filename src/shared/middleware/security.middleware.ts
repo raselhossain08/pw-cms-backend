@@ -14,6 +14,10 @@ export class SecurityMiddleware implements NestMiddleware {
     { count: number; resetTime: number }
   >();
   private blockedIPs = new Set<string>();
+  private whitelistedIPs = new Set<string>([
+    '118.179.39.109',
+    '64.23.161.251',
+  ]);
   private suspiciousPatterns = [
     /(\%27)|(\')|(\-\-)|(\%23)|(#)/i, // SQL Injection
     /<script[^>]*>.*?<\/script>/gi, // XSS
@@ -57,6 +61,14 @@ export class SecurityMiddleware implements NestMiddleware {
       const isCmsActiveGet =
         req.method === 'GET' &&
         /^\/api\/cms\/[^/]+\/active$/.test(req.path || '');
+
+      // Check if IP is whitelisted
+      if (this.whitelistedIPs.has(clientIp)) {
+        this.addSecurityHeaders(res);
+        const requestSignature = this.generateRequestSignature(req);
+        (req as any).securitySignature = requestSignature;
+        return next();
+      }
 
       if (isDocsOrFavicon || isPublicPath || isCmsActiveGet || isDevLocal) {
         this.addSecurityHeaders(res);
@@ -331,5 +343,23 @@ export class SecurityMiddleware implements NestMiddleware {
   // Method to get blocked IPs
   getBlockedIPs(): string[] {
     return Array.from(this.blockedIPs);
+  }
+
+  // Method to add IP to whitelist
+  whitelistIP(ip: string) {
+    this.whitelistedIPs.add(ip);
+    // Also unblock if it was blocked
+    this.blockedIPs.delete(ip);
+    this.requestCounts.delete(ip);
+  }
+
+  // Method to remove IP from whitelist
+  removeFromWhitelist(ip: string) {
+    this.whitelistedIPs.delete(ip);
+  }
+
+  // Method to get whitelisted IPs
+  getWhitelistedIPs(): string[] {
+    return Array.from(this.whitelistedIPs);
   }
 }

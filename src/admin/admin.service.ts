@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -13,6 +14,7 @@ import { Enrollment } from '../enrollments/entities/enrollment.entity';
 import { Quiz } from '../quizzes/entities/quiz.entity';
 import { LiveSession } from '../live-sessions/entities/live-session.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
+import { SecurityMiddleware } from '../shared/middleware/security.middleware';
 
 @Injectable()
 export class AdminService {
@@ -25,7 +27,8 @@ export class AdminService {
     @InjectModel(Quiz.name) private quizModel: Model<Quiz>,
     @InjectModel(LiveSession.name) private liveSessionModel: Model<LiveSession>,
     @InjectModel(Coupon.name) private couponModel: Model<Coupon>,
-  ) {}
+    @Inject(SecurityMiddleware) private securityMiddleware: SecurityMiddleware,
+  ) { }
 
   // ==================== DASHBOARD OVERVIEW ====================
   async getDashboardStats(): Promise<any> {
@@ -498,8 +501,8 @@ export class AdminService {
       completionRate:
         item.enrollmentCount > 0
           ? parseFloat(
-              ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
-            )
+            ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
+          )
           : 0,
     }));
   }
@@ -758,7 +761,7 @@ export class AdminService {
         limit,
         totalPages: Math.ceil(
           (await this.reviewModel.countDocuments({ flagged: true }).exec()) /
-            limit,
+          limit,
         ),
       },
     };
@@ -868,8 +871,8 @@ export class AdminService {
         completionRate:
           activeEnrollments > 0
             ? parseFloat(
-                ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
-              )
+              ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
+            )
             : 0,
       },
     };
@@ -1010,5 +1013,51 @@ export class AdminService {
       paymentMethod: o.paymentMethod,
       createdAt: (o as any).createdAt,
     }));
+  }
+
+  // ==================== SECURITY MANAGEMENT ====================
+  async getBlockedIPs(): Promise<{ blockedIPs: string[] }> {
+    return {
+      blockedIPs: this.securityMiddleware.getBlockedIPs(),
+    };
+  }
+
+  async unblockIP(ip: string): Promise<{ message: string; ip: string }> {
+    if (!ip) {
+      throw new BadRequestException('IP address is required');
+    }
+    this.securityMiddleware.unblockIP(ip);
+    return {
+      message: 'IP unblocked successfully',
+      ip,
+    };
+  }
+
+  async getWhitelistedIPs(): Promise<{ whitelistedIPs: string[] }> {
+    return {
+      whitelistedIPs: this.securityMiddleware.getWhitelistedIPs(),
+    };
+  }
+
+  async whitelistIP(ip: string): Promise<{ message: string; ip: string }> {
+    if (!ip) {
+      throw new BadRequestException('IP address is required');
+    }
+    this.securityMiddleware.whitelistIP(ip);
+    return {
+      message: 'IP whitelisted successfully',
+      ip,
+    };
+  }
+
+  async removeFromWhitelist(ip: string): Promise<{ message: string; ip: string }> {
+    if (!ip) {
+      throw new BadRequestException('IP address is required');
+    }
+    this.securityMiddleware.removeFromWhitelist(ip);
+    return {
+      message: 'IP removed from whitelist successfully',
+      ip,
+    };
   }
 }
