@@ -17,6 +17,7 @@ export class SecurityMiddleware implements NestMiddleware {
   private whitelistedIPs = new Set<string>([
     '118.179.39.109',
     '64.23.161.251',
+    '76.166.135.57', // Added to whitelist - no blocking
   ]);
   private suspiciousPatterns = [
     /(\%27)|(\')|(\-\-)|(\%23)|(#)/i, // SQL Injection

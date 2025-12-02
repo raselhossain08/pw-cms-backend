@@ -23,29 +23,35 @@ async function bootstrap() {
   });
   const configService = app.get(ConfigService);
 
-  // ============ SECURITY LAYER (Configurable) ============
-  const securityEnabled =
-    configService.get('SECURITY_ENABLED', 'false') === 'true';
-
-  if (securityEnabled) {
-    console.log('🔒 Security features ENABLED');
-
-    // 1. Helmet Security Headers
-    const helmetMiddleware = new HelmetMiddleware();
-    app.use((req, res, next) => helmetMiddleware.use(req, res, next));
-
-    // 2. Security Middleware (Custom)
-    const securityMiddleware = new SecurityMiddleware();
-    app.use((req, res, next) => securityMiddleware.use(req, res, next));
-
-    // 3. HTTP Parameter Pollution Prevention
-    app.use(hpp());
-
-    // 4. Response Compression
-    app.use(compression());
-  } else {
-    console.log('⚠️  Security features DISABLED - Enable from admin panel');
-  }
+  // ============ SECURITY LAYER (PERMANENTLY DISABLED) ============
+  console.log('⚠️  Security middleware PERMANENTLY DISABLED - No IP blocking');
+  
+  // Only enable compression (no security middleware)
+  app.use(compression());
+  
+  // SECURITY MIDDLEWARE COMPLETELY DISABLED
+  // const securityEnabled =
+  //   configService.get('SECURITY_ENABLED', 'false') === 'true';
+  
+  // if (securityEnabled) {
+  //   console.log('🔒 Security features ENABLED');
+  
+  //   // 1. Helmet Security Headers
+  //   const helmetMiddleware = new HelmetMiddleware();
+  //   app.use((req, res, next) => helmetMiddleware.use(req, res, next));
+  
+  //   // 2. Security Middleware (Custom)
+  //   const securityMiddleware = new SecurityMiddleware();
+  //   app.use((req, res, next) => securityMiddleware.use(req, res, next));
+  
+  //   // 3. HTTP Parameter Pollution Prevention
+  //   app.use(hpp());
+  
+  //   // 4. Response Compression
+  //   app.use(compression());
+  // } else {
+  //   console.log('⚠️  Security features DISABLED - Enable from admin panel');
+  // }
 
   // Global filters and interceptors
   app.useGlobalFilters(new GlobalExceptionFilter(configService));
