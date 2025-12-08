@@ -947,4 +947,13 @@ export class AiBotService {
       return null;
     }
   }
+  getStatus() {
+    const enabled = this.chatGPTService.isEnabled();
+    const provider = this.chatGPTService.getProvider();
+    const models = {
+      openai: 'gpt-4o-mini',
+      gemini: 'gemini-2.0-flash',
+    };
+    return { enabled, provider, models };
+  }
 }

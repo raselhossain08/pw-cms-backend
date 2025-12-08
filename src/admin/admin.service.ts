@@ -28,7 +28,7 @@ export class AdminService {
     @InjectModel(LiveSession.name) private liveSessionModel: Model<LiveSession>,
     @InjectModel(Coupon.name) private couponModel: Model<Coupon>,
     @Inject(SecurityMiddleware) private securityMiddleware: SecurityMiddleware,
-  ) { }
+  ) {}
 
   // ==================== DASHBOARD OVERVIEW ====================
   async getDashboardStats(): Promise<any> {
@@ -501,8 +501,8 @@ export class AdminService {
       completionRate:
         item.enrollmentCount > 0
           ? parseFloat(
-            ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
-          )
+              ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
+            )
           : 0,
     }));
   }
@@ -761,7 +761,7 @@ export class AdminService {
         limit,
         totalPages: Math.ceil(
           (await this.reviewModel.countDocuments({ flagged: true }).exec()) /
-          limit,
+            limit,
         ),
       },
     };
@@ -871,8 +871,8 @@ export class AdminService {
         completionRate:
           activeEnrollments > 0
             ? parseFloat(
-              ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
-            )
+                ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
+              )
             : 0,
       },
     };
@@ -1050,7 +1050,9 @@ export class AdminService {
     };
   }
 
-  async removeFromWhitelist(ip: string): Promise<{ message: string; ip: string }> {
+  async removeFromWhitelist(
+    ip: string,
+  ): Promise<{ message: string; ip: string }> {
     if (!ip) {
       throw new BadRequestException('IP address is required');
     }

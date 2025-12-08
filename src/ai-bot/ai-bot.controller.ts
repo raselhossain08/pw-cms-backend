@@ -37,13 +37,19 @@ export class AiBotController {
   @Post('chat')
   @UseGuards(JwtAuthGuard)
   sendMessage(@Body() sendMessageDto: SendMessageDto, @Request() req) {
-    return this.aiBotService.sendMessage(req.user.userId, sendMessageDto);
+    return this.aiBotService.sendMessage(req.user.id, sendMessageDto);
   }
 
   @Get('history')
   @UseGuards(JwtAuthGuard)
   getHistory(@Request() req, @Query('sessionId') sessionId?: string) {
     return this.aiBotService.getConversationHistory(req.user.userId, sessionId);
+  }
+
+  @Get('status')
+  @UseGuards(JwtAuthGuard)
+  getStatus() {
+    return this.aiBotService.getStatus();
   }
 
   @Post('rate')
@@ -62,7 +68,7 @@ export class AiBotController {
     return this.aiBotService.escalateToHuman(
       escalateDto.sessionId,
       escalateDto.reason || 'user_request',
-      req.user.userId,
+      req.user.id,
     );
   }
 
@@ -117,7 +123,7 @@ export class AiBotController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
   createTask(@Body() createTaskDto: CreateBotTaskDto, @Request() req) {
-    return this.aiBotService.createTask(createTaskDto, req.user.userId);
+    return this.aiBotService.createTask(createTaskDto, req.user.id);
   }
 
   @Get('tasks')

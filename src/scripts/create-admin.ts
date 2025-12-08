@@ -12,13 +12,20 @@ async function createAdmin() {
 
   try {
     // Get admin credentials from environment variables
-    const adminEmail = configService.get<string>('SUPER_ADMIN_EMAIL') || 'admin@personalwings.com';
-    const adminPassword = configService.get<string>('SUPER_ADMIN_PASSWORD') || 'Admin123@@';
-    const adminFirstName = configService.get<string>('SUPER_ADMIN_FIRST_NAME') || 'Super';
-    const adminLastName = configService.get<string>('SUPER_ADMIN_LAST_NAME') || 'Admin';
+    const adminEmail =
+      configService.get<string>('SUPER_ADMIN_EMAIL') ||
+      'admin@personalwings.com';
+    const adminPassword =
+      configService.get<string>('SUPER_ADMIN_PASSWORD') || 'Admin123@@';
+    const adminFirstName =
+      configService.get<string>('SUPER_ADMIN_FIRST_NAME') || 'Super';
+    const adminLastName =
+      configService.get<string>('SUPER_ADMIN_LAST_NAME') || 'Admin';
 
     if (!adminEmail || !adminPassword) {
-      throw new Error('SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD must be set in .env file');
+      throw new Error(
+        'SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD must be set in .env file',
+      );
     }
 
     console.log('🔄 Creating/Updating Super Admin with email:', adminEmail);

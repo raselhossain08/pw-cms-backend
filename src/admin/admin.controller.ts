@@ -19,7 +19,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   // ==================== DASHBOARD ====================
   @Get('dashboard/stats')

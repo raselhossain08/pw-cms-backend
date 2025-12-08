@@ -277,7 +277,9 @@ export class SecurityMiddleware implements NestMiddleware {
     // }
 
     // IP blocking is disabled - only log violations
-    console.warn(`[SECURITY VIOLATION] IP: ${ip} - Violation count: ${violations}`);
+    console.warn(
+      `[SECURITY VIOLATION] IP: ${ip} - Violation count: ${violations}`,
+    );
   }
 
   // Method to manually unblock IP (admin use)

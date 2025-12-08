@@ -35,4 +35,4 @@ import { SecurityMiddleware } from '../shared/middleware/security.middleware';
   providers: [AdminService, SecurityMiddleware],
   exports: [AdminService],
 })
-export class AdminModule { }
+export class AdminModule {}

@@ -7,11 +7,16 @@ import { BotIntent } from '../entities/ai-bot.entity';
 export class ChatGPTService {
   private openai: OpenAI;
   private systemPrompt: string;
+  private geminiApiKey?: string;
+  private geminiModel = 'gemini-2.0-flash';
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    this.geminiApiKey =
+      this.configService.get<string>('GEMINI_API_KEY') ||
+      this.configService.get<string>('GOOGLE_API_KEY');
 
-    if (apiKey) {
+    if (apiKey && !this.isPlaceholderKey(apiKey)) {
       this.openai = new OpenAI({ apiKey });
     }
 
@@ -64,6 +69,40 @@ When responding:
 4. Always be positive and solution-oriented`;
   }
 
+  private isPlaceholderKey(key: string): boolean {
+    const k = (key || '').toLowerCase();
+    return (
+      k.includes('sk-your') ||
+      k.includes('your-api') ||
+      k.includes('placeholder')
+    );
+  }
+
+  private async callGemini(prompt: string): Promise<string | null> {
+    if (!this.geminiApiKey) return null;
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent?key=${this.geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }],
+              },
+            ],
+          }),
+        },
+      );
+      const json: any = await res.json();
+      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      return text;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async detectIntentWithGPT(
     message: string,
     conversationHistory: any[],
@@ -72,46 +111,71 @@ When responding:
     confidence: number;
     reasoning?: string;
   }> {
-    if (!this.openai) {
+    if (!this.openai && !this.geminiApiKey) {
       return { intent: BotIntent.GENERAL_QUESTION, confidence: 0.5 };
     }
 
     try {
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an intent classifier for a customer service chatbot. 
-            Classify the user's message into ONE of these intents:
-            - greeting
-            - goodbye
-            - course_inquiry
-            - enrollment_help
-            - payment_issue
-            - technical_support
-            - refund_request
-            - certificate_inquiry
-            - account_help
-            - complaint
-            - feedback
-            - human_agent_request
-            - general_question
-            
-            Respond in JSON format: {"intent": "intent_name", "confidence": 0.95, "reasoning": "brief explanation"}`,
-          },
-          { role: 'user', content: message },
-        ],
-        temperature: 0.3,
-        max_tokens: 100,
-      });
+      let responseText: string | null = null;
 
-      const response = completion.choices[0].message.content;
-      if (!response) {
+      if (this.openai) {
+        try {
+          const completion = await this.openai.chat.completions.create({
+            model: 'gpt-3.5-turbo',
+            messages: [
+              {
+                role: 'system',
+                content: `You are an intent classifier for a customer service chatbot. 
+                Classify the user's message into ONE of these intents:
+                - greeting
+                - goodbye
+                - course_inquiry
+                - enrollment_help
+                - payment_issue
+                - technical_support
+                - refund_request
+                - certificate_inquiry
+                - account_help
+                - complaint
+                - feedback
+                - human_agent_request
+                - general_question
+                
+                Respond in JSON format: {"intent": "intent_name", "confidence": 0.95, "reasoning": "brief explanation"}`,
+              },
+              { role: 'user', content: message },
+            ],
+            temperature: 0.3,
+            max_tokens: 100,
+          });
+          responseText = completion.choices[0].message.content || null;
+        } catch (e) {
+          responseText = null;
+        }
+      }
+
+      if (!responseText && this.geminiApiKey) {
+        responseText = await this.callGemini(
+          `Classify this user's message into ONE intent from [greeting, goodbye, course_inquiry, enrollment_help, payment_issue, technical_support, refund_request, certificate_inquiry, account_help, complaint, feedback, human_agent_request, general_question].
+Return JSON like {"intent":"intent_name","confidence":0.95,"reasoning":"brief"}.
+User message: ${message}`,
+        );
+      }
+
+      if (!responseText) {
         return { intent: BotIntent.GENERAL_QUESTION, confidence: 0.5 };
       }
 
-      const parsed = JSON.parse(response);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(responseText);
+      } catch {
+        // try to extract JSON substring
+        const match = responseText.match(/\{[\s\S]*\}/);
+        parsed = match
+          ? JSON.parse(match[0])
+          : { intent: 'general_question', confidence: 0.5 };
+      }
 
       return {
         intent: parsed.intent as BotIntent,
@@ -134,7 +198,7 @@ When responding:
     quickReplies?: string[];
     suggestedActions?: string[];
   }> {
-    if (!this.openai) {
+    if (!this.openai && !this.geminiApiKey) {
       return {
         message:
           "I'm having trouble connecting to my AI brain right now. Let me connect you with a human agent.",
@@ -143,36 +207,47 @@ When responding:
     }
 
     try {
-      // Build conversation context
-      const messages: any[] = [{ role: 'system', content: this.systemPrompt }];
+      let responseText: string | null = null;
 
-      // Add recent conversation history (last 5 messages)
-      conversationHistory.slice(-5).forEach((msg) => {
-        messages.push({
-          role: msg.role === 'bot' ? 'assistant' : 'user',
-          content: msg.content,
-        });
-      });
-
-      // Add user context if available
-      if (userContext) {
-        messages.push({
-          role: 'system',
-          content: `User context: ${JSON.stringify(userContext)}`,
-        });
+      if (this.openai) {
+        try {
+          const messages: any[] = [
+            { role: 'system', content: this.systemPrompt },
+          ];
+          conversationHistory.slice(-5).forEach((msg) => {
+            messages.push({
+              role: msg.role === 'bot' ? 'assistant' : 'user',
+              content: msg.content,
+            });
+          });
+          if (userContext) {
+            messages.push({
+              role: 'system',
+              content: `User context: ${JSON.stringify(userContext)}`,
+            });
+          }
+          messages.push({ role: 'user', content: message });
+          const completion = await this.openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages,
+            temperature: 0.7,
+            max_tokens: 300,
+          });
+          responseText = completion.choices[0].message.content || null;
+        } catch (e) {
+          responseText = null;
+        }
       }
 
-      // Add current message
-      messages.push({ role: 'user', content: message });
+      if (!responseText && this.geminiApiKey) {
+        const contextText = conversationHistory
+          .slice(-5)
+          .map((m: any) => `${m.role}: ${m.content}`)
+          .join('\n');
+        const prompt = `${this.systemPrompt}\n\nRecent conversation:\n${contextText}\n\nUser context: ${userContext ? JSON.stringify(userContext) : '{}'}\n\nUser: ${message}`;
+        responseText = await this.callGemini(prompt);
+      }
 
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini', // or 'gpt-4' for better quality
-        messages,
-        temperature: 0.7,
-        max_tokens: 300,
-      });
-
-      const responseText = completion.choices[0].message.content;
       if (!responseText) {
         return {
           message:
@@ -203,31 +278,42 @@ When responding:
     question: string,
     knowledgeBaseContext?: string,
   ): Promise<string> {
-    if (!this.openai) {
+    if (!this.openai && !this.geminiApiKey) {
       return "I'm currently unable to process your question. Please try again or contact support.";
     }
 
     try {
-      const messages: any[] = [{ role: 'system', content: this.systemPrompt }];
-
-      if (knowledgeBaseContext) {
-        messages.push({
-          role: 'system',
-          content: `Relevant knowledge base articles:\n${knowledgeBaseContext}`,
-        });
+      if (this.openai) {
+        try {
+          const messages: any[] = [
+            { role: 'system', content: this.systemPrompt },
+          ];
+          if (knowledgeBaseContext) {
+            messages.push({
+              role: 'system',
+              content: `Relevant knowledge base articles:\n${knowledgeBaseContext}`,
+            });
+          }
+          messages.push({ role: 'user', content: question });
+          const completion = await this.openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages,
+            temperature: 0.5,
+            max_tokens: 250,
+          });
+          return (
+            completion.choices[0].message.content ||
+            'I apologize, but I encountered an error processing your question.'
+          );
+        } catch (e) {
+          // Fall through to Gemini path
+        }
       }
 
-      messages.push({ role: 'user', content: question });
-
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages,
-        temperature: 0.5,
-        max_tokens: 250,
-      });
-
+      const prompt = `${this.systemPrompt}\n\n${knowledgeBaseContext ? `Relevant knowledge base:\n${knowledgeBaseContext}\n\n` : ''}User question: ${question}`;
+      const text = await this.callGemini(prompt);
       return (
-        completion.choices[0].message.content ||
+        text ||
         'I apologize, but I encountered an error processing your question.'
       );
     } catch (error) {
@@ -326,6 +412,12 @@ When responding:
   }
 
   isEnabled(): boolean {
-    return !!this.openai;
+    return !!this.openai || !!this.geminiApiKey;
+  }
+
+  getProvider(): 'openai' | 'gemini' | 'disabled' {
+    if (this.openai) return 'openai';
+    if (this.geminiApiKey) return 'gemini';
+    return 'disabled';
   }
 }
