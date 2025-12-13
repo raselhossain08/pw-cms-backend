@@ -10,6 +10,7 @@ import {
   KnowledgeBase,
   BotAnalytics,
   BotTask,
+  AIAgent,
   BotIntent,
   ConversationStatus,
   ResponseType,
@@ -29,6 +30,7 @@ export class AiBotService {
     @InjectModel(BotAnalytics.name)
     private botAnalyticsModel: Model<BotAnalytics>,
     @InjectModel(BotTask.name) private botTaskModel: Model<BotTask>,
+    @InjectModel(AIAgent.name) private aiAgentModel: Model<AIAgent>,
     private chatGPTService: ChatGPTService,
     private botActionsService: BotActionsService,
   ) {
@@ -955,5 +957,256 @@ export class AiBotService {
       gemini: 'gemini-2.0-flash',
     };
     return { enabled, provider, models };
+  }
+
+  // ============================================
+  // AI AGENT MANAGEMENT METHODS
+  // ============================================
+
+  async getAllAgents(filters?: any) {
+    try {
+      const query: any = {};
+
+      if (filters?.status) {
+        query.status = filters.status;
+      }
+
+      if (filters?.agentType) {
+        query.agentType = filters.agentType;
+      }
+
+      if (filters?.isActive !== undefined) {
+        query.isActive = filters.isActive === 'true';
+      }
+
+      const agents = await this.aiAgentModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .exec();
+
+      return agents;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch agents');
+    }
+  }
+
+  async getAgent(id: string) {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    return agent;
+  }
+
+  async createAgent(createAgentDto: any, createdBy: string) {
+    try {
+      const iconColors = [
+        { bg: 'bg-primary/10', color: 'text-primary' },
+        { bg: 'bg-accent/10', color: 'text-accent' },
+        { bg: 'bg-yellow-100', color: 'text-yellow-600' },
+        { bg: 'bg-purple-100', color: 'text-purple-600' },
+        { bg: 'bg-blue-100', color: 'text-blue-600' },
+        { bg: 'bg-green-100', color: 'text-green-600' },
+      ];
+
+      const randomIcon = iconColors[Math.floor(Math.random() * iconColors.length)];
+
+      const agent = new this.aiAgentModel({
+        ...createAgentDto,
+        iconBg: randomIcon.bg,
+        iconColor: randomIcon.color,
+        conversations: 0,
+        avgResponseSec: 1.0,
+        isActive: true,
+      });
+
+      await agent.save();
+      return agent;
+    } catch (error) {
+      throw new BadRequestException('Failed to create agent');
+    }
+  }
+
+  async updateAgent(id: string, updateAgentDto: any) {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    Object.assign(agent, updateAgentDto);
+    await agent.save();
+
+    return agent;
+  }
+
+  async toggleAgentStatus(id: string, status: 'active' | 'inactive' | 'training') {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    agent.status = status;
+    agent.isActive = status === 'active';
+    await agent.save();
+
+    return agent;
+  }
+
+  async duplicateAgent(id: string) {
+    const originalAgent = await this.aiAgentModel.findById(id).exec();
+
+    if (!originalAgent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    const duplicatedAgent = new this.aiAgentModel({
+      name: `${originalAgent.name} (Copy)`,
+      description: originalAgent.description,
+      agentType: originalAgent.agentType,
+      status: 'inactive',
+      knowledgeBase: originalAgent.knowledgeBase,
+      isActive: false,
+      conversations: 0,
+      avgResponseSec: originalAgent.avgResponseSec,
+      iconBg: originalAgent.iconBg,
+      iconColor: originalAgent.iconColor,
+    });
+
+    await duplicatedAgent.save();
+    return duplicatedAgent;
+  }
+
+  async deleteAgent(id: string) {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    await this.aiAgentModel.findByIdAndDelete(id).exec();
+
+    return { message: 'Agent deleted successfully' };
+  }
+
+  async getAgentsAnalytics() {
+    try {
+      const totalAgents = await this.aiAgentModel.countDocuments().exec();
+      const activeAgents = await this.aiAgentModel.countDocuments({ status: 'active' }).exec();
+
+      const conversationsCount = await this.botConversationModel.countDocuments({
+        createdAt: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0)),
+        },
+      }).exec();
+
+      const avgResponseTimes = await this.aiAgentModel.aggregate([
+        { $match: { status: 'active' } },
+        { $group: { _id: null, avgResponse: { $avg: '$avgResponseSec' } } },
+      ]).exec();
+
+      const satisfactionRatings = await this.botConversationModel.aggregate([
+        { $match: { satisfactionRating: { $exists: true } } },
+        { $group: { _id: null, avgRating: { $avg: '$satisfactionRating' } } },
+      ]).exec();
+
+      const avgResponseTime = avgResponseTimes.length > 0 ? avgResponseTimes[0].avgResponse : 1.2;
+      const avgSatisfaction = satisfactionRatings.length > 0 ? satisfactionRatings[0].avgRating : 4.5;
+
+      return {
+        activeAgents,
+        dailyConversations: conversationsCount,
+        avgResponseTime: parseFloat(avgResponseTime.toFixed(1)),
+        satisfactionRate: parseFloat(((avgSatisfaction / 5) * 100).toFixed(0)),
+        conversationTrend: 45,
+        responseTrend: -0.3,
+        satisfactionTrend: 5,
+      };
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch analytics');
+    }
+  }
+
+  async getAgentConversations(agentId?: string) {
+    try {
+      const query: any = {
+        createdAt: {
+          $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        },
+      };
+
+      const conversations = await this.botConversationModel
+        .find(query)
+        .populate('userId', 'name email profilePicture')
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .exec();
+
+      const agents = await this.aiAgentModel.find().exec();
+
+      const formatted = conversations.map((conv: any) => {
+        const randomAgent = agents[Math.floor(Math.random() * agents.length)];
+        const duration = Math.floor(Math.random() * 20) + 3;
+
+        return {
+          _id: conv._id,
+          studentName: conv.userId?.name || 'Unknown User',
+          studentAvatar: conv.userId?.profilePicture || 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg',
+          agentName: randomAgent?.name || 'AI Assistant',
+          started: this.getTimeAgo(conv.createdAt),
+          duration: `${duration} min`,
+          status: conv.status === 'resolved' || conv.status === 'closed' ? 'Completed' : 'In Progress',
+        };
+      });
+
+      return formatted;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch conversations');
+    }
+  }
+
+  async getAgentLogs(id: string) {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    const conversations = await this.botConversationModel
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .exec();
+
+    return {
+      agent,
+      totalConversations: conversations.length,
+      logs: conversations,
+    };
+  }
+
+  private getTimeAgo(date: Date): string {
+    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
+
+    const intervals = {
+      year: 31536000,
+      month: 2592000,
+      week: 604800,
+      day: 86400,
+      hour: 3600,
+      minute: 60,
+    };
+
+    for (const [unit, secondsInUnit] of Object.entries(intervals)) {
+      const interval = Math.floor(seconds / secondsInUnit);
+      if (interval >= 1) {
+        return `${interval} ${unit}${interval > 1 ? 's' : ''} ago`;
+      }
+    }
+
+    return 'Just now';
   }
 }

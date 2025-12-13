@@ -253,14 +253,15 @@ export class CoursesController {
   @ApiResponse({ status: 200, description: 'Lessons reordered' })
   async reorderLessons(
     @Param('id') courseId: string,
-    @Body('lessonIds') lessonIds: string[],
+    @Body() body: { lessonIds: string[]; moduleId?: string },
     @Req() req,
   ) {
     return this.coursesService.reorderLessons(
       courseId,
-      lessonIds,
+      body.lessonIds,
       req.user.id,
       req.user.role,
+      body.moduleId,
     );
   }
 }

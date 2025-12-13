@@ -27,7 +27,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(private readonly chatService: ChatService) { }
 
   @Post('conversations')
   @ApiOperation({ summary: 'Create a new conversation' })
@@ -111,6 +111,13 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Conversation deleted' })
   async deleteConversation(@Param('id') id: string, @Req() req) {
     return this.chatService.deleteConversation(id, req.user.id);
+  }
+
+  @Delete('messages/:id')
+  @ApiOperation({ summary: 'Delete a message' })
+  @ApiResponse({ status: 200, description: 'Message deleted successfully' })
+  async deleteMessage(@Param('id') messageId: string, @Req() req) {
+    return this.chatService.deleteMessage(messageId, req.user.id);
   }
 
   @Get('unread-count')

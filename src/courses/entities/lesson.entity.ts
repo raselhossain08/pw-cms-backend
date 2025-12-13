@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { ApiProperty } from '@nestjs/swagger';
 import { Course } from './course.entity';
+import { CourseModule } from '../../course-modules/entities/course-module.entity';
 
 export enum LessonType {
   VIDEO = 'video',
@@ -100,6 +101,10 @@ export class Lesson extends Document {
   @ApiProperty({ type: String, description: 'Course ID' })
   @Prop({ type: Types.ObjectId, ref: 'Course', required: true })
   course: Types.ObjectId | Course;
+
+  @ApiProperty({ type: String, description: 'Module ID', required: false })
+  @Prop({ type: Types.ObjectId, ref: 'CourseModule' })
+  module?: Types.ObjectId | CourseModule;
 
   @ApiProperty({
     example: 85,

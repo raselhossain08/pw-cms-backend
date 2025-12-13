@@ -9,7 +9,7 @@ import { Coupon, CouponType } from './entities/coupon.entity';
 
 @Injectable()
 export class CouponsService {
-  constructor(@InjectModel(Coupon.name) private couponModel: Model<Coupon>) {}
+  constructor(@InjectModel(Coupon.name) private couponModel: Model<Coupon>) { }
 
   async create(data: {
     code: string;
@@ -66,6 +66,48 @@ export class CouponsService {
   }
 
   async findAll(): Promise<Coupon[]> {
-    return this.couponModel.find({ isActive: true }).exec();
+    return this.couponModel.find().sort({ createdAt: -1 }).exec();
+  }
+
+  async findOne(id: string): Promise<Coupon> {
+    const coupon = await this.couponModel.findById(id);
+    if (!coupon) {
+      throw new NotFoundException(`Coupon with ID ${id} not found`);
+    }
+    return coupon;
+  }
+
+  async update(id: string, data: Partial<{
+    code: string;
+    type: CouponType;
+    value: number;
+    expiresAt?: Date;
+    maxUses?: number;
+    minPurchaseAmount?: number;
+    isActive?: boolean;
+  }>): Promise<Coupon> {
+    const coupon = await this.couponModel.findByIdAndUpdate(
+      id,
+      { $set: data },
+      { new: true, runValidators: true }
+    );
+    if (!coupon) {
+      throw new NotFoundException(`Coupon with ID ${id} not found`);
+    }
+    return coupon;
+  }
+
+  async toggleStatus(id: string): Promise<Coupon> {
+    const coupon = await this.findOne(id);
+    coupon.isActive = !coupon.isActive;
+    return await coupon.save();
+  }
+
+  async remove(id: string): Promise<{ message: string }> {
+    const result = await this.couponModel.findByIdAndDelete(id);
+    if (!result) {
+      throw new NotFoundException(`Coupon with ID ${id} not found`);
+    }
+    return { message: 'Coupon deleted successfully' };
   }
 }

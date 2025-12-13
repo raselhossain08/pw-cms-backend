@@ -31,7 +31,7 @@ import { EnrollmentStatus } from './entities/enrollment.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class EnrollmentsController {
-  constructor(private readonly enrollmentsService: EnrollmentsService) {}
+  constructor(private readonly enrollmentsService: EnrollmentsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Enroll in a course' })
@@ -129,5 +129,148 @@ export class EnrollmentsController {
   @ApiResponse({ status: 200, description: 'Enrollment statistics' })
   async getCourseStats(@Param('courseId') courseId: string) {
     return this.enrollmentsService.getEnrollmentStats(courseId);
+  }
+
+  // Admin endpoints
+  @Get('admin/all')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get all enrollments (admin)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'courseId', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, enum: EnrollmentStatus })
+  @ApiQuery({ name: 'instructorId', required: false, type: String })
+  @ApiQuery({ name: 'sortBy', required: false, type: String })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
+  @ApiResponse({ status: 200, description: 'List of all enrollments' })
+  async getAllEnrollments(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('courseId') courseId?: string,
+    @Query('status') status?: EnrollmentStatus,
+    @Query('instructorId') instructorId?: string,
+    @Query('sortBy') sortBy: string = 'createdAt',
+    @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'desc',
+  ) {
+    return this.enrollmentsService.getAllEnrollments({
+      page,
+      limit,
+      search,
+      courseId,
+      status,
+      instructorId,
+      sortBy,
+      sortOrder,
+    });
+  }
+
+  @Get('admin/stats')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get enrollment statistics (admin)' })
+  @ApiResponse({ status: 200, description: 'Enrollment statistics' })
+  async getAdminStats() {
+    return this.enrollmentsService.getAdminStats();
+  }
+
+  @Get('admin/distribution')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get course enrollment distribution' })
+  @ApiResponse({ status: 200, description: 'Course distribution data' })
+  async getCourseDistribution() {
+    return this.enrollmentsService.getCourseDistribution();
+  }
+
+  @Get('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get enrollment by ID (admin)' })
+  @ApiResponse({ status: 200, description: 'Enrollment details' })
+  async getEnrollmentById(@Param('id') id: string) {
+    return this.enrollmentsService.getEnrollmentById(id);
+  }
+
+  @Post('admin')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Create enrollment (admin)' })
+  @ApiResponse({ status: 201, description: 'Enrollment created' })
+  async createEnrollmentAdmin(@Body() createEnrollmentDto: CreateEnrollmentDto) {
+    return this.enrollmentsService.createEnrollmentAdmin(createEnrollmentDto);
+  }
+
+  @Patch('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update enrollment (admin)' })
+  @ApiResponse({ status: 200, description: 'Enrollment updated' })
+  async updateEnrollmentAdmin(
+    @Param('id') id: string,
+    @Body() updateData: any,
+  ) {
+    return this.enrollmentsService.updateEnrollmentAdmin(id, updateData);
+  }
+
+  @Delete('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Delete enrollment (admin)' })
+  @ApiResponse({ status: 200, description: 'Enrollment deleted' })
+  async deleteEnrollmentAdmin(@Param('id') id: string) {
+    return this.enrollmentsService.deleteEnrollmentAdmin(id);
+  }
+
+  @Post('admin/bulk-delete')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bulk delete enrollments (admin)' })
+  @ApiResponse({ status: 200, description: 'Enrollments deleted' })
+  async bulkDeleteEnrollments(@Body('ids') ids: string[]) {
+    return this.enrollmentsService.bulkDeleteEnrollments(ids);
+  }
+
+  @Patch('admin/:id/approve')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Approve pending enrollment' })
+  @ApiResponse({ status: 200, description: 'Enrollment approved' })
+  async approveEnrollmentAdmin(@Param('id') id: string) {
+    return this.enrollmentsService.approveEnrollment(id);
+  }
+
+  @Patch('admin/:id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Cancel enrollment' })
+  @ApiResponse({ status: 200, description: 'Enrollment cancelled' })
+  async cancelEnrollmentAdmin(
+    @Param('id') id: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.enrollmentsService.cancelEnrollmentAdmin(id, reason);
+  }
+
+  @Get('admin/export')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Export enrollments data' })
+  @ApiQuery({ name: 'format', required: false, enum: ['csv', 'xlsx', 'pdf'] })
+  @ApiQuery({ name: 'courseId', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, enum: EnrollmentStatus })
+  @ApiResponse({ status: 200, description: 'Export file' })
+  async exportEnrollments(
+    @Query('format') format: 'csv' | 'xlsx' | 'pdf' = 'csv',
+    @Query('courseId') courseId?: string,
+    @Query('status') status?: EnrollmentStatus,
+  ) {
+    return this.enrollmentsService.exportEnrollments({
+      format,
+      courseId,
+      status,
+    });
   }
 }

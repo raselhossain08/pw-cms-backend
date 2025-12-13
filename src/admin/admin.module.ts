@@ -16,6 +16,8 @@ import {
   LiveSessionSchema,
 } from '../live-sessions/entities/live-session.entity';
 import { Coupon, CouponSchema } from '../coupons/entities/coupon.entity';
+import { Transaction, TransactionSchema } from '../payments/entities/transaction.entity';
+import { Invoice, InvoiceSchema } from '../payments/entities/invoice.entity';
 import { SecurityMiddleware } from '../shared/middleware/security.middleware';
 
 @Module({
@@ -29,10 +31,12 @@ import { SecurityMiddleware } from '../shared/middleware/security.middleware';
       { name: Quiz.name, schema: QuizSchema },
       { name: LiveSession.name, schema: LiveSessionSchema },
       { name: Coupon.name, schema: CouponSchema },
+      { name: Transaction.name, schema: TransactionSchema },
+      { name: Invoice.name, schema: InvoiceSchema },
     ]),
   ],
   controllers: [AdminController],
   providers: [AdminService, SecurityMiddleware],
   exports: [AdminService],
 })
-export class AdminModule {}
+export class AdminModule { }

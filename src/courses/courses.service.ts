@@ -19,7 +19,7 @@ export class CoursesService {
   constructor(
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) {}
+  ) { }
 
   async create(
     createCourseDto: CreateCourseDto,
@@ -31,17 +31,47 @@ export class CoursesService {
     );
     console.log('Thumbnail URL:', createCourseDto.thumbnail);
 
-    const existingCourse = await this.courseModel.findOne({
-      slug: createCourseDto.slug,
-    });
-    if (existingCourse) {
-      throw new ConflictException('Course with this slug already exists');
+    const cleanTitle = (createCourseDto.title || '').toLowerCase().trim();
+    let slug = (createCourseDto.slug || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+    if (!slug && cleanTitle) {
+      slug = cleanTitle
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
+    }
+
+    if (!slug) {
+      throw new ConflictException('Course slug could not be generated');
+    }
+
+    // Ensure unique slug
+    let baseSlug = slug;
+    let counter = 1;
+    while (await this.courseModel.findOne({ slug })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
     }
 
     const duration =
       (createCourseDto as any).duration ?? createCourseDto.durationHours;
+
+    // Transform isPublished to status
+    const courseData: any = { ...createCourseDto };
+    if (createCourseDto.isPublished !== undefined) {
+      courseData.status = createCourseDto.isPublished
+        ? CourseStatus.PUBLISHED
+        : CourseStatus.DRAFT;
+      delete courseData.isPublished;
+    }
+
     const course = new this.courseModel({
-      ...createCourseDto,
+      ...courseData,
+      slug,
       duration,
       instructor: new Types.ObjectId(instructorId),
     });
@@ -101,10 +131,10 @@ export class CoursesService {
       _id: course._id.toString(),
       instructor: course.instructor
         ? {
-            ...course.instructor,
-            id: course.instructor._id.toString(),
-            _id: course.instructor._id.toString(),
-          }
+          ...course.instructor,
+          id: course.instructor._id.toString(),
+          _id: course.instructor._id.toString(),
+        }
         : null,
     }));
 
@@ -192,8 +222,17 @@ export class CoursesService {
       }
     }
 
+    // Transform isPublished to status
+    const updateData: any = { ...updateCourseDto };
+    if (updateCourseDto.isPublished !== undefined) {
+      updateData.status = updateCourseDto.isPublished
+        ? CourseStatus.PUBLISHED
+        : CourseStatus.DRAFT;
+      delete updateData.isPublished;
+    }
+
     const updatedCourse = await this.courseModel
-      .findByIdAndUpdate(id, updateCourseDto, { new: true })
+      .findByIdAndUpdate(id, updateData, { new: true })
       .populate('instructor', 'firstName lastName email avatar');
 
     if (!updatedCourse) {
@@ -258,26 +297,47 @@ export class CoursesService {
   ): Promise<Lesson> {
     const course = await this.findById(courseId);
 
-    if (course.instructor.toString() !== instructorId) {
+    // Handle both populated and unpopulated instructor
+    const courseInstructorId = (course.instructor as any)._id
+      ? (course.instructor as any)._id.toString()
+      : course.instructor.toString();
+
+    if (courseInstructorId !== instructorId) {
       throw new ForbiddenException(
         'You can only add lessons to your own courses',
       );
+    } let slug = (createLessonDto as any).slug as string | undefined;
+    if (!slug) {
+      slug = (createLessonDto.title || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
     }
-
     const existingLesson = await this.lessonModel.findOne({
       course: courseId,
-      slug: createLessonDto.slug,
+      slug,
     });
     if (existingLesson) {
-      throw new ConflictException(
-        'Lesson with this slug already exists in this course',
-      );
+      slug = `${slug}-${Date.now()}`;
     }
 
-    const lesson = new this.lessonModel({
+    const lessonData: any = {
       ...createLessonDto,
+      slug,
       course: courseId,
-    });
+    };
+    if ((createLessonDto as any).moduleId) {
+      lessonData.module = new Types.ObjectId((createLessonDto as any).moduleId);
+    }
+    if (!lessonData.order) {
+      const filter: any = { course: courseId };
+      if (lessonData.module) filter.module = lessonData.module;
+      const count = await this.lessonModel.countDocuments(filter);
+      lessonData.order = count + 1;
+    }
+    const lesson = new this.lessonModel(lessonData);
 
     return await lesson.save();
   }
@@ -298,7 +358,12 @@ export class CoursesService {
       query.status = 'published';
     }
 
-    return await this.lessonModel.find(query).sort({ order: 1 }).exec();
+    return await this.lessonModel
+      .find(query)
+      .populate('module', 'title')
+      .populate('course', 'title')
+      .sort({ order: 1 })
+      .exec();
   }
 
   async updateLesson(
@@ -370,6 +435,7 @@ export class CoursesService {
     lessonIds: string[],
     userId: string,
     userRole: UserRole,
+    moduleId?: string,
   ): Promise<{ message: string }> {
     const course = await this.findById(courseId);
     if (
@@ -383,10 +449,9 @@ export class CoursesService {
     }
 
     // Validate lessons belong to the course
-    const lessons = await this.lessonModel
-      .find({ _id: { $in: lessonIds }, course: courseId })
-      .select('_id')
-      .exec();
+    const filter: any = { _id: { $in: lessonIds }, course: courseId };
+    if (moduleId) filter.module = new Types.ObjectId(moduleId);
+    const lessons = await this.lessonModel.find(filter).select('_id').exec();
     const foundIds = new Set(lessons.map((l) => (l._id as any).toString()));
     for (const id of lessonIds) {
       if (!foundIds.has(id)) {

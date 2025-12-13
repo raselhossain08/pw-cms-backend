@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { CourseModule } from '../../course-modules/entities/course-module.entity';
+import { Lesson } from '../../courses/entities/lesson.entity';
 
 @Schema({ timestamps: true })
 export class Certificate extends Document {
@@ -82,6 +84,12 @@ export const DiscussionReplySchema =
 export class Assignment extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Course', required: true })
   course: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'CourseModule' })
+  module?: Types.ObjectId | CourseModule;
+
+  @Prop({ type: Types.ObjectId, ref: 'Lesson' })
+  lesson?: Types.ObjectId | Lesson;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   instructor: Types.ObjectId;

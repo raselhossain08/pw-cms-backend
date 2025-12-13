@@ -27,7 +27,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ChatGateway.name);
   private connectedUsers = new Map<string, string>(); // userId -> socketId
 
-  constructor(private chatService: ChatService) {}
+  constructor(private chatService: ChatService) { }
 
   async handleConnection(client: Socket) {
     try {
@@ -127,6 +127,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { success: true, message };
     } catch (error) {
       this.logger.error(`Send message error: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
+
+  @SubscribeMessage('create_conversation')
+  async handleCreateConversation(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { title: string; participants: string[]; type: string },
+  ) {
+    try {
+      const userId = client.data.userId;
+      const conversation = await this.chatService.createConversation(
+        {
+          participantIds: data.participants,
+          title: data.title,
+        },
+        userId,
+      );
+
+      // Notify all participants
+      for (const participantId of data.participants) {
+        this.server.to(`user_${participantId}`).emit('new_conversation', conversation);
+      }
+
+      return { success: true, conversation };
+    } catch (error) {
+      this.logger.error(`Error creating conversation: ${error.message}`);
       return { success: false, error: error.message };
     }
   }

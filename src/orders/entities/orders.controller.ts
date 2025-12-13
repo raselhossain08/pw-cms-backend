@@ -32,7 +32,7 @@ import { OrderStatus } from './order.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(private readonly ordersService: OrdersService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new order' })
@@ -119,13 +119,43 @@ export class OrdersController {
   @ApiResponse({ status: 200, description: 'Refund processed' })
   async processRefund(
     @Param('id') id: string,
-    @Body() body: { amount: number; reason: string },
+    @Body() body: { amount?: number; reason?: string },
     @Req() req,
   ) {
     return this.ordersService.processRefund(id, {
-      ...body,
+      amount: body.amount,
+      reason: body.reason || '',
       processedBy: req.user.id,
     });
+  }
+
+  @Patch(':id/cancel')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Cancel order' })
+  @ApiResponse({ status: 200, description: 'Order cancelled' })
+  async cancelOrder(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.ordersService.updateStatus(id, OrderStatus.CANCELLED, body.reason);
+  }
+
+  @Post(':id/resend-receipt')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Resend order receipt' })
+  @ApiResponse({ status: 200, description: 'Receipt sent' })
+  async resendReceipt(@Param('id') id: string, @Req() req) {
+    return this.ordersService.resendReceipt(id);
+  }
+
+  @Get('export')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Export orders' })
+  @ApiQuery({ name: 'format', required: false, enum: ['csv', 'excel'] })
+  @ApiResponse({ status: 200, description: 'Orders exported' })
+  async exportOrders(@Query('format') format: string = 'csv') {
+    const data = await this.ordersService.exportOrders(format as 'csv' | 'excel');
+    return { data, format };
   }
 
   @Delete(':id')

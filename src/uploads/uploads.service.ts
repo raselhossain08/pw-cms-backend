@@ -8,6 +8,7 @@ import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { File, FileType, FileStatus } from './entities/file.entity';
 import { CloudinaryProvider } from './providers/cloudinary.provider';
+import { BunnyProvider } from './providers/bunny.provider';
 import { UploadFileDto } from './dto/upload-file.dto';
 
 @Injectable()
@@ -16,26 +17,31 @@ export class UploadsService {
     @InjectModel(File.name) private fileModel: Model<File>,
     private configService: ConfigService,
     private cloudinaryProvider: CloudinaryProvider,
-  ) {}
+    private bunnyProvider: BunnyProvider,
+  ) { }
 
   async uploadFile(
     file: Express.Multer.File,
     uploadFileDto: UploadFileDto,
     userId: string,
   ): Promise<File> {
-    // Validate file size
-    const maxFileSize = this.configService.get<number>(
-      'MAX_FILE_SIZE',
-      5242880,
-    );
-    if (file.size > maxFileSize) {
-      throw new BadRequestException(
-        `File size exceeds maximum limit of ${maxFileSize / 1024 / 1024}MB`,
+    // Validate file type first
+    const fileType = uploadFileDto.type || this.detectFileType(file.mimetype);
+
+    // Validate file size (skip for videos - no limit)
+    if (fileType !== 'video') {
+      const maxFileSize = this.configService.get<number>(
+        'MAX_FILE_SIZE',
+        5242880,
       );
+      if (file.size > maxFileSize) {
+        throw new BadRequestException(
+          `File size exceeds maximum limit of ${maxFileSize / 1024 / 1024}MB`,
+        );
+      }
     }
 
     // Validate file type
-    const fileType = uploadFileDto.type || this.detectFileType(file.mimetype);
     const allowedTypes = this.getAllowedMimeTypes(fileType);
     if (!allowedTypes.includes(file.mimetype)) {
       throw new BadRequestException(
@@ -44,11 +50,24 @@ export class UploadsService {
     }
 
     try {
-      // Upload to Cloudinary
-      const uploadResult = await this.cloudinaryProvider.uploadFile(file, {
-        folder: this.getUploadFolder(fileType),
-        resource_type: this.getResourceType(file.mimetype),
-      });
+      let uploadResult: any;
+      if (fileType === FileType.VIDEO && this.getVideoProvider() === 'bunny') {
+        uploadResult = await this.bunnyProvider.uploadFile(file, {
+          title: file.originalname,
+        });
+      } else if (
+        fileType !== FileType.VIDEO && this.getGeneralProvider() === 'bunny'
+      ) {
+        uploadResult = await this.bunnyProvider.uploadFileToStorage(file, {
+          folder: this.getUploadFolder(fileType),
+          fileName: file.originalname,
+        });
+      } else {
+        uploadResult = await this.cloudinaryProvider.uploadFile(file, {
+          folder: this.getUploadFolder(fileType),
+          resource_type: this.getResourceType(file.mimetype),
+        });
+      }
 
       // Create file record
       const fileRecord = new this.fileModel({
@@ -83,9 +102,32 @@ export class UploadsService {
   ): Promise<File> {
     try {
       const fileType = uploadFileDto.type || FileType.OTHER;
-      const uploadResult = await this.cloudinaryProvider.uploadFromUrl(url, {
-        folder: this.getUploadFolder(fileType),
-      });
+      let uploadResult: any;
+      if (fileType === FileType.VIDEO && this.getVideoProvider() === 'bunny') {
+        uploadResult = await this.bunnyProvider.uploadFromUrl(url, {
+          title: 'video',
+        });
+      } else if (
+        fileType !== FileType.VIDEO && this.getGeneralProvider() === 'bunny'
+      ) {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new BadRequestException('Source fetch failed');
+        const buf = Buffer.from(await resp.arrayBuffer());
+        const fakeFile: any = {
+          buffer: buf,
+          originalname: url.split('/').pop() || 'uploaded-file',
+          mimetype: 'application/octet-stream',
+          size: buf.length,
+        };
+        uploadResult = await this.bunnyProvider.uploadFileToStorage(fakeFile, {
+          folder: this.getUploadFolder(fileType),
+          fileName: fakeFile.originalname,
+        });
+      } else {
+        uploadResult = await this.cloudinaryProvider.uploadFromUrl(url, {
+          folder: this.getUploadFolder(fileType),
+        });
+      }
 
       const fileRecord = new this.fileModel({
         originalName: url.split('/').pop() || 'uploaded-file',
@@ -142,7 +184,7 @@ export class UploadsService {
     type?: FileType,
   ): Promise<{ files: File[]; total: number }> {
     const skip = (page - 1) * limit;
-    const query: any = { uploadedBy: userId };
+    const query: any = { uploadedBy: new Types.ObjectId(userId) };
 
     if (type) {
       query.type = type;
@@ -165,11 +207,13 @@ export class UploadsService {
     id: string,
     updateData: Partial<File>,
     userId: string,
+    userRole?: string,
   ): Promise<File> {
     const file = await this.getFileById(id);
 
-    // Check if user owns the file
-    if (file.uploadedBy.toString() !== userId) {
+    // Check if user owns the file or is an admin
+    const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+    if (file.uploadedBy.toString() !== userId && !isAdmin) {
       throw new BadRequestException('You can only update your own files');
     }
 
@@ -184,20 +228,28 @@ export class UploadsService {
     return updatedFile;
   }
 
-  async deleteFile(id: string, userId: string): Promise<void> {
+  async deleteFile(id: string, userId: string, userRole?: string): Promise<void> {
     const file = await this.getFileById(id);
 
-    // Check if user owns the file
-    if (file.uploadedBy.toString() !== userId) {
+    // Check if user owns the file or is an admin
+    const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+    if (file.uploadedBy.toString() !== userId && !isAdmin) {
       throw new BadRequestException('You can only delete your own files');
     }
 
     try {
-      // Delete from Cloudinary
-      await this.cloudinaryProvider.deleteFile(
-        file.fileName,
-        this.getResourceType(file.mimeType),
-      );
+      if (file.type === FileType.VIDEO && this.getVideoProvider() === 'bunny') {
+        await this.bunnyProvider.deleteFile(file.fileName);
+      } else if (
+        file.type !== FileType.VIDEO && this.getGeneralProvider() === 'bunny'
+      ) {
+        await this.bunnyProvider.deleteStorageFile(file.fileName);
+      } else {
+        await this.cloudinaryProvider.deleteFile(
+          file.fileName,
+          this.getResourceType(file.mimeType),
+        );
+      }
 
       // Delete from database
       await this.fileModel.findByIdAndDelete(id);
@@ -323,6 +375,22 @@ export class UploadsService {
     return 'raw';
   }
 
+  private getVideoProvider(): 'cloudinary' | 'bunny' {
+    const v = this.configService.get<string>(
+      'UPLOADS_VIDEO_PROVIDER',
+      'cloudinary',
+    );
+    return v === 'bunny' ? 'bunny' : 'cloudinary';
+  }
+
+  private getGeneralProvider(): 'cloudinary' | 'bunny' {
+    const v = this.configService.get<string>(
+      'UPLOADS_GENERAL_PROVIDER',
+      'cloudinary',
+    );
+    return v === 'bunny' ? 'bunny' : 'cloudinary';
+  }
+
   private getUploadFolder(fileType: FileType): string {
     const folderMap = {
       [FileType.IMAGE]: 'personal-wings/images',
@@ -345,5 +413,55 @@ export class UploadsService {
     if (uploadResult.format) metadata.format = uploadResult.format;
 
     return metadata;
+  }
+
+  async bulkDeleteFiles(
+    fileIds: string[],
+    userId: string,
+    userRole?: string,
+  ): Promise<{ deleted: number; failed: number; errors: string[] }> {
+    const results = {
+      deleted: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    for (const fileId of fileIds) {
+      try {
+        await this.deleteFile(fileId, userId, userRole);
+        results.deleted++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push(`${fileId}: ${error.message}`);
+      }
+    }
+
+    return results;
+  }
+
+  async searchFiles(
+    query: string,
+    userId: string,
+    type?: FileType,
+    limit: number = 20,
+  ): Promise<File[]> {
+    const searchQuery: any = {
+      uploadedBy: new Types.ObjectId(userId),
+      $or: [
+        { originalName: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { tags: { $in: [new RegExp(query, 'i')] } },
+      ],
+    };
+
+    if (type) {
+      searchQuery.type = type;
+    }
+
+    return this.fileModel
+      .find(searchQuery)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .exec();
   }
 }

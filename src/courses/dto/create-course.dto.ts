@@ -79,6 +79,7 @@ export class CreateCourseDto {
   @ApiProperty({ example: 120, description: 'Duration in hours' })
   @IsNumber()
   @Min(1)
+  @IsOptional()
   durationHours?: number;
 
   @ApiProperty({ example: 120, description: 'Duration in hours (alias)' })

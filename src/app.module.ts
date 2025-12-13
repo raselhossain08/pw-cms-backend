@@ -45,10 +45,14 @@ import { SupportModule } from './support/support.module';
 import { AiBotModule } from './ai-bot/ai-bot.module';
 import { SystemConfigModule } from './system-config/system-config.module';
 import { CmsModule } from './cms/cms.module';
+import { ActivityLogsModule } from './activity-logs/activity-logs.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { AircraftModule } from './aircraft/aircraft.module';
 
 // Security Module
 import { SecurityModule } from './shared/security.module';
 import { ApiExtensionsModule } from './shared/api-extensions.module';
+import { CourseModulesModule } from './course-modules/course-modules.module';
 
 // Entities for Tasks
 import {
@@ -151,6 +155,7 @@ import { AiBotGateway } from './ai-bot/ai-bot.gateway';
     AuthModule,
     UsersModule,
     CoursesModule,
+    CourseModulesModule,
     CourseCategoriesModule,
     ProductsModule,
     NotificationsModule,
@@ -187,6 +192,15 @@ import { AiBotGateway } from './ai-bot/ai-bot.gateway';
 
     // CMS Module (Header, Footer, etc.)
     CmsModule,
+
+    // Activity Logs Module
+    ActivityLogsModule,
+
+    // Integrations Module
+    IntegrationsModule,
+
+    // Aircraft Brokerage Module
+    AircraftModule,
   ],
   providers: [
     // Background tasks
@@ -199,4 +213,4 @@ import { AiBotGateway } from './ai-bot/ai-bot.gateway';
     AiBotGateway,
   ],
 })
-export class AppModule {}
+export class AppModule { }

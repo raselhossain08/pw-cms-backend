@@ -31,18 +31,45 @@ export class CreateLessonDto {
     description: 'Lesson content',
   })
   @IsString()
-  @IsNotEmpty()
-  content: string;
+  @IsOptional()
+  content?: string;
 
-  @ApiProperty({ example: 60, description: 'Lesson duration in minutes' })
+  @ApiProperty({ example: 1800, description: 'Lesson duration in seconds' })
   @IsNumber()
-  @Min(1)
+  @Min(0)
   duration: number;
 
-  @ApiProperty({ example: 1, description: 'Lesson order in course' })
+  @ApiProperty({
+    example: 1,
+    description: 'Lesson order in course',
+    required: false,
+  })
   @IsNumber()
+  @IsOptional()
   @Min(1)
-  order: number;
+  order?: number;
+
+  @ApiProperty({
+    enum: ['video', 'text', 'quiz', 'assignment', 'download'],
+    description: 'Lesson type',
+  })
+  @IsString()
+  @IsNotEmpty()
+  type: string;
+
+  @ApiProperty({ enum: ['draft', 'published'], required: false })
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @ApiProperty({
+    example: 'moduleId',
+    description: 'Parent module ID',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  moduleId?: string;
 
   @ApiProperty({
     example: 'introduction-to-aviation-regulations',

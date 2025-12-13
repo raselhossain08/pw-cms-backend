@@ -34,7 +34,7 @@ import { FileType } from './entities/file.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class UploadsController {
-  constructor(private readonly uploadsService: UploadsService) {}
+  constructor(private readonly uploadsService: UploadsService) { }
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
@@ -226,7 +226,7 @@ export class UploadsController {
     @Body() updateData: Partial<File>,
     @Req() req,
   ) {
-    return this.uploadsService.updateFile(id, updateData, req.user.id);
+    return this.uploadsService.updateFile(id, updateData, req.user.id, req.user.role);
   }
 
   @Delete(':id')
@@ -240,7 +240,7 @@ export class UploadsController {
   @ApiResponse({ status: 403, description: 'Forbidden - Not file owner' })
   @ApiResponse({ status: 404, description: 'File not found' })
   async deleteFile(@Param('id') id: string, @Req() req) {
-    return this.uploadsService.deleteFile(id, req.user.id);
+    return this.uploadsService.deleteFile(id, req.user.id, req.user.role);
   }
 
   @Post(':id/download')
@@ -254,5 +254,76 @@ export class UploadsController {
   @ApiResponse({ status: 404, description: 'File not found' })
   async incrementDownloadCount(@Param('id') id: string) {
     return this.uploadsService.incrementDownloadCount(id);
+  }
+
+  @Post('bulk-delete')
+  @ApiOperation({ summary: 'Bulk delete multiple files' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['fileIds'],
+      properties: {
+        fileIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of file IDs to delete',
+          example: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'],
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Files deleted successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        deleted: { type: 'number', description: 'Number of files deleted' },
+        failed: { type: 'number', description: 'Number of files that failed to delete' },
+        errors: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  async bulkDeleteFiles(
+    @Body() body: { fileIds: string[] },
+    @Req() req,
+  ) {
+    return this.uploadsService.bulkDeleteFiles(body.fileIds, req.user.id, req.user.role);
+  }
+
+  @Get('search/query')
+  @ApiOperation({ summary: 'Search files by name, tags, or description' })
+  @ApiQuery({
+    name: 'q',
+    required: true,
+    type: String,
+    description: 'Search query',
+    example: 'course',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: FileType,
+    description: 'Filter by file type',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of results',
+    example: 20,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Search results',
+    type: [File],
+  })
+  async searchFiles(
+    @Query('q') query: string,
+    @Query('type') type?: FileType,
+    @Query('limit') limit: number = 20,
+    @Req() req?,
+  ) {
+    return this.uploadsService.searchFiles(query, req.user.id, type, limit);
   }
 }

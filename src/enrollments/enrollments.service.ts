@@ -14,7 +14,7 @@ import { UpdateProgressDto } from './dto/update-progress.dto';
 export class EnrollmentsService {
   constructor(
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
-  ) {}
+  ) { }
 
   async enroll(
     createEnrollmentDto: CreateEnrollmentDto,
@@ -226,10 +226,288 @@ export class EnrollmentsService {
       averageProgress:
         enrollments.length > 0
           ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-            enrollments.length
+          enrollments.length
           : 0,
     };
 
     return stats;
+  }
+
+  // Admin methods
+  async getAllEnrollments(params: {
+    page: number;
+    limit: number;
+    search?: string;
+    courseId?: string;
+    status?: EnrollmentStatus;
+    instructorId?: string;
+    sortBy: string;
+    sortOrder: 'asc' | 'desc';
+  }): Promise<{ enrollments: Enrollment[]; total: number }> {
+    const { page, limit, search, courseId, status, instructorId, sortBy, sortOrder } = params;
+    const skip = (page - 1) * limit;
+
+    const filter: any = {};
+
+    if (courseId) filter.course = courseId;
+    if (status) filter.status = status;
+
+    let query = this.enrollmentModel.find(filter);
+
+    // Populate student and course
+    query = query
+      .populate('student', 'firstName lastName email avatar name')
+      .populate({
+        path: 'course',
+        select: 'title description thumbnail instructor',
+        populate: {
+          path: 'instructor',
+          select: 'firstName lastName name',
+        },
+      });
+
+    // Search filter
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      const [enrollments, total] = await Promise.all([
+        query.exec().then((results) =>
+          results.filter((e: any) =>
+            e.student?.email?.match(searchRegex) ||
+            e.student?.firstName?.match(searchRegex) ||
+            e.student?.lastName?.match(searchRegex) ||
+            e.student?.name?.match(searchRegex) ||
+            e.course?.title?.match(searchRegex)
+          )
+        ),
+        query.countDocuments(),
+      ]);
+      return {
+        enrollments: enrollments.slice(skip, skip + limit),
+        total: enrollments.length,
+      };
+    }
+
+    // Apply sorting
+    const sortOptions: any = {};
+    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    query = query.sort(sortOptions);
+
+    const [enrollments, total] = await Promise.all([
+      query.skip(skip).limit(limit).exec(),
+      this.enrollmentModel.countDocuments(filter),
+    ]);
+
+    return { enrollments, total };
+  }
+
+  async getAdminStats(): Promise<any> {
+    const [
+      totalEnrollments,
+      activeEnrollments,
+      completedEnrollments,
+      pendingEnrollments,
+      droppedEnrollments,
+      progressData,
+    ] = await Promise.all([
+      this.enrollmentModel.countDocuments(),
+      this.enrollmentModel.countDocuments({ status: EnrollmentStatus.ACTIVE }),
+      this.enrollmentModel.countDocuments({ status: EnrollmentStatus.COMPLETED }),
+      this.enrollmentModel.countDocuments({ status: 'pending' }),
+      this.enrollmentModel.countDocuments({ status: 'dropped' }),
+      this.enrollmentModel.aggregate([
+        {
+          $group: {
+            _id: null,
+            averageProgress: { $avg: '$progress' },
+            totalTimeSpent: { $sum: '$totalTimeSpent' },
+          },
+        },
+      ]),
+    ]);
+
+    const completionRate = totalEnrollments > 0
+      ? Math.round((completedEnrollments / totalEnrollments) * 100)
+      : 0;
+
+    return {
+      totalEnrollments,
+      activeEnrollments,
+      completedEnrollments,
+      pendingEnrollments,
+      droppedEnrollments,
+      averageProgress: progressData[0]?.averageProgress || 0,
+      totalTimeSpent: progressData[0]?.totalTimeSpent || 0,
+      completionRate,
+    };
+  }
+
+  async getCourseDistribution(): Promise<any[]> {
+    const distribution = await this.enrollmentModel.aggregate([
+      {
+        $group: {
+          _id: '$course',
+          enrollmentCount: { $sum: 1 },
+        },
+      },
+      {
+        $lookup: {
+          from: 'courses',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'courseData',
+        },
+      },
+      {
+        $unwind: '$courseData',
+      },
+      {
+        $project: {
+          courseId: '$_id',
+          courseName: '$courseData.title',
+          enrollmentCount: 1,
+        },
+      },
+      {
+        $sort: { enrollmentCount: -1 },
+      },
+    ]);
+
+    const total = distribution.reduce((sum, item) => sum + item.enrollmentCount, 0);
+
+    return distribution.map((item) => ({
+      ...item,
+      percentage: total > 0 ? Math.round((item.enrollmentCount / total) * 100) : 0,
+    }));
+  }
+
+  async getEnrollmentById(id: string): Promise<Enrollment> {
+    const enrollment = await this.enrollmentModel
+      .findById(id)
+      .populate('student', 'firstName lastName email avatar name phone')
+      .populate({
+        path: 'course',
+        select: 'title description thumbnail instructor',
+        populate: {
+          path: 'instructor',
+          select: 'firstName lastName name email',
+        },
+      })
+      .populate('certificate')
+      .exec();
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    return enrollment;
+  }
+
+  async createEnrollmentAdmin(
+    createEnrollmentDto: any,
+  ): Promise<Enrollment> {
+    const { studentId, courseId, orderId, status } = createEnrollmentDto;
+
+    // Check if already enrolled
+    const existing = await this.enrollmentModel.findOne({
+      student: studentId,
+      course: courseId,
+    });
+
+    if (existing) {
+      throw new BadRequestException('Student already enrolled in this course');
+    }
+
+    const enrollment = new this.enrollmentModel({
+      student: studentId,
+      course: courseId,
+      order: orderId,
+      status: status || EnrollmentStatus.ACTIVE,
+      lastAccessedAt: new Date(),
+    });
+
+    return await enrollment.save();
+  }
+
+  async updateEnrollmentAdmin(
+    id: string,
+    updateData: any,
+  ): Promise<Enrollment> {
+    const enrollment = await this.enrollmentModel.findById(id);
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    Object.assign(enrollment, updateData);
+
+    return await enrollment.save();
+  }
+
+  async deleteEnrollmentAdmin(id: string): Promise<void> {
+    const result = await this.enrollmentModel.findByIdAndDelete(id);
+
+    if (!result) {
+      throw new NotFoundException('Enrollment not found');
+    }
+  }
+
+  async bulkDeleteEnrollments(ids: string[]): Promise<any> {
+    const result = await this.enrollmentModel.deleteMany({
+      _id: { $in: ids },
+    });
+
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+    };
+  }
+
+  async approveEnrollment(id: string): Promise<Enrollment> {
+    const enrollment = await this.enrollmentModel.findById(id);
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    enrollment.status = EnrollmentStatus.ACTIVE;
+    return await enrollment.save();
+  }
+
+  async cancelEnrollmentAdmin(id: string, reason?: string): Promise<Enrollment> {
+    const enrollment = await this.enrollmentModel.findById(id);
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    enrollment.status = EnrollmentStatus.CANCELLED;
+    if (reason) {
+      enrollment.notes.push(`Cancelled: ${reason}`);
+    }
+
+    return await enrollment.save();
+  }
+
+  async exportEnrollments(params: {
+    format: 'csv' | 'xlsx' | 'pdf';
+    courseId?: string;
+    status?: EnrollmentStatus;
+  }): Promise<any> {
+    const filter: any = {};
+    if (params.courseId) filter.course = params.courseId;
+    if (params.status) filter.status = params.status;
+
+    const enrollments = await this.enrollmentModel
+      .find(filter)
+      .populate('student', 'firstName lastName email')
+      .populate('course', 'title')
+      .exec();
+
+    // For now, return the data. In production, implement actual export logic
+    return {
+      format: params.format,
+      data: enrollments,
+      total: enrollments.length,
+    };
   }
 }

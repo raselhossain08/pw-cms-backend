@@ -28,7 +28,8 @@ export class QuizzesService {
     createQuizDto: CreateQuizDto,
     instructorId: string,
   ): Promise<Quiz> {
-    const { questions, courseId, lessonId, ...quizData } = createQuizDto;
+    const { questions, courseId, lessonId, moduleId, ...quizData } =
+      createQuizDto;
 
     // Calculate total points
     const totalPoints = questions.reduce((sum, q) => sum + q.points, 0);
@@ -43,6 +44,7 @@ export class QuizzesService {
       ...quizData,
       course: courseId,
       lesson: lessonId,
+      module: moduleId ? new Types.ObjectId(moduleId) : undefined,
       instructor: instructorId,
       questions: questionsWithIds,
       totalPoints,

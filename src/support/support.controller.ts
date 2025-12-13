@@ -23,11 +23,11 @@ import { UserRole } from '../users/entities/user.entity';
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class SupportController {
-  constructor(private readonly supportService: SupportService) {}
+  constructor(private readonly supportService: SupportService) { }
 
   @Post()
   create(@Body() createTicketDto: CreateTicketDto, @Request() req) {
-    return this.supportService.createTicket(createTicketDto, req.user.userId);
+    return this.supportService.createTicket(createTicketDto, req.user.id);
   }
 
   @Get()
@@ -43,7 +43,7 @@ export class SupportController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.supportService.getUserTickets(req.user.userId, page, limit);
+    return this.supportService.getUserTickets(req.user.id, page, limit);
   }
 
   @Get('stats')
@@ -79,7 +79,7 @@ export class SupportController {
     return this.supportService.addReply(
       id,
       createReplyDto,
-      req.user.userId,
+      req.user.id,
       isStaff,
     );
   }
@@ -90,7 +90,7 @@ export class SupportController {
     @Body() rateTicketDto: RateTicketDto,
     @Request() req,
   ) {
-    return this.supportService.rateTicket(id, rateTicketDto, req.user.userId);
+    return this.supportService.rateTicket(id, rateTicketDto, req.user.id);
   }
 
   @Delete(':id')

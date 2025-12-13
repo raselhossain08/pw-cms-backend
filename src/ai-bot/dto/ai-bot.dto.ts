@@ -4,6 +4,8 @@ import {
   IsEnum,
   IsObject,
   MinLength,
+  IsBoolean,
+  IsArray,
 } from 'class-validator';
 import { BotIntent } from '../entities/ai-bot.entity';
 
@@ -66,4 +68,63 @@ export class EscalateToHumanDto {
   @IsString()
   @IsOptional()
   reason?: string;
+}
+
+// AI Agent DTOs
+export class CreateAgentDto {
+  @IsString()
+  @MinLength(1)
+  name: string;
+
+  @IsString()
+  @MinLength(1)
+  description: string;
+
+  @IsString()
+  @MinLength(1)
+  agentType: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  knowledgeBase?: string[];
+
+  @IsEnum(['active', 'inactive', 'training'])
+  @IsOptional()
+  status?: 'active' | 'inactive' | 'training';
+}
+
+export class UpdateAgentDto {
+  @IsString()
+  @MinLength(1)
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @MinLength(1)
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @MinLength(1)
+  @IsOptional()
+  agentType?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  knowledgeBase?: string[];
+
+  @IsEnum(['active', 'inactive', 'training'])
+  @IsOptional()
+  status?: 'active' | 'inactive' | 'training';
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+}
+
+export class ToggleAgentStatusDto {
+  @IsEnum(['active', 'inactive', 'training'])
+  status: 'active' | 'inactive' | 'training';
 }

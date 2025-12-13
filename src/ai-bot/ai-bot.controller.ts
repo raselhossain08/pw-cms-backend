@@ -31,7 +31,7 @@ import { UserRole } from '../users/entities/user.entity';
 
 @Controller('ai-bot')
 export class AiBotController {
-  constructor(private readonly aiBotService: AiBotService) {}
+  constructor(private readonly aiBotService: AiBotService) { }
 
   // Customer endpoints
   @Post('chat')
@@ -176,5 +176,76 @@ export class AiBotController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   deleteTask(@Param('id') id: string) {
     return this.aiBotService.deleteTask(id);
+  }
+
+  // AI Agent Management Endpoints
+  @Get('agents')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  getAllAgents(@Query() filters: any) {
+    return this.aiBotService.getAllAgents(filters);
+  }
+
+  @Get('agents/analytics')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  getAgentsAnalytics() {
+    return this.aiBotService.getAgentsAnalytics();
+  }
+
+  @Get('agents/conversations')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  getAgentConversations(@Query('agentId') agentId?: string) {
+    return this.aiBotService.getAgentConversations(agentId);
+  }
+
+  @Get('agents/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  getAgent(@Param('id') id: string) {
+    return this.aiBotService.getAgent(id);
+  }
+
+  @Post('agents')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  createAgent(@Body() createAgentDto: any, @Request() req) {
+    return this.aiBotService.createAgent(createAgentDto, req.user.id);
+  }
+
+  @Patch('agents/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  updateAgent(@Param('id') id: string, @Body() updateAgentDto: any) {
+    return this.aiBotService.updateAgent(id, updateAgentDto);
+  }
+
+  @Patch('agents/:id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  toggleAgentStatus(@Param('id') id: string, @Body() statusDto: any) {
+    return this.aiBotService.toggleAgentStatus(id, statusDto.status);
+  }
+
+  @Post('agents/:id/duplicate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  duplicateAgent(@Param('id') id: string) {
+    return this.aiBotService.duplicateAgent(id);
+  }
+
+  @Delete('agents/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  deleteAgent(@Param('id') id: string) {
+    return this.aiBotService.deleteAgent(id);
+  }
+
+  @Get('agents/:id/logs')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  getAgentLogs(@Param('id') id: string) {
+    return this.aiBotService.getAgentLogs(id);
   }
 }

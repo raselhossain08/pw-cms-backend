@@ -28,13 +28,22 @@ export class AssignmentsService {
       dueDate: Date;
       maxPoints?: number;
       attachments?: string[];
+      moduleId?: string;
+      lessonId?: string;
     },
   ): Promise<Assignment> {
-    const assignment = new this.assignmentModel({
+    const payload: any = {
       course: courseId,
       instructor: instructorId,
-      ...data,
-    });
+      title: data.title,
+      description: data.description,
+      dueDate: data.dueDate,
+      maxPoints: data.maxPoints,
+      attachments: data.attachments || [],
+    };
+    if (data.moduleId) payload.module = new Types.ObjectId(data.moduleId);
+    if (data.lessonId) payload.lesson = new Types.ObjectId(data.lessonId);
+    const assignment = new this.assignmentModel(payload);
 
     return await assignment.save();
   }

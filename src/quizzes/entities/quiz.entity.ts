@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { CourseModule } from '../../course-modules/entities/course-module.entity';
 
 export enum QuestionType {
   MULTIPLE_CHOICE = 'multiple_choice',
@@ -36,6 +37,9 @@ export class Quiz extends Document {
 
   @Prop({ type: Types.ObjectId, ref: 'Lesson' })
   lesson?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'CourseModule' })
+  module?: Types.ObjectId | CourseModule;
 
   @Prop({ type: Array, default: [] })
   questions: QuizQuestion[];

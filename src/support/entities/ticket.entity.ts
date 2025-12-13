@@ -83,6 +83,17 @@ export class Ticket extends Document {
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);
 
+// Transform toJSON to ensure proper date serialization
+TicketSchema.set('toJSON', {
+  transform: function (doc: any, ret: any) {
+    if (ret.createdAt) ret.createdAt = ret.createdAt.toISOString();
+    if (ret.updatedAt) ret.updatedAt = ret.updatedAt.toISOString();
+    if (ret.resolvedAt) ret.resolvedAt = ret.resolvedAt.toISOString();
+    if (ret.closedAt) ret.closedAt = ret.closedAt.toISOString();
+    return ret;
+  },
+});
+
 // Indexes
 TicketSchema.index({ ticketNumber: 1 }, { unique: true });
 TicketSchema.index({ userId: 1, status: 1 });
@@ -112,6 +123,15 @@ export class TicketReply extends Document {
 }
 
 export const TicketReplySchema = SchemaFactory.createForClass(TicketReply);
+
+// Transform toJSON to ensure proper date serialization
+TicketReplySchema.set('toJSON', {
+  transform: function (doc: any, ret: any) {
+    if (ret.createdAt) ret.createdAt = ret.createdAt.toISOString();
+    if (ret.updatedAt) ret.updatedAt = ret.updatedAt.toISOString();
+    return ret;
+  },
+});
 
 // Indexes
 TicketReplySchema.index({ ticketId: 1, createdAt: 1 });

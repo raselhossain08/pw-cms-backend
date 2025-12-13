@@ -19,7 +19,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
   // ==================== DASHBOARD ====================
   @Get('dashboard/stats')
@@ -95,6 +95,96 @@ export class AdminController {
   @Delete('courses/:id')
   deleteCourse(@Param('id') id: string) {
     return this.adminService.deleteCourse(id);
+  }
+
+  // ==================== PAYMENT MANAGEMENT ====================
+  @Get('payments/transactions')
+  getAllTransactions(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+    @Query('method') method?: string,
+    @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getAllTransactions({
+      page,
+      limit,
+      status,
+      method,
+      search,
+      startDate,
+      endDate,
+    });
+  }
+
+  @Get('payments/analytics')
+  getPaymentAnalytics(
+    @Query('period') period?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getPaymentAnalytics({ period, startDate, endDate });
+  }
+
+  @Get('payments/invoices')
+  getAllInvoices(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getAllInvoices({ page, limit, status, search });
+  }
+
+  @Get('payments/invoices/:id')
+  getInvoiceById(@Param('id') id: string) {
+    return this.adminService.getInvoiceById(id);
+  }
+
+  @Post('payments/invoices')
+  createManualInvoice(@Body() invoiceData: any) {
+    return this.adminService.createManualInvoice(invoiceData);
+  }
+
+  @Get('payments/transactions/:id')
+  getTransactionDetails(@Param('id') id: string) {
+    return this.adminService.getTransactionDetails(id);
+  }
+
+  @Post('payments/refund/:transactionId')
+  processRefund(
+    @Param('transactionId') transactionId: string,
+    @Body() refundData: { reason: string; amount?: number },
+  ) {
+    return this.adminService.processRefund(transactionId, refundData);
+  }
+
+  @Get('payments/payouts')
+  getInstructorPayouts(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.getInstructorPayouts({ page, limit, status });
+  }
+
+  @Post('payments/payouts/:instructorId/process')
+  processInstructorPayout(
+    @Param('instructorId') instructorId: string,
+    @Body() payoutData: any,
+  ) {
+    return this.adminService.processInstructorPayout(instructorId, payoutData);
+  }
+
+  @Get('payments/export')
+  exportPaymentReport(
+    @Query('format') format?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.exportPaymentReport({ format, startDate, endDate });
   }
 
   // ==================== ORDER MANAGEMENT ====================

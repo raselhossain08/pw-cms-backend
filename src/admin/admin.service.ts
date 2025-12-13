@@ -14,6 +14,8 @@ import { Enrollment } from '../enrollments/entities/enrollment.entity';
 import { Quiz } from '../quizzes/entities/quiz.entity';
 import { LiveSession } from '../live-sessions/entities/live-session.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
+import { Transaction, TransactionStatus } from '../payments/entities/transaction.entity';
+import { Invoice } from '../payments/entities/invoice.entity';
 import { SecurityMiddleware } from '../shared/middleware/security.middleware';
 
 @Injectable()
@@ -27,8 +29,10 @@ export class AdminService {
     @InjectModel(Quiz.name) private quizModel: Model<Quiz>,
     @InjectModel(LiveSession.name) private liveSessionModel: Model<LiveSession>,
     @InjectModel(Coupon.name) private couponModel: Model<Coupon>,
+    @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
+    @InjectModel(Invoice.name) private invoiceModel: Model<Invoice>,
     @Inject(SecurityMiddleware) private securityMiddleware: SecurityMiddleware,
-  ) {}
+  ) { }
 
   // ==================== DASHBOARD OVERVIEW ====================
   async getDashboardStats(): Promise<any> {
@@ -501,8 +505,8 @@ export class AdminService {
       completionRate:
         item.enrollmentCount > 0
           ? parseFloat(
-              ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
-            )
+            ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
+          )
           : 0,
     }));
   }
@@ -761,7 +765,7 @@ export class AdminService {
         limit,
         totalPages: Math.ceil(
           (await this.reviewModel.countDocuments({ flagged: true }).exec()) /
-            limit,
+          limit,
         ),
       },
     };
@@ -871,8 +875,8 @@ export class AdminService {
         completionRate:
           activeEnrollments > 0
             ? parseFloat(
-                ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
-              )
+              ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
+            )
             : 0,
       },
     };
@@ -1013,6 +1017,430 @@ export class AdminService {
       paymentMethod: o.paymentMethod,
       createdAt: (o as any).createdAt,
     }));
+  }
+
+  // ==================== PAYMENT MANAGEMENT ====================
+  async getAllTransactions(filters: any) {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      method,
+      search,
+      startDate,
+      endDate,
+    } = filters;
+    const skip = (page - 1) * limit;
+
+    const query: any = {};
+
+    if (status) query.status = status;
+    if (method) query.gateway = method;
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+    if (search) {
+      query.$or = [
+        { transactionId: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const [transactions, total] = await Promise.all([
+      this.transactionModel
+        .find(query)
+        .populate('user', 'firstName lastName email avatar')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.transactionModel.countDocuments(query).exec(),
+    ]);
+
+    return {
+      transactions,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getPaymentAnalytics(filters: any) {
+    const { period = '30d', startDate, endDate } = filters;
+
+    let start: Date;
+    const end = endDate ? new Date(endDate) : new Date();
+
+    if (startDate) {
+      start = new Date(startDate);
+    } else {
+      const daysBack = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+      start = new Date(end.getTime() - daysBack * 24 * 60 * 60 * 1000);
+    }
+
+    const [revenueStats, methodBreakdown, statusBreakdown, revenueByDay] =
+      await Promise.all([
+        this.transactionModel
+          .aggregate([
+            {
+              $match: {
+                createdAt: { $gte: start, $lte: end },
+                type: 'payment',
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: {
+                  $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$amount', 0] },
+                },
+                successfulPayments: {
+                  $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+                },
+                failedPayments: {
+                  $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] },
+                },
+                refundedPayments: {
+                  $sum: { $cond: [{ $eq: ['$status', 'refunded'] }, 1, 0] },
+                },
+                refundedAmount: {
+                  $sum: { $cond: [{ $eq: ['$status', 'refunded'] }, '$amount', 0] },
+                },
+              },
+            },
+          ])
+          .exec(),
+        this.transactionModel
+          .aggregate([
+            {
+              $match: {
+                createdAt: { $gte: start, $lte: end },
+                status: 'completed',
+              },
+            },
+            {
+              $group: {
+                _id: '$gateway',
+                total: { $sum: '$amount' },
+                count: { $sum: 1 },
+              },
+            },
+          ])
+          .exec(),
+        this.transactionModel
+          .aggregate([
+            {
+              $match: {
+                createdAt: { $gte: start, $lte: end },
+              },
+            },
+            {
+              $group: {
+                _id: '$status',
+                count: { $sum: 1 },
+              },
+            },
+          ])
+          .exec(),
+        this.transactionModel
+          .aggregate([
+            {
+              $match: {
+                createdAt: { $gte: start, $lte: end },
+                status: 'completed',
+              },
+            },
+            {
+              $group: {
+                _id: {
+                  $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+                },
+                revenue: { $sum: '$amount' },
+                count: { $sum: 1 },
+              },
+            },
+            { $sort: { _id: 1 } },
+          ])
+          .exec(),
+      ]);
+
+    const stats = revenueStats[0] || {
+      totalRevenue: 0,
+      successfulPayments: 0,
+      failedPayments: 0,
+      refundedPayments: 0,
+      refundedAmount: 0,
+    };
+
+    return {
+      overview: {
+        totalRevenue: stats.totalRevenue,
+        successfulPayments: stats.successfulPayments,
+        failedPayments: stats.failedPayments,
+        refundedPayments: stats.refundedPayments,
+        refundedAmount: stats.refundedAmount,
+        refundRate: stats.successfulPayments > 0
+          ? ((stats.refundedPayments / stats.successfulPayments) * 100).toFixed(2)
+          : '0.00',
+      },
+      methodBreakdown: methodBreakdown.map((m) => ({
+        method: m._id || 'Unknown',
+        total: m.total,
+        count: m.count,
+      })),
+      statusBreakdown: statusBreakdown.map((s) => ({
+        status: s._id,
+        count: s.count,
+      })),
+      revenueByDay: revenueByDay.map((r) => ({
+        date: r._id,
+        revenue: r.revenue,
+        count: r.count,
+      })),
+    };
+  }
+
+  async getAllInvoices(filters: any) {
+    const { page = 1, limit = 10, status, search } = filters;
+    const skip = (page - 1) * limit;
+
+    const query: any = {};
+    if (status) query.status = status;
+    if (search) {
+      query.$or = [
+        { invoiceNumber: { $regex: search, $options: 'i' } },
+        { 'billingInfo.companyName': { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const [invoices, total] = await Promise.all([
+      this.invoiceModel
+        .find(query)
+        .populate('user', 'firstName lastName email avatar')
+        .populate('order')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.invoiceModel.countDocuments(query).exec(),
+    ]);
+
+    return {
+      invoices,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getInvoiceById(id: string) {
+    const invoice = await this.invoiceModel
+      .findById(id)
+      .populate('user', 'firstName lastName email avatar phone')
+      .populate('order')
+      .exec();
+
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    return invoice;
+  }
+
+  async createManualInvoice(invoiceData: any) {
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${(
+      (await this.invoiceModel.countDocuments()) + 1
+    )
+      .toString()
+      .padStart(4, '0')}`;
+
+    const invoice = await this.invoiceModel.create({
+      ...invoiceData,
+      invoiceNumber,
+      status: 'pending',
+    });
+
+    return invoice;
+  }
+
+  async getTransactionDetails(id: string) {
+    const transaction = await this.transactionModel
+      .findById(id)
+      .populate('user', 'firstName lastName email avatar phone')
+      .populate('orderId')
+      .exec();
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    return transaction;
+  }
+
+  async processRefund(transactionId: string, refundData: any) {
+    const transaction = await this.transactionModel.findById(transactionId);
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    if (transaction.status === TransactionStatus.REFUNDED) {
+      throw new BadRequestException('Transaction already refunded');
+    }
+
+    if (transaction.status !== TransactionStatus.COMPLETED) {
+      throw new BadRequestException('Only completed transactions can be refunded');
+    }
+
+    const refundAmount = refundData.amount || transaction.amount;
+
+    transaction.status = TransactionStatus.REFUNDED;
+    transaction.failureReason = refundData.reason; // Using failureReason field for refund reason
+    transaction.refundedAt = new Date();
+    // Note: refundAmount property doesn't exist in schema, amount remains the original
+    await transaction.save();
+
+    const order = await this.orderModel.findById(transaction.orderId);
+    if (order) {
+      (order as any).status = 'refunded';
+      await order.save();
+    }
+
+    return {
+      success: true,
+      message: 'Refund processed successfully',
+      refundAmount,
+    };
+  }
+
+  async getInstructorPayouts(filters: any) {
+    const { page = 1, limit = 10, status } = filters;
+    const skip = (page - 1) * limit;
+
+    const instructors = await this.userModel
+      .find({ role: 'instructor' })
+      .select('firstName lastName email avatar')
+      .skip(skip)
+      .limit(limit)
+      .exec();
+
+    const payouts = await Promise.all(
+      instructors.map(async (instructor) => {
+        const courses = await this.courseModel
+          .find({ instructor: instructor._id })
+          .select('title revenue');
+
+        const totalEarnings = courses.reduce(
+          (sum, course) => sum + ((course as any).revenue || 0),
+          0,
+        );
+        const instructorShare = totalEarnings * 0.7;
+
+        return {
+          id: instructor._id,
+          instructorName: `${instructor.firstName} ${instructor.lastName}`,
+          email: instructor.email,
+          avatar: instructor.avatar,
+          courseCount: courses.length,
+          totalEarnings: instructorShare,
+          nextPayout: this.getNextPayoutDate(),
+          status: status || 'scheduled',
+        };
+      }),
+    );
+
+    const total = await this.userModel.countDocuments({ role: 'instructor' });
+
+    return {
+      payouts,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async processInstructorPayout(instructorId: string, payoutData: any) {
+    const instructor = await this.userModel.findById(instructorId);
+
+    if (!instructor) {
+      throw new NotFoundException('Instructor not found');
+    }
+
+    await this.transactionModel.create({
+      user: instructorId,
+      amount: payoutData.amount,
+      currency: 'USD',
+      type: 'payout',
+      status: 'completed',
+      description: `Instructor payout for ${payoutData.period}`,
+      gateway: payoutData.method || 'bank_transfer',
+      processedAt: new Date(),
+    });
+
+    return {
+      success: true,
+      message: 'Payout processed successfully',
+      amount: payoutData.amount,
+    };
+  }
+
+  async exportPaymentReport(filters: any) {
+    const { format = 'csv', startDate, endDate } = filters;
+
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    const transactions = await this.transactionModel
+      .find({
+        createdAt: { $gte: start, $lte: end },
+      })
+      .populate('user', 'firstName lastName email')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    if (format === 'csv') {
+      const csvData = transactions
+        .map((t) => {
+          const user = t.user as User;
+          return [
+            t.transactionId,
+            user && typeof user === 'object' ? `${user.firstName} ${user.lastName}` : 'N/A',
+            user && typeof user === 'object' ? user.email : 'N/A',
+            t.amount,
+            t.currency,
+            t.status,
+            t.gateway,
+            (t as any).createdAt?.toISOString() || new Date().toISOString(),
+          ].join(',');
+        })
+        .join('\n');
+
+      const header =
+        'Transaction ID,Name,Email,Amount,Currency,Status,Payment Method,Date\n';
+
+      return {
+        format: 'csv',
+        data: header + csvData,
+        filename: `payment-report-${start.toISOString().split('T')[0]}-to-${end.toISOString().split('T')[0]}.csv`,
+      };
+    }
+
+    return {
+      format: 'json',
+      data: transactions,
+      filename: `payment-report-${start.toISOString().split('T')[0]}-to-${end.toISOString().split('T')[0]}.json`,
+    };
+  }
+
+  private getNextPayoutDate(): string {
+    const today = new Date();
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    return nextMonth.toISOString().split('T')[0];
   }
 
   // ==================== SECURITY MANAGEMENT ====================

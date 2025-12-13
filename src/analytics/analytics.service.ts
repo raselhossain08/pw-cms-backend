@@ -1,21 +1,31 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AnalyticsEvent } from './entities/analytics.entity';
+import { Report } from './entities/report.entity';
 import { AnalyticsQueryDto, AnalyticsPeriod } from './dto/analytics-query.dto';
+import { CreateReportDto, ReportStatus } from './dto/create-report.dto';
+import { UpdateReportDto } from './dto/update-report.dto';
 import { CoursesService } from '../courses/courses.service';
 import { UsersService } from '../users/users.service';
 import { OrdersService } from '../orders/orders.service';
+import { UserRole } from '../users/entities/user.entity';
 
 @Injectable()
 export class AnalyticsService {
   constructor(
     @InjectModel(AnalyticsEvent.name)
     private analyticsModel: Model<AnalyticsEvent>,
+    @InjectModel(Report.name)
+    private reportModel: Model<Report>,
     private coursesService: CoursesService,
     private usersService: UsersService,
     private ordersService: OrdersService,
-  ) {}
+  ) { }
 
   async trackEvent(
     eventData: Partial<AnalyticsEvent>,
@@ -418,6 +428,38 @@ export class AnalyticsService {
     return 0;
   }
 
+  async getCourseLessonsAnalytics(
+    courseId: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<{
+    totalViews: number;
+    totalCompletions: number;
+    averageCompletion: number;
+    lessonsCount: number;
+  }> {
+    const lessons: any[] = await this.coursesService.getCourseLessons(
+      courseId,
+      userId,
+      userRole,
+    );
+    const lessonsCount = lessons.length;
+    const totalCompletions = lessons.reduce(
+      (sum, l) => sum + (l?.completionCount || 0),
+      0,
+    );
+    const totalViews = totalCompletions;
+    const averageCompletion =
+      lessonsCount > 0
+        ? Math.round(
+          lessons.reduce((sum, l) => sum + (l?.averageScore || 0), 0) /
+          lessonsCount,
+        )
+        : 0;
+    return { totalViews, totalCompletions, averageCompletion, lessonsCount };
+  }
+
+
   private getTopCountries(distribution: any[]): any[] {
     // Implementation for top countries
     return distribution.slice(0, 10);
@@ -472,5 +514,199 @@ export class AnalyticsService {
     ]);
 
     return this.formatChartData(trafficData, period);
+  }
+
+  // ===== REPORTS CRUD METHODS =====
+
+  async createReport(
+    createReportDto: CreateReportDto,
+    userId: string,
+  ): Promise<Report> {
+    const report = new this.reportModel({
+      ...createReportDto,
+      createdBy: new Types.ObjectId(userId),
+      status: createReportDto.status || ReportStatus.DRAFT,
+    });
+
+    const savedReport = await report.save();
+
+    if (createReportDto.autoGenerate) {
+      // Asynchronously generate the report
+      this.generateReport(String(savedReport._id)).catch((err) =>
+        console.error('Report generation failed:', err),
+      );
+    }
+
+    return savedReport;
+  }
+
+  async getAllReports(filters: {
+    type?: string;
+    status?: string;
+    limit?: number;
+    page?: number;
+    userId?: string;
+    userRole?: UserRole;
+  }): Promise<{ reports: Report[]; total: number; page: number; pages: number }> {
+    const {
+      type,
+      status,
+      limit = 20,
+      page = 1,
+      userId,
+      userRole,
+    } = filters;
+
+    const query: any = {};
+
+    if (type) query.type = type;
+    if (status) query.status = status;
+
+    // Non-admins can only see their own reports
+    if (userRole !== UserRole.ADMIN && userRole !== UserRole.SUPER_ADMIN) {
+      query.createdBy = new Types.ObjectId(userId);
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [reports, total] = await Promise.all([
+      this.reportModel
+        .find(query)
+        .populate('createdBy', 'firstName lastName email')
+        .populate('updatedBy', 'firstName lastName email')
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(skip)
+        .exec(),
+      this.reportModel.countDocuments(query),
+    ]);
+
+    return {
+      reports,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
+  async getReportById(id: string): Promise<Report> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid report ID');
+    }
+
+    const report = await this.reportModel
+      .findById(id)
+      .populate('createdBy', 'firstName lastName email')
+      .populate('updatedBy', 'firstName lastName email')
+      .exec();
+
+    if (!report) {
+      throw new NotFoundException(`Report with ID ${id} not found`);
+    }
+
+    return report;
+  }
+
+  async updateReport(
+    id: string,
+    updateReportDto: UpdateReportDto,
+    userId: string,
+  ): Promise<Report> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid report ID');
+    }
+
+    const report = await this.reportModel
+      .findByIdAndUpdate(
+        id,
+        {
+          ...updateReportDto,
+          updatedBy: new Types.ObjectId(userId),
+        },
+        { new: true, runValidators: true },
+      )
+      .populate('createdBy', 'firstName lastName email')
+      .populate('updatedBy', 'firstName lastName email')
+      .exec();
+
+    if (!report) {
+      throw new NotFoundException(`Report with ID ${id} not found`);
+    }
+
+    return report;
+  }
+
+  async deleteReport(id: string): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid report ID');
+    }
+
+    const result = await this.reportModel.findByIdAndDelete(id).exec();
+
+    if (!result) {
+      throw new NotFoundException(`Report with ID ${id} not found`);
+    }
+  }
+
+  async generateReport(id: string): Promise<Report> {
+    const report = await this.getReportById(id);
+
+    try {
+      // Generate report data based on type
+      let data: any = {};
+
+      switch (report.type) {
+        case 'Sales':
+          data = await this.getRevenueAnalytics(AnalyticsPeriod.MONTH);
+          break;
+        case 'Engagement':
+          data = await this.getStudentProgress();
+          break;
+        case 'Traffic':
+          data = await this.getTrafficAnalytics(AnalyticsPeriod.MONTH);
+          break;
+        case 'Overview':
+        default:
+          data = await this.getDashboardAnalytics();
+          break;
+      }
+
+      report.data = data;
+      report.status = ReportStatus.GENERATED;
+      report.generatedAt = new Date();
+
+      return await report.save();
+    } catch (error) {
+      report.status = ReportStatus.FAILED;
+      report.errorMessage = error.message;
+      await report.save();
+      throw error;
+    }
+  }
+
+  async exportReport(
+    id: string,
+    format: string = 'pdf',
+  ): Promise<{ url: string; format: string }> {
+    const report = await this.getReportById(id);
+
+    if (report.status !== ReportStatus.GENERATED) {
+      throw new BadRequestException(
+        'Report must be generated before exporting',
+      );
+    }
+
+    // TODO: Implement actual file generation and upload to cloud storage
+    // For now, return a placeholder
+    const fileUrl = `/exports/report-${id}.${format}`;
+
+    report.fileUrl = fileUrl;
+    report.fileFormat = format;
+    await report.save();
+
+    return {
+      url: fileUrl,
+      format,
+    };
   }
 }

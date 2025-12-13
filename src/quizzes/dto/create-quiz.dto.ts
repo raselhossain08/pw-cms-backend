@@ -67,6 +67,11 @@ export class CreateQuizDto {
   @IsMongoId()
   lessonId?: string;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsMongoId()
+  moduleId?: string;
+
   @ApiProperty({ type: [QuizQuestionDto] })
   @IsArray()
   @ValidateNested({ each: true })

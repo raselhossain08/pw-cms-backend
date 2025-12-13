@@ -19,7 +19,7 @@ export class OrdersService {
     private coursesService: CoursesService,
     private usersService: UsersService,
     private notificationsService: NotificationsService,
-  ) {}
+  ) { }
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
     // Calculate totals
@@ -295,7 +295,7 @@ export class OrdersService {
   async processRefund(
     orderId: string,
     refundData: {
-      amount: number;
+      amount?: number;
       reason: string;
       processedBy: string;
     },
@@ -306,18 +306,130 @@ export class OrdersService {
       throw new BadRequestException('Only completed orders can be refunded');
     }
 
-    if (refundData.amount > order.total) {
+    const refundAmount = refundData.amount || order.total;
+
+    if (refundAmount > order.total) {
       throw new BadRequestException('Refund amount cannot exceed order total');
     }
 
     order.status = OrderStatus.REFUNDED;
     order.refund = {
-      amount: refundData.amount,
+      amount: refundAmount,
       reason: refundData.reason,
       processedAt: new Date(),
       processedBy: new Types.ObjectId(refundData.processedBy),
     };
 
-    return await order.save();
+    await order.save();
+
+    // Send notification
+    const user = await this.usersService.findById(order.user.toString());
+    await this.notificationsService.create({
+      userId: user.id,
+      title: 'Order Refunded',
+      message: `Your order ${order.orderNumber} has been refunded.`,
+      type: 'order',
+    });
+
+    return order;
+  }
+
+  async resendReceipt(orderId: string): Promise<{ message: string }> {
+    const order = await this.findById(orderId);
+
+    if (order.status !== OrderStatus.COMPLETED) {
+      throw new BadRequestException('Receipt can only be sent for completed orders');
+    }
+
+    const user = await this.usersService.findById(order.user.toString());
+
+    // Send notification with receipt
+    await this.notificationsService.create({
+      userId: user.id,
+      title: 'Order Receipt',
+      message: `Receipt for order ${order.orderNumber}`,
+      type: 'order',
+    });
+
+    return { message: 'Receipt sent successfully' };
+  }
+
+  async exportOrders(format: 'csv' | 'excel'): Promise<any> {
+    const orders = await this.orderModel
+      .find()
+      .populate('user', 'firstName lastName email')
+      .populate('courses', 'title price')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    if (format === 'csv') {
+      const csvRows = [
+        ['Order Number', 'Customer', 'Email', 'Date', 'Status', 'Total', 'Items'].join(','),
+      ];
+
+      orders.forEach(order => {
+        const user = order.user as any;
+        const customerName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'N/A';
+        const email = user?.email || 'N/A';
+        const row = [
+          order.orderNumber,
+          `"${customerName}"`,
+          email,
+          new Date(order.createdAt).toLocaleDateString(),
+          order.status,
+          order.total.toFixed(2),
+          order.courses.length,
+        ].join(',');
+        csvRows.push(row);
+      });
+
+      return csvRows.join('\n');
+    }
+
+    return orders;
+  }
+
+  async getOrderStats(): Promise<any> {
+    const now = new Date();
+    const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalOrders,
+      completedOrders,
+      pendingOrders,
+      processingOrders,
+      shippedOrders,
+      cancelledOrders,
+      refundedOrders,
+      totalRevenue,
+      weeklyOrders,
+    ] = await Promise.all([
+      this.orderModel.countDocuments(),
+      this.orderModel.countDocuments({ status: OrderStatus.COMPLETED }),
+      this.orderModel.countDocuments({ status: OrderStatus.PENDING }),
+      this.orderModel.countDocuments({ status: OrderStatus.PROCESSING }),
+      this.orderModel.countDocuments({ status: OrderStatus.SHIPPED }),
+      this.orderModel.countDocuments({ status: OrderStatus.CANCELLED }),
+      this.orderModel.countDocuments({ status: OrderStatus.REFUNDED }),
+      this.orderModel.aggregate([
+        { $match: { status: OrderStatus.COMPLETED } },
+        { $group: { _id: null, total: { $sum: '$total' } } },
+      ]),
+      this.orderModel.countDocuments({
+        createdAt: { $gte: lastWeek },
+      }),
+    ]);
+
+    return {
+      totalOrders,
+      completed: completedOrders,
+      pending: pendingOrders,
+      processing: processingOrders,
+      shipped: shippedOrders,
+      cancelled: cancelledOrders,
+      refunded: refundedOrders,
+      totalRevenue: totalRevenue[0]?.total || 0,
+      weeklyGrowth: weeklyOrders,
+    };
   }
 }

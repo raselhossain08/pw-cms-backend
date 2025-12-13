@@ -16,6 +16,8 @@ import {
   BotAnalyticsSchema,
   BotTask,
   BotTaskSchema,
+  AIAgent,
+  AIAgentSchema,
 } from './entities/ai-bot.entity';
 import { Course, CourseSchema } from '../courses/entities/course.entity';
 import {
@@ -32,6 +34,7 @@ import { User, UserSchema } from '../users/entities/user.entity';
       { name: KnowledgeBase.name, schema: KnowledgeBaseSchema },
       { name: BotAnalytics.name, schema: BotAnalyticsSchema },
       { name: BotTask.name, schema: BotTaskSchema },
+      { name: AIAgent.name, schema: AIAgentSchema },
       { name: Course.name, schema: CourseSchema },
       { name: Enrollment.name, schema: EnrollmentSchema },
       { name: Order.name, schema: OrderSchema },
@@ -52,4 +55,4 @@ import { User, UserSchema } from '../users/entities/user.entity';
   providers: [AiBotService, AiBotGateway, ChatGPTService, BotActionsService],
   exports: [AiBotService, AiBotGateway],
 })
-export class AiBotModule {}
+export class AiBotModule { }

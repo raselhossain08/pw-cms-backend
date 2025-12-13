@@ -44,6 +44,8 @@ export class AssignmentsController {
       dueDate: Date;
       maxPoints?: number;
       attachments?: string[];
+      moduleId?: string;
+      lessonId?: string;
     },
     @Req() req,
   ) {

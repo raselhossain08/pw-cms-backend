@@ -21,8 +21,14 @@ const compression = require('compression');
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'], // Production logging
+    bodyParser: true,
   });
   const configService = app.get(ConfigService);
+
+  // Increase body size limits for large file uploads
+  const express = require('express');
+  app.use(express.json({ limit: '200mb' }));
+  app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
   // ============ SECURITY LAYER (PERMANENTLY DISABLED) ============
   console.log('⚠️  Security middleware PERMANENTLY DISABLED - No IP blocking');

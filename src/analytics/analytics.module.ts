@@ -6,6 +6,7 @@ import {
   AnalyticsEvent,
   AnalyticsEventSchema,
 } from './entities/analytics.entity';
+import { Report, ReportSchema } from './entities/report.entity';
 import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';
 import { OrdersModule } from '../orders/orders.module';
@@ -14,6 +15,7 @@ import { OrdersModule } from '../orders/orders.module';
   imports: [
     MongooseModule.forFeature([
       { name: AnalyticsEvent.name, schema: AnalyticsEventSchema },
+      { name: Report.name, schema: ReportSchema },
     ]),
     CoursesModule,
     UsersModule,
@@ -23,4 +25,4 @@ import { OrdersModule } from '../orders/orders.module';
   providers: [AnalyticsService],
   exports: [AnalyticsService],
 })
-export class AnalyticsModule {}
+export class AnalyticsModule { }

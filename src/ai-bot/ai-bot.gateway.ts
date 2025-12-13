@@ -35,7 +35,7 @@ export class AiBotGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleJoin(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
     const { sessionId } = data;
     const jwtUserId = (client as any)?.data?.userId;
-    const payloadUserId = (data as any)?.userId;
+    const payloadUserId = data?.userId;
     const userId = jwtUserId || payloadUserId;
     this.activeUsers.set(client.id, userId);
     client.join(`bot-session-${sessionId}`);

@@ -252,3 +252,47 @@ BotTaskSchema.index({ conversationId: 1 });
 BotTaskSchema.index({ status: 1, createdAt: 1 });
 BotTaskSchema.index({ assignedTo: 1, status: 1 });
 BotTaskSchema.index({ priority: 1, status: 1 });
+
+// AI Agent configuration
+@Schema({ timestamps: true })
+export class AIAgent extends Document {
+  @Prop({ type: String, required: true })
+  name: string;
+
+  @Prop({ type: String, required: true })
+  description: string;
+
+  @Prop({ type: String, required: true })
+  agentType: string;
+
+  @Prop({
+    type: String,
+    enum: ['active', 'inactive', 'training'],
+    default: 'active',
+  })
+  status: 'active' | 'inactive' | 'training';
+
+  @Prop({ type: [String], default: [] })
+  knowledgeBase: string[];
+
+  @Prop({ type: Boolean, default: true })
+  isActive: boolean;
+
+  @Prop({ type: Number, default: 0 })
+  conversations: number;
+
+  @Prop({ type: Number, default: 0 })
+  avgResponseSec: number;
+
+  @Prop({ type: String })
+  iconBg?: string;
+
+  @Prop({ type: String })
+  iconColor?: string;
+}
+
+export const AIAgentSchema = SchemaFactory.createForClass(AIAgent);
+
+AIAgentSchema.index({ status: 1, isActive: 1 });
+AIAgentSchema.index({ agentType: 1 });
+AIAgentSchema.index({ createdAt: -1 });
