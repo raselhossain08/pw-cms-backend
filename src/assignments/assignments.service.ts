@@ -10,6 +10,7 @@ import {
   Assignment,
   AssignmentSubmission,
 } from '../certificates/entities/additional.entity';
+import { Lesson } from '../courses/entities/lesson.entity';
 
 @Injectable()
 export class AssignmentsService {
@@ -17,7 +18,8 @@ export class AssignmentsService {
     @InjectModel(Assignment.name) private assignmentModel: Model<Assignment>,
     @InjectModel(AssignmentSubmission.name)
     private submissionModel: Model<AssignmentSubmission>,
-  ) {}
+    @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
+  ) { }
 
   async create(
     courseId: string,
@@ -45,7 +47,56 @@ export class AssignmentsService {
     if (data.lessonId) payload.lesson = new Types.ObjectId(data.lessonId);
     const assignment = new this.assignmentModel(payload);
 
-    return await assignment.save();
+    const savedAssignment = await assignment.save();
+
+    // Automatically create a lesson of type ASSIGNMENT if moduleId is provided
+    if (data.moduleId) {
+      // Generate slug from assignment title
+      const slug = data.title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
+
+      // Check for existing lesson with same slug
+      let finalSlug = slug;
+      const existingLesson = await this.lessonModel.findOne({
+        course: courseId,
+        slug: finalSlug,
+      });
+      if (existingLesson) {
+        finalSlug = `${slug}-${Date.now()}`;
+      }
+
+      // Get the order for the new lesson within the module
+      const lessonCount = await this.lessonModel.countDocuments({
+        course: courseId,
+        module: new Types.ObjectId(data.moduleId),
+      });
+
+      // Create the lesson
+      const lesson = new this.lessonModel({
+        title: data.title,
+        slug: finalSlug,
+        description: data.description || '',
+        type: 'assignment',
+        status: 'published',
+        order: lessonCount + 1,
+        course: new Types.ObjectId(courseId),
+        module: new Types.ObjectId(data.moduleId),
+        duration: 0,
+        isFree: false,
+      });
+
+      await lesson.save();
+
+      // Update the assignment with the lesson reference
+      savedAssignment.lesson = lesson._id as Types.ObjectId;
+      await savedAssignment.save();
+    }
+
+    return savedAssignment;
   }
 
   async getCourseAssignments(
@@ -282,7 +333,7 @@ export class AssignmentsService {
     const averageGrade =
       submissions.length > 0
         ? submissions.reduce((sum, s) => sum + (s.grade || 0), 0) /
-          submissions.length
+        submissions.length
         : 0;
 
     return {

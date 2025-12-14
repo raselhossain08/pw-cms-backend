@@ -11,6 +11,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { CoursesService } from '../courses/courses.service';
 import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
 
 @Injectable()
 export class OrdersService {
@@ -260,38 +261,6 @@ export class OrdersService {
       .exec();
   }
 
-  async getOrderStats(): Promise<any> {
-    const [
-      totalOrders,
-      completedOrders,
-      pendingOrders,
-      totalRevenue,
-      averageOrderValue,
-    ] = await Promise.all([
-      this.orderModel.countDocuments(),
-      this.orderModel.countDocuments({ status: OrderStatus.COMPLETED }),
-      this.orderModel.countDocuments({ status: OrderStatus.PENDING }),
-      this.orderModel.aggregate([
-        { $match: { status: OrderStatus.COMPLETED } },
-        { $group: { _id: null, total: { $sum: '$total' } } },
-      ]),
-      this.orderModel.aggregate([
-        { $match: { status: OrderStatus.COMPLETED } },
-        { $group: { _id: null, average: { $avg: '$total' } } },
-      ]),
-    ]);
-
-    return {
-      totalOrders,
-      completedOrders,
-      pendingOrders,
-      totalRevenue: totalRevenue[0]?.total || 0,
-      averageOrderValue: averageOrderValue[0]?.average || 0,
-      conversionRate:
-        totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0,
-    };
-  }
-
   async processRefund(
     orderId: string,
     refundData: {
@@ -324,11 +293,11 @@ export class OrdersService {
 
     // Send notification
     const user = await this.usersService.findById(order.user.toString());
-    await this.notificationsService.create({
-      userId: user.id,
+    await this.notificationsService.sendNotification({
+      user: user.id,
       title: 'Order Refunded',
       message: `Your order ${order.orderNumber} has been refunded.`,
-      type: 'order',
+      type: NotificationType.IN_APP,
     });
 
     return order;
@@ -344,11 +313,11 @@ export class OrdersService {
     const user = await this.usersService.findById(order.user.toString());
 
     // Send notification with receipt
-    await this.notificationsService.create({
-      userId: user.id,
+    await this.notificationsService.sendNotification({
+      user: user.id,
       title: 'Order Receipt',
       message: `Receipt for order ${order.orderNumber}`,
-      type: 'order',
+      type: NotificationType.IN_APP,
     });
 
     return { message: 'Receipt sent successfully' };
@@ -375,7 +344,7 @@ export class OrdersService {
           order.orderNumber,
           `"${customerName}"`,
           email,
-          new Date(order.createdAt).toLocaleDateString(),
+          new Date((order as any).createdAt).toLocaleDateString(),
           order.status,
           order.total.toFixed(2),
           order.courses.length,

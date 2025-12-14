@@ -389,11 +389,17 @@ export class CoursesService {
       );
     }
 
+    // Handle moduleId conversion to module
+    if (updateData.moduleId !== undefined) {
+      updateData.module = updateData.moduleId || null;
+      delete updateData.moduleId;
+    }
+
     const updatedLesson = await this.lessonModel.findByIdAndUpdate(
       lessonId,
       updateData,
       { new: true },
-    );
+    ).populate('module').populate('course');
 
     if (!updatedLesson) {
       throw new NotFoundException('Lesson not found');

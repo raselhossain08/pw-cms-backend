@@ -17,6 +17,9 @@ export class CourseModule extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Course', required: true })
   course: Types.ObjectId;
 
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Course' }], default: [] })
+  courses: Types.ObjectId[];
+
   @Prop({ required: true, default: 1 })
   order: number;
 

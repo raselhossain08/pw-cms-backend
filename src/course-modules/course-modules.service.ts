@@ -19,7 +19,7 @@ export class CourseModulesService {
     @InjectModel(CourseModule.name) private moduleModel: Model<CourseModule>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) {}
+  ) { }
 
   async create(
     dto: CreateCourseModuleDto,
@@ -59,6 +59,7 @@ export class CourseModulesService {
       this.moduleModel
         .find(query)
         .populate('course', 'title instructor')
+        .populate('courses', 'title instructor')
         .sort({ course: 1, order: 1 })
         .skip(skip)
         .limit(limit)
@@ -111,9 +112,25 @@ export class CourseModulesService {
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
-    const updated = await this.moduleModel.findByIdAndUpdate(id, dto, {
+
+    // Transform courseId to course field for Mongoose
+    const updateData: any = { ...dto };
+    if (dto.courseId) {
+      const courseIdObj = new Types.ObjectId(dto.courseId);
+      updateData.course = courseIdObj;
+
+      // Add to courses array if not already present
+      const existingCourses = module.courses || [];
+      if (!existingCourses.some(c => c.toString() === dto.courseId)) {
+        updateData.courses = [...existingCourses, courseIdObj];
+      }
+
+      delete updateData.courseId;
+    }
+
+    const updated = await this.moduleModel.findByIdAndUpdate(id, updateData, {
       new: true,
-    });
+    }).populate('course', 'title instructor').populate('courses', 'title instructor');
     if (!updated) throw new NotFoundException('Module not found');
     return updated;
   }

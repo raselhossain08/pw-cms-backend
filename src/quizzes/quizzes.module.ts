@@ -7,16 +7,18 @@ import {
   QuizSubmission,
   QuizSubmissionSchema,
 } from './entities/quiz-submission.entity';
+import { Lesson, LessonSchema } from '../courses/entities/lesson.entity';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Quiz.name, schema: QuizSchema },
       { name: QuizSubmission.name, schema: QuizSubmissionSchema },
+      { name: Lesson.name, schema: LessonSchema },
     ]),
   ],
   controllers: [QuizzesController],
   providers: [QuizzesService],
   exports: [QuizzesService, MongooseModule],
 })
-export class QuizzesModule {}
+export class QuizzesModule { }

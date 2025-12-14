@@ -8,16 +8,18 @@ import {
   AssignmentSubmission,
   AssignmentSubmissionSchema,
 } from '../certificates/entities/additional.entity';
+import { Lesson, LessonSchema } from '../courses/entities/lesson.entity';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Assignment.name, schema: AssignmentSchema },
       { name: AssignmentSubmission.name, schema: AssignmentSubmissionSchema },
+      { name: Lesson.name, schema: LessonSchema },
     ]),
   ],
   controllers: [AssignmentsController],
   providers: [AssignmentsService],
   exports: [AssignmentsService],
 })
-export class AssignmentsModule {}
+export class AssignmentsModule { }

@@ -15,6 +15,7 @@ import {
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
+import { Lesson } from '../courses/entities/lesson.entity';
 
 @Injectable()
 export class QuizzesService {
@@ -22,7 +23,8 @@ export class QuizzesService {
     @InjectModel(Quiz.name) private quizModel: Model<Quiz>,
     @InjectModel(QuizSubmission.name)
     private submissionModel: Model<QuizSubmission>,
-  ) {}
+    @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
+  ) { }
 
   async create(
     createQuizDto: CreateQuizDto,
@@ -50,7 +52,57 @@ export class QuizzesService {
       totalPoints,
     });
 
-    return await quiz.save();
+    const savedQuiz = await quiz.save();
+
+    // Automatically create a lesson of type QUIZ if moduleId is provided
+    if (moduleId) {
+      // Generate slug from quiz title
+      const slug = createQuizDto.title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
+
+      // Check for existing lesson with same slug
+      let finalSlug = slug;
+      const existingLesson = await this.lessonModel.findOne({
+        course: courseId,
+        slug: finalSlug,
+      });
+      if (existingLesson) {
+        finalSlug = `${slug}-${Date.now()}`;
+      }
+
+      // Get the order for the new lesson within the module
+      const lessonCount = await this.lessonModel.countDocuments({
+        course: courseId,
+        module: new Types.ObjectId(moduleId),
+      });
+
+      // Create the lesson
+      const lesson = new this.lessonModel({
+        title: createQuizDto.title,
+        slug: finalSlug,
+        description: createQuizDto.description || '',
+        type: 'quiz',
+        status: 'published',
+        order: lessonCount + 1,
+        course: new Types.ObjectId(courseId),
+        module: new Types.ObjectId(moduleId),
+        duration: createQuizDto.duration || 0,
+        passingScore: createQuizDto.passingScore || 70,
+        isFree: false,
+      });
+
+      await lesson.save();
+
+      // Update the quiz with the lesson reference
+      savedQuiz.lesson = lesson._id as Types.ObjectId;
+      await savedQuiz.save();
+    }
+
+    return savedQuiz;
   }
 
   async findAll(query: {
