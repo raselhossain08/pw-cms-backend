@@ -6,7 +6,7 @@ import { CreateEventsDto, UpdateEventsDto } from '../dto/events.dto';
 
 @Injectable()
 export class EventsService {
-  constructor(@InjectModel(Events.name) private eventsModel: Model<Events>) {}
+  constructor(@InjectModel(Events.name) private eventsModel: Model<Events>) { }
 
   /**
    * Get active events section (Public)
@@ -76,5 +76,55 @@ export class EventsService {
     const events = new this.eventsModel(dto);
     await events.save();
     return events;
+  }
+
+  /**
+   * Duplicate an event
+   */
+  async duplicateEvent(slug: string): Promise<Events> {
+    const events = await this.eventsModel.findOne();
+
+    if (!events) {
+      throw new NotFoundException('Events section not found');
+    }
+
+    const event = events.events.find((e) => e.slug === slug);
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    // Create a duplicate with a new slug
+    const duplicatedEvent = {
+      ...JSON.parse(JSON.stringify(event)),
+      slug: `${event.slug}-copy-${Date.now()}`,
+      title: `${event.title} (Copy)`,
+      id: Math.max(...events.events.map((e) => e.id || 0), 0) + 1,
+    };
+
+    events.events.push(duplicatedEvent as any);
+    await events.save();
+    return events;
+  }
+
+  /**
+   * Export events
+   */
+  async export(format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const events = await this.eventsModel.findOne();
+
+    if (!events) {
+      throw new NotFoundException('Events section not found');
+    }
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      // In a real implementation, you'd use a library like pdfkit or puppeteer
+      return JSON.stringify(events, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      events,
+    };
   }
 }

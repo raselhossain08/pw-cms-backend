@@ -11,7 +11,7 @@ export class TopBarService {
     @InjectModel(TopBar.name)
     private topBarModel: Model<TopBarDocument>,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   async create(createDto: CreateTopBarDto): Promise<TopBar> {
     const created = new this.topBarModel(createDto);
@@ -128,5 +128,53 @@ export class TopBarService {
       .exec();
     if (!result) throw new NotFoundException('Top bar not found');
     return result.toJSON();
+  }
+
+  async toggleActive(id: string): Promise<TopBar> {
+    const topBar = await this.findOne(id);
+    const newActiveState = !topBar.isActive;
+
+    if (newActiveState) {
+      // Deactivate all others first
+      await this.topBarModel.updateMany({}, { isActive: false });
+    }
+
+    const result = await this.topBarModel
+      .findByIdAndUpdate(id, { isActive: newActiveState }, { new: true })
+      .exec();
+
+    if (!result) {
+      throw new NotFoundException(`Top bar #${id} not found`);
+    }
+
+    return result.toJSON();
+  }
+
+  async duplicate(id: string): Promise<TopBar> {
+    const original = await this.findOne(id);
+    const duplicated = {
+      ...original,
+      _id: undefined,
+      isActive: false,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+
+    const created = new this.topBarModel(duplicated);
+    return created.save().then((doc) => doc.toJSON());
+  }
+
+  async export(id: string, format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const topBar = await this.findOne(id);
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      return JSON.stringify(topBar, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      topBar,
+    };
   }
 }

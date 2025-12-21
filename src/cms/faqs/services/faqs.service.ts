@@ -6,7 +6,7 @@ import { CreateFaqsDto, UpdateFaqsDto } from '../dto/faqs.dto';
 
 @Injectable()
 export class FaqsService {
-  constructor(@InjectModel(Faqs.name) private faqsModel: Model<FaqsDocument>) {}
+  constructor(@InjectModel(Faqs.name) private faqsModel: Model<FaqsDocument>) { }
 
   async create(createFaqsDto: CreateFaqsDto): Promise<Faqs> {
     const faqs = new this.faqsModel(createFaqsDto);
@@ -257,5 +257,53 @@ export class FaqsService {
     }
 
     return faqs as any;
+  }
+
+  async toggleActive(id: string): Promise<Faqs> {
+    const faqs = await this.findOne(id);
+    const newActiveState = !faqs.isActive;
+
+    if (newActiveState) {
+      // Deactivate all others first
+      await this.faqsModel.updateMany({ isActive: true }, { isActive: false });
+    }
+
+    const updated = await this.faqsModel
+      .findByIdAndUpdate(id, { isActive: newActiveState }, { new: true })
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException(`FAQs with ID ${id} not found`);
+    }
+
+    return updated;
+  }
+
+  async duplicate(id: string): Promise<Faqs> {
+    const original = await this.findOne(id);
+    const duplicated = {
+      ...JSON.parse(JSON.stringify(original)),
+      _id: undefined,
+      isActive: false,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+
+    const created = new this.faqsModel(duplicated);
+    return created.save();
+  }
+
+  async export(id: string, format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const faqs = await this.findOne(id);
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      return JSON.stringify(faqs, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      faqs,
+    };
   }
 }

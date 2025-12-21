@@ -9,10 +9,13 @@ import {
   Patch,
   Post,
   Put,
+  Query,
+  Res,
   UploadedFile,
   UseInterceptors,
   VERSION_NEUTRAL,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -30,7 +33,7 @@ export class FooterController {
   constructor(
     private footerService: FooterService,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   @Get('active')
   @ApiOperation({ summary: 'Get active footer configuration (Public)' })
@@ -195,5 +198,79 @@ export class FooterController {
         method: 'POST',
       },
     };
+  }
+
+  @Post(':id/toggle-active')
+  @ApiOperation({ summary: 'Toggle active status' })
+  @ApiResponse({
+    status: 200,
+    description: 'Active status toggled successfully',
+  })
+  async toggleActive(@Param('id') id: string) {
+    const footer = await this.footerService.toggleActive(id);
+    return {
+      success: true,
+      message: 'Active status toggled successfully',
+      data: footer,
+      meta: {
+        timestamp: new Date().toISOString(),
+        path: `/api/cms/footer/${id}/toggle-active`,
+        method: 'POST',
+      },
+    };
+  }
+
+  @Post(':id/duplicate')
+  @ApiOperation({ summary: 'Duplicate footer' })
+  @ApiResponse({
+    status: 200,
+    description: 'Footer duplicated successfully',
+  })
+  async duplicate(@Param('id') id: string) {
+    const footer = await this.footerService.duplicate(id);
+    return {
+      success: true,
+      message: 'Footer duplicated successfully',
+      data: footer,
+      meta: {
+        timestamp: new Date().toISOString(),
+        path: `/api/cms/footer/${id}/duplicate`,
+        method: 'POST',
+      },
+    };
+  }
+
+  @Get(':id/export')
+  @ApiOperation({ summary: 'Export footer' })
+  async export(
+    @Param('id') id: string,
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
+    try {
+      const result = await this.footerService.export(id, format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="footer_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="footer_${new Date().toISOString().split('T')[0]}.json"`,
+      );
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export footer',
+        data: null,
+      });
+    }
   }
 }

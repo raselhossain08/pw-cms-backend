@@ -76,6 +76,15 @@ export class CreateCourseDto {
   @IsOptional()
   originalPrice?: number;
 
+  @ApiProperty({
+    example: false,
+    description: 'Whether course is free (overrides price if true)',
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isFree?: boolean;
+
   @ApiProperty({ example: 120, description: 'Duration in hours' })
   @IsNumber()
   @Min(1)

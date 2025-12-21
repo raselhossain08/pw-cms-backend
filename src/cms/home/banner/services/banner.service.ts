@@ -8,7 +8,7 @@ import { CreateBannerDto, UpdateBannerDto } from '../dto/banner.dto';
 export class BannerService {
   constructor(
     @InjectModel(Banner.name) private bannerModel: Model<BannerDocument>,
-  ) {}
+  ) { }
 
   async create(createBannerDto: CreateBannerDto): Promise<Banner> {
     const banner = new this.bannerModel(createBannerDto);
@@ -56,5 +56,42 @@ export class BannerService {
       },
     }));
     await this.bannerModel.bulkWrite(bulkOps);
+  }
+
+  async duplicate(id: string): Promise<Banner> {
+    const existing = await this.findOne(id);
+
+    // Create a duplicate with a new order
+    const maxOrderBanner = await this.bannerModel
+      .findOne()
+      .sort({ order: -1 })
+      .exec();
+
+    const duplicated = new this.bannerModel({
+      ...JSON.parse(JSON.stringify(existing)),
+      _id: undefined, // Remove the original _id
+      title: `${existing.title} (Copy)`,
+      order: maxOrderBanner ? maxOrderBanner.order + 1 : existing.order + 1,
+      isActive: false, // Duplicated items are inactive by default
+    });
+
+    return duplicated.save();
+  }
+
+  async export(format: 'json' | 'pdf' = 'json', ids?: string[]): Promise<any> {
+    const query = ids && ids.length > 0 ? { _id: { $in: ids } } : {};
+    const banners = await this.bannerModel.find(query).sort({ order: 1 }).exec();
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      // In a real implementation, you'd use a library like pdfkit or puppeteer
+      return JSON.stringify(banners, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      count: banners.length,
+      banners,
+    };
   }
 }

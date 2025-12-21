@@ -6,11 +6,14 @@ import {
   Delete,
   Body,
   Param,
+  Query,
+  Res,
   HttpCode,
   HttpStatus,
   UseInterceptors,
   UploadedFiles,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { FaqsService } from '../services/faqs.service';
@@ -23,7 +26,7 @@ export class FaqsController {
   constructor(
     private readonly faqsService: FaqsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -142,8 +145,8 @@ export class FaqsController {
     while (body[`faqs[${faqIndex}][question]`]) {
       const tags = body[`faqs[${faqIndex}][tags]`]
         ? body[`faqs[${faqIndex}][tags]`]
-            .split(',')
-            .map((t: string) => t.trim())
+          .split(',')
+          .map((t: string) => t.trim())
         : [];
 
       faqs.push({
@@ -160,14 +163,14 @@ export class FaqsController {
     // Parse SEO metadata from FormData
     let seo:
       | {
-          title?: string;
-          description?: string;
-          keywords?: string;
-          ogImage?: string;
-          ogTitle?: string;
-          ogDescription?: string;
-          canonicalUrl?: string;
-        }
+        title?: string;
+        description?: string;
+        keywords?: string;
+        ogImage?: string;
+        ogTitle?: string;
+        ogDescription?: string;
+        canonicalUrl?: string;
+      }
       | undefined;
 
     if (
@@ -210,5 +213,61 @@ export class FaqsController {
       success: true,
       message: 'FAQs deleted successfully',
     };
+  }
+
+  @Post(':id/toggle-active')
+  @ApiOperation({ summary: 'Toggle active status' })
+  async toggleActive(@Param('id') id: string) {
+    const faqs = await this.faqsService.toggleActive(id);
+    return {
+      success: true,
+      message: 'Active status toggled successfully',
+      data: faqs,
+    };
+  }
+
+  @Post(':id/duplicate')
+  @ApiOperation({ summary: 'Duplicate FAQs' })
+  async duplicate(@Param('id') id: string) {
+    const faqs = await this.faqsService.duplicate(id);
+    return {
+      success: true,
+      message: 'FAQs duplicated successfully',
+      data: faqs,
+    };
+  }
+
+  @Get(':id/export')
+  @ApiOperation({ summary: 'Export FAQs' })
+  async export(
+    @Param('id') id: string,
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
+    try {
+      const result = await this.faqsService.export(id, format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="faqs_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="faqs_${new Date().toISOString().split('T')[0]}.json"`,
+      );
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export FAQs',
+        data: null,
+      });
+    }
   }
 }

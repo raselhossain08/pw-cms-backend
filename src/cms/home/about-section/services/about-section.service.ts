@@ -12,7 +12,7 @@ export class AboutSectionService {
   constructor(
     @InjectModel(AboutSection.name)
     private aboutSectionModel: Model<AboutSection>,
-  ) {}
+  ) { }
 
   /**
    * Get the About Section (single document with id 'about')
@@ -93,5 +93,48 @@ export class AboutSectionService {
    */
   async deleteAboutSection(): Promise<void> {
     await this.aboutSectionModel.deleteOne({ id: 'about' }).exec();
+  }
+
+  /**
+   * Duplicate the About Section
+   */
+  async duplicate(): Promise<AboutSection> {
+    const existing = await this.aboutSectionModel.findOne({ id: 'about' }).exec();
+
+    if (!existing) {
+      throw new NotFoundException('About Section not found');
+    }
+
+    // Create a duplicate with a new ID
+    const duplicated = new this.aboutSectionModel({
+      ...existing.toObject(),
+      id: `about-${Date.now()}`,
+      isActive: false, // Duplicated items are inactive by default
+      _id: undefined, // Remove the original _id
+    });
+
+    return duplicated.save();
+  }
+
+  /**
+   * Export the About Section
+   */
+  async export(format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const aboutSection = await this.aboutSectionModel.findOne({ id: 'about' }).exec();
+
+    if (!aboutSection) {
+      throw new NotFoundException('About Section not found');
+    }
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      // In a real implementation, you'd use a library like pdfkit or puppeteer
+      return JSON.stringify(aboutSection, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      aboutSection,
+    };
   }
 }

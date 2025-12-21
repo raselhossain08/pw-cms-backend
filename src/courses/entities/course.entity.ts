@@ -86,6 +86,14 @@ export class Course extends Document {
   @Prop()
   originalPrice: number;
 
+  @ApiProperty({
+    example: false,
+    description: 'Whether course is free (price = 0 or isFree = true)',
+    required: false,
+  })
+  @Prop({ default: false })
+  isFree: boolean;
+
   @ApiProperty({ example: 40, description: 'Course duration in hours' })
   @Prop({ required: true })
   duration: number;
@@ -195,6 +203,13 @@ export class Course extends Document {
 }
 
 export const CourseSchema = SchemaFactory.createForClass(Course);
+
+// Performance indexes for common queries
+CourseSchema.index({ instructor: 1, status: 1 }); // For instructor courses
+CourseSchema.index({ status: 1, isFeatured: 1 }); // For featured courses
+CourseSchema.index({ categories: 1 }); // For category filtering
+CourseSchema.index({ createdAt: -1 }); // For recent courses
+CourseSchema.index({ slug: 1 }, { unique: true }); // For unique slug lookups
 
 // Add proper JSON serialization
 CourseSchema.set('toJSON', {

@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   BotConversation,
   KnowledgeBase,
@@ -19,6 +19,9 @@ import { SendMessageDto, CreateKnowledgeDto } from './dto/ai-bot.dto';
 import { ChatGPTService } from './services/chatgpt.service';
 import { BotActionsService } from './services/bot-actions.service';
 import { v4 as uuidv4 } from 'uuid';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { AiModel } from '../activity-logs/entities/ai-log.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class AiBotService {
@@ -31,8 +34,10 @@ export class AiBotService {
     private botAnalyticsModel: Model<BotAnalytics>,
     @InjectModel(BotTask.name) private botTaskModel: Model<BotTask>,
     @InjectModel(AIAgent.name) private aiAgentModel: Model<AIAgent>,
+    @InjectModel(User.name) private userModel: Model<User>, // Add this for user lookup
     private chatGPTService: ChatGPTService,
     private botActionsService: BotActionsService,
+    private activityLogsService: ActivityLogsService, // Add this
   ) {
     this.initializeDefaultKnowledge();
   }
@@ -42,6 +47,7 @@ export class AiBotService {
     sendMessageDto: SendMessageDto,
   ): Promise<any> {
     const { message, sessionId, context } = sendMessageDto;
+    const startTime = Date.now();
 
     // Get or create conversation
     let conversation = sessionId
@@ -73,42 +79,90 @@ export class AiBotService {
       timestamp: new Date(),
     });
 
-    // Generate bot response based on intent
-    const botResponse = await this.generateResponse(
-      intent,
-      message,
-      conversation,
-      userId,
-    );
+    try {
+      // Generate bot response based on intent
+      const botResponse = await this.generateResponse(
+        intent,
+        message,
+        conversation,
+        userId,
+      );
 
-    // Add bot response to conversation
-    conversation.messages.push({
-      role: 'bot',
-      content: botResponse.message,
-      timestamp: new Date(),
-    });
+      const duration = Date.now() - startTime;
 
-    conversation.lastActiveAt = new Date();
+      // Add bot response to conversation
+      conversation.messages.push({
+        role: 'bot',
+        content: botResponse.message,
+        timestamp: new Date(),
+      });
 
-    // Update context if needed
-    if (botResponse.contextUpdate) {
-      conversation.context = {
-        ...conversation.context,
-        ...botResponse.contextUpdate,
+      conversation.lastActiveAt = new Date();
+
+      // Update context if needed
+      if (botResponse.contextUpdate) {
+        conversation.context = {
+          ...conversation.context,
+          ...botResponse.contextUpdate,
+        };
+      }
+
+      await conversation.save();
+
+      // Get user info for logging
+      const user = await this.userModel.findById(userId).lean().exec().catch(() => null);
+
+      // Log successful AI interaction
+      await this.activityLogsService
+        .createAiLog({
+          aiModel: this.chatGPTService.isEnabled()
+            ? AiModel.GPT4
+            : AiModel.CUSTOM,
+          prompt: message,
+          response: botResponse.message || JSON.stringify(botResponse),
+          tokensUsed: (botResponse as any).tokensUsed || 0,
+          responseTime: duration,
+          userId: new Types.ObjectId(userId),
+          userName: user
+            ? `${user.firstName} ${user.lastName}`
+            : undefined,
+          conversationId: conversation.sessionId,
+          status: 'success',
+        })
+        .catch((err) => console.error('Failed to log AI interaction:', err));
+
+      return {
+        sessionId: conversation.sessionId,
+        message: botResponse.message,
+        intent,
+        confidence,
+        responseType: botResponse.responseType || ResponseType.TEXT,
+        actions: botResponse.actions || [],
+        quickReplies: botResponse.quickReplies || [],
       };
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+
+      // Log failed AI interaction
+      const errorMessage = error.message || 'Unknown error occurred';
+      await this.activityLogsService
+        .createAiLog({
+          aiModel: this.chatGPTService.isEnabled()
+            ? AiModel.GPT4
+            : AiModel.CUSTOM,
+          prompt: message,
+          response: `Error: ${errorMessage}`,
+          tokensUsed: 0,
+          responseTime: duration,
+          userId: new Types.ObjectId(userId),
+          conversationId: conversation.sessionId,
+          status: 'error',
+          errorMessage: errorMessage,
+        })
+        .catch((err) => console.error('Failed to log AI error:', err));
+
+      throw error;
     }
-
-    await conversation.save();
-
-    return {
-      sessionId: conversation.sessionId,
-      message: botResponse.message,
-      intent,
-      confidence,
-      responseType: botResponse.responseType || ResponseType.TEXT,
-      actions: botResponse.actions || [],
-      quickReplies: botResponse.quickReplies || [],
-    };
   }
 
   private async detectIntent(
@@ -245,6 +299,36 @@ export class AiBotService {
     conversation: BotConversation,
     userId: string,
   ): Promise<any> {
+    // Detect action requests in the message
+    const actionRequest = this.detectActionRequest(message);
+
+    // If action is detected, execute it
+    if (actionRequest) {
+      const actionResult = await this.executeAction(
+        actionRequest.action,
+        message,
+        userId,
+        conversation,
+        actionRequest.data,
+      );
+
+      if (actionResult && actionResult.success !== false) {
+        return {
+          message: actionResult.message || `✅ Action "${actionRequest.action}" completed successfully!`,
+          responseType: ResponseType.TEXT,
+          quickReplies: ['View result', 'Create another', 'Main menu'],
+          actions: [],
+          contextUpdate: { lastAction: actionRequest.action, lastActionResult: actionResult },
+        };
+      } else {
+        return {
+          message: actionResult?.error || `❌ Failed to execute action "${actionRequest.action}". Please try again.`,
+          responseType: ResponseType.TEXT,
+          quickReplies: ['Try again', 'Get help'],
+        };
+      }
+    }
+
     // Try ChatGPT for natural responses if enabled
     if (this.chatGPTService.isEnabled()) {
       try {
@@ -254,6 +338,27 @@ export class AiBotService {
           conversation.messages || [],
           conversation.context,
         );
+
+        // Check if GPT response contains action hints
+        const gptAction = this.detectActionFromResponse(gptResponse.message);
+        if (gptAction) {
+          const actionResult = await this.executeAction(
+            gptAction.action,
+            message,
+            userId,
+            conversation,
+            gptAction.data,
+          );
+
+          if (actionResult && actionResult.success !== false) {
+            return {
+              message: `${gptResponse.message}\n\n✅ ${actionResult.message || 'Action completed!'}`,
+              responseType: ResponseType.TEXT,
+              quickReplies: gptResponse.quickReplies,
+              actions: gptResponse.suggestedActions,
+            };
+          }
+        }
 
         return {
           message: gptResponse.message,
@@ -290,7 +395,8 @@ export class AiBotService {
             'Check my enrollments',
             'Payment help',
             'Technical support',
-            'Talk to human agent',
+            'Create a course',
+            'Write a blog',
           ],
         };
 
@@ -511,8 +617,8 @@ export class AiBotService {
 
       default:
         return {
-          message: `I'm still learning and didn't quite understand that. Could you rephrase your question? Or I can connect you with a human agent who can help better.`,
-          quickReplies: ['Talk to human', 'Common questions', 'Browse help'],
+          message: `I didn't quite understand that. Could you rephrase your question? I can help you create courses, write blogs, search content, or perform other actions. What would you like me to do?`,
+          quickReplies: ['Create a course', 'Write a blog', 'Search courses', 'Common questions'],
         };
     }
   }
@@ -757,6 +863,80 @@ export class AiBotService {
     return conversations;
   }
 
+  // Detect action requests from user messages
+  private detectActionRequest(message: string): { action: string; data?: any } | null {
+    const lowerMessage = message.toLowerCase();
+
+    // Course creation patterns
+    if (lowerMessage.match(/create.*course|make.*course|new course|add course/i)) {
+      // Extract course details from message
+      const titleMatch = message.match(/(?:title|name)[: ]*([^,\.\n]+)/i) ||
+        message.match(/course (?:called|named|titled) ([^,\.\n]+)/i) ||
+        message.match(/create (?:a |an )?course (?:about |on |for )?([^,\.\n]+)/i);
+      const priceMatch = message.match(/(?:price|cost)[: ]*\$?(\d+)/i);
+      const descMatch = message.match(/(?:description|about)[: ]*([^,\.\n]+)/i);
+
+      return {
+        action: 'create_course',
+        data: {
+          title: titleMatch ? titleMatch[1].trim() : 'New Course',
+          description: descMatch ? descMatch[1].trim() : 'A new course created by AI Assistant',
+          price: priceMatch ? parseFloat(priceMatch[1]) : 0,
+          level: lowerMessage.includes('advanced') ? 'advanced' :
+            lowerMessage.includes('intermediate') ? 'intermediate' : 'beginner',
+          type: 'online',
+          duration: 10,
+        },
+      };
+    }
+
+    // Blog creation patterns
+    if (lowerMessage.match(/create.*blog|write.*blog|new blog|post.*blog|publish.*blog/i)) {
+      const titleMatch = message.match(/(?:title|about)[: ]*([^,\.\n]+)/i) ||
+        message.match(/blog (?:about|on) ([^,\.\n]+)/i);
+      const contentMatch = message.match(/(?:content|write)[: ]*([^,\.\n]+)/i);
+
+      return {
+        action: 'create_blog',
+        data: {
+          title: titleMatch ? titleMatch[1].trim() : 'New Blog Post',
+          content: contentMatch ? contentMatch[1].trim() : message,
+          excerpt: message.substring(0, 150),
+        },
+      };
+    }
+
+    // Update course patterns
+    if (lowerMessage.match(/update.*course|edit.*course|modify.*course|change.*course/i)) {
+      const courseIdMatch = message.match(/(?:course|id)[: ]*([a-f0-9]{24})/i);
+      return {
+        action: 'update_course',
+        data: {
+          courseId: courseIdMatch ? courseIdMatch[1] : null,
+        },
+      };
+    }
+
+    // Delete course patterns
+    if (lowerMessage.match(/delete.*course|remove.*course/i)) {
+      const courseIdMatch = message.match(/(?:course|id)[: ]*([a-f0-9]{24})/i);
+      return {
+        action: 'delete_course',
+        data: {
+          courseId: courseIdMatch ? courseIdMatch[1] : null,
+        },
+      };
+    }
+
+    return null;
+  }
+
+  // Detect actions from AI response
+  private detectActionFromResponse(response: string): { action: string; data?: any } | null {
+    // This can be enhanced to parse structured responses from GPT
+    return null;
+  }
+
   async rateConversation(
     sessionId: string,
     rating: number,
@@ -777,6 +957,32 @@ export class AiBotService {
     await conversation.save();
 
     return { message: 'Thank you for your feedback!' };
+  }
+
+  async deleteConversation(sessionId: string, userId: string): Promise<any> {
+    const conversation = await this.botConversationModel
+      .findOne({ sessionId, userId })
+      .exec();
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    await this.botConversationModel.findByIdAndDelete(conversation._id).exec();
+
+    return { message: 'Conversation deleted successfully' };
+  }
+
+  async getStatus(): Promise<any> {
+    const isOpenAIEnabled = this.chatGPTService.isEnabled();
+    const isGeminiEnabled = !!this.chatGPTService['geminiApiKey'];
+
+    return {
+      status: 'online',
+      aiEnabled: isOpenAIEnabled || isGeminiEnabled,
+      openAIEnabled: isOpenAIEnabled,
+      geminiEnabled: isGeminiEnabled,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   // Knowledge base management
@@ -897,6 +1103,7 @@ export class AiBotService {
     query: string,
     userId: string,
     conversation: BotConversation,
+    actionData?: any,
   ): Promise<any> {
     try {
       switch (action) {
@@ -941,6 +1148,28 @@ export class AiBotService {
         case 'search_everything':
           return await this.botActionsService.searchEverything(query, userId);
 
+        // ADMIN ACTIONS - Course Management
+        case 'create_course':
+          const courseData = actionData || conversation.context?.courseData || {};
+          return await this.botActionsService.createCourse(courseData, userId);
+
+        case 'update_course':
+          const updateCourseData = actionData || conversation.context?.updateCourseData || {};
+          const updateCourseId = updateCourseData.courseId || query;
+          return await this.botActionsService.updateCourse(updateCourseId, updateCourseData, userId);
+
+        case 'delete_course':
+          const deleteCourseId = actionData?.courseId || query;
+          return await this.botActionsService.deleteCourse(deleteCourseId, userId);
+
+        case 'get_all_courses_admin':
+          return await this.botActionsService.getAllCoursesAdmin(actionData || {});
+
+        // ADMIN ACTIONS - Blog Management
+        case 'create_blog':
+          const blogData = actionData || conversation.context?.blogData || {};
+          return await this.botActionsService.createBlog(blogData);
+
         default:
           return null;
       }
@@ -948,15 +1177,6 @@ export class AiBotService {
       console.error(`Action execution error (${action}):`, error);
       return null;
     }
-  }
-  getStatus() {
-    const enabled = this.chatGPTService.isEnabled();
-    const provider = this.chatGPTService.getProvider();
-    const models = {
-      openai: 'gpt-4o-mini',
-      gemini: 'gemini-2.0-flash',
-    };
-    return { enabled, provider, models };
   }
 
   // ============================================

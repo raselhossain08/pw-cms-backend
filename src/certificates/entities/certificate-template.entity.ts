@@ -8,10 +8,10 @@ export class CertificateTemplate {
   @Prop({ required: true })
   name: string;
 
-  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
+  @Prop({ type: MongooseSchema.Types.Mixed, required: false })
   elements: any[];
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   thumbnail: string;
 
   @Prop({ type: [String], default: [] })
@@ -26,6 +26,12 @@ export class CertificateTemplate {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  config: any;
+
+  @Prop({ required: false })
+  description: string;
 }
 
 export const CertificateTemplateSchema =

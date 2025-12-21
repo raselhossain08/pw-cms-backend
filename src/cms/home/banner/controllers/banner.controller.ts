@@ -6,6 +6,8 @@ import {
   Delete,
   Body,
   Param,
+  Query,
+  Res,
   UseInterceptors,
   UploadedFiles,
   HttpCode,
@@ -13,6 +15,7 @@ import {
   VERSION_NEUTRAL,
   BadRequestException,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -105,17 +108,17 @@ export class BannerController {
         seo:
           body.seo || body['seo[title]']
             ? {
-                title: body['seo[title]'] || body.seo?.title || '',
-                description:
-                  body['seo[description]'] || body.seo?.description || '',
-                keywords: body['seo[keywords]'] || body.seo?.keywords || '',
-                ogImage: body['seo[ogImage]'] || body.seo?.ogImage || '',
-                ogTitle: body['seo[ogTitle]'] || body.seo?.ogTitle || '',
-                ogDescription:
-                  body['seo[ogDescription]'] || body.seo?.ogDescription || '',
-                canonicalUrl:
-                  body['seo[canonicalUrl]'] || body.seo?.canonicalUrl || '',
-              }
+              title: body['seo[title]'] || body.seo?.title || '',
+              description:
+                body['seo[description]'] || body.seo?.description || '',
+              keywords: body['seo[keywords]'] || body.seo?.keywords || '',
+              ogImage: body['seo[ogImage]'] || body.seo?.ogImage || '',
+              ogTitle: body['seo[ogTitle]'] || body.seo?.ogTitle || '',
+              ogDescription:
+                body['seo[ogDescription]'] || body.seo?.ogDescription || '',
+              canonicalUrl:
+                body['seo[canonicalUrl]'] || body.seo?.canonicalUrl || '',
+            }
             : undefined,
       };
 
@@ -253,5 +256,50 @@ export class BannerController {
   async delete(@Param('id') id: string) {
     await this.bannerService.delete(id);
     return { message: 'Banner deleted successfully' };
+  }
+
+  @Post(':id/duplicate')
+  @ApiOperation({ summary: 'Duplicate banner' })
+  @ApiResponse({ status: 201, description: 'Banner duplicated successfully' })
+  async duplicate(@Param('id') id: string) {
+    try {
+      const duplicated = await this.bannerService.duplicate(id);
+      return {
+        success: true,
+        message: 'Banner duplicated successfully',
+        data: duplicated,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to duplicate banner',
+        data: null,
+      };
+    }
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export banners' })
+  async export(@Query('format') format: 'json' | 'pdf' = 'json', @Query('ids') ids: string | string[] | undefined, @Res() res: Response) {
+    try {
+      const bannerIds = ids ? (Array.isArray(ids) ? ids : [ids]) : undefined;
+      const result = await this.bannerService.export(format, bannerIds);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="banners_${new Date().toISOString().split('T')[0]}.pdf"`);
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="banners_${new Date().toISOString().split('T')[0]}.json"`);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export banners',
+        data: null,
+      });
+    }
   }
 }

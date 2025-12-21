@@ -11,6 +11,10 @@ import { StripeService } from './providers/stripe.service';
 import { PayPalService } from './providers/paypal.service';
 import { OrdersService } from '../orders/orders.service';
 import { CoursesService } from '../courses/courses.service';
+import { ProductsService } from '../products/products.service';
+import { CouponsService } from '../coupons/coupons.service';
+import { MailService } from '../notifications/mail.service';
+import { EnrollmentsService } from '../enrollments/enrollments.service';
 import { Invoice } from './entities/invoice.entity';
 import {
   Transaction,
@@ -38,7 +42,11 @@ export class PaymentsService {
     private paypalService: PayPalService,
     private ordersService: OrdersService,
     private coursesService: CoursesService,
-  ) {}
+    private productsService: ProductsService,
+    private couponsService: CouponsService,
+    private mailService: MailService,
+    private enrollmentsService: EnrollmentsService,
+  ) { }
 
   async createPaymentIntent(
     createPaymentIntentDto: CreatePaymentIntentDto,
@@ -313,6 +321,24 @@ export class PaymentsService {
     return invoice;
   }
 
+  async downloadInvoice(invoiceId: string, userId: string): Promise<{ url: string }> {
+    const invoice = await this.invoiceModel.findOne({
+      _id: invoiceId,
+      user: userId,
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    // In production, generate a PDF and return a signed URL
+    // For now, return a mock URL
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    return {
+      url: `${baseUrl}/api/payments/invoices/${invoiceId}/download.pdf`,
+    };
+  }
+
   async requestRefund(orderId: string, reason: string, userId: string) {
     const order = await this.orderModel.findOne({ _id: orderId, user: userId });
     if (!order) {
@@ -393,23 +419,23 @@ export class PaymentsService {
       dueDate: new Date(),
       billingInfo: order.billingAddress
         ? {
-            companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
-            address: order.billingAddress.street,
-            city: order.billingAddress.city,
-            state: order.billingAddress.state,
-            zipCode: order.billingAddress.zipCode,
-            country: order.billingAddress.country,
-            taxId: '',
-          }
+          companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
+          address: order.billingAddress.street,
+          city: order.billingAddress.city,
+          state: order.billingAddress.state,
+          zipCode: order.billingAddress.zipCode,
+          country: order.billingAddress.country,
+          taxId: '',
+        }
         : {
-            companyName: 'Personal Wings',
-            address: '123 Aviation Way',
-            city: 'Sky Harbor',
-            state: 'AZ',
-            zipCode: '85034',
-            country: 'US',
-            taxId: 'TAX-123456',
-          },
+          companyName: 'Personal Wings',
+          address: '123 Aviation Way',
+          city: 'Sky Harbor',
+          state: 'AZ',
+          zipCode: '85034',
+          country: 'US',
+          taxId: 'TAX-123456',
+        },
       items: [
         {
           description: 'Course Enrollment',
@@ -435,10 +461,13 @@ export class PaymentsService {
   }
 
   private async handlePaymentSuccess(paymentIntent: any) {
-    const order = await this.orderModel.findOne({
-      paymentIntentId: paymentIntent.id,
-    });
-    if (order) {
+    const order = await this.orderModel
+      .findOne({
+        paymentIntentId: paymentIntent.id,
+      })
+      .populate('user courses');
+
+    if (order && order.status !== OrderStatus.COMPLETED) {
       order.status = OrderStatus.COMPLETED;
       order.paidAt = new Date();
       await order.save();
@@ -448,6 +477,18 @@ export class PaymentsService {
         TransactionStatus.COMPLETED,
         { gatewayResponse: paymentIntent },
       );
+
+      // Create enrollments for purchased courses
+      await this.createEnrollmentsForOrder(order);
+
+      // Create invoice
+      await this.createInvoice(order);
+
+      // Send confirmation email
+      const user = await this.userModel.findById(order.user);
+      if (user) {
+        await this.sendPurchaseConfirmationEmail(user, order);
+      }
     }
   }
 
@@ -471,10 +512,13 @@ export class PaymentsService {
   }
 
   private async handlePayPalPaymentSuccess(payload: any) {
-    const order = await this.orderModel.findOne({
-      paymentIntentId: payload.resource.id,
-    });
-    if (order) {
+    const order = await this.orderModel
+      .findOne({
+        paymentIntentId: payload.resource.id,
+      })
+      .populate('user courses');
+
+    if (order && order.status !== OrderStatus.COMPLETED) {
       order.status = OrderStatus.COMPLETED;
       order.paidAt = new Date();
       await order.save();
@@ -484,6 +528,18 @@ export class PaymentsService {
         TransactionStatus.COMPLETED,
         { gatewayResponse: payload },
       );
+
+      // Create enrollments for purchased courses
+      await this.createEnrollmentsForOrder(order);
+
+      // Create invoice
+      await this.createInvoice(order);
+
+      // Send confirmation email
+      const user = await this.userModel.findById(order.user);
+      if (user) {
+        await this.sendPurchaseConfirmationEmail(user, order);
+      }
     }
   }
 
@@ -639,6 +695,343 @@ export class PaymentsService {
   }
 
   /**
+   * Helper method to create enrollments for an order
+   */
+  private async createEnrollmentsForOrder(order: any) {
+    const userId = (order.user as any)._id?.toString() || (order.user as any).toString();
+
+    for (const courseId of order.courses) {
+      const courseIdStr = (courseId as any)._id?.toString() || courseId.toString();
+
+      try {
+        // Check if user is already enrolled
+        const existingEnrollment = await this.enrollmentsService.getEnrollment(
+          courseIdStr,
+          userId,
+        );
+
+        // Only enroll if not already enrolled
+        if (!existingEnrollment) {
+          await this.enrollmentsService.enroll(
+            {
+              courseId: courseIdStr,
+              orderId: order._id.toString(),
+            },
+            userId,
+          );
+        }
+
+        // Update course statistics
+        await this.coursesService.incrementEnrollment(courseIdStr);
+        await this.coursesService.addRevenue(courseIdStr, order.total);
+      } catch (error) {
+        // Log error but don't fail the entire process
+        console.error(`Failed to enroll user in course ${courseIdStr}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Process authenticated checkout (professional approach)
+   * - Creates order for authenticated user
+   * - Supports test/mock payment mode for development
+   * - Creates payment session or processes mock payment
+   */
+  async processCheckout(checkoutDto: any, userId: string) {
+    const {
+      cartItems,
+      total,
+      subtotal,
+      paymentMethod,
+      couponCode,
+      billingAddress,
+      useTestMode = false,
+    } = checkoutDto;
+
+    // Validate cart items
+    if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
+      throw new BadRequestException('Cart is empty. Please add items to your cart before checkout.');
+    }
+
+    // Log cart items for debugging
+    console.log('Processing checkout with cart items:', JSON.stringify(cartItems, null, 2));
+
+    // Validate and apply coupon if provided
+    let discount = 0;
+    let finalSubtotal = subtotal;
+    let finalTotal = total;
+    let appliedCoupon: any = null;
+
+    if (couponCode) {
+      const couponValidation = await this.couponsService.validate(
+        couponCode,
+        subtotal,
+      );
+
+      if (!couponValidation.valid) {
+        throw new BadRequestException('Invalid or expired coupon code');
+      }
+
+      discount = couponValidation.discount;
+      appliedCoupon = couponValidation.coupon;
+      finalSubtotal = subtotal;
+      finalTotal = subtotal - discount;
+
+      // Apply tax after discount (8%)
+      const tax = finalTotal * 0.08;
+      finalTotal = finalTotal + tax;
+    }
+
+    // Extract course/product IDs
+    const courseIds = cartItems
+      .filter((item: any) => item.courseId)
+      .map((item: any) => item.courseId);
+
+    const productIds = cartItems
+      .filter((item: any) => item.productId)
+      .map((item: any) => item.productId);
+
+    // Create order
+    const order = await this.ordersService.create({
+      user: userId,
+      courses: courseIds,
+      subtotal: finalSubtotal,
+      discount,
+      total: finalTotal,
+      paymentMethod,
+      billingAddress: billingAddress
+        ? {
+          firstName: billingAddress.firstName || '',
+          lastName: billingAddress.lastName || '',
+          email: billingAddress.email || '',
+          phone: billingAddress.phone || '',
+          street: billingAddress.address || '',
+          city: billingAddress.city || '',
+          state: billingAddress.state || '',
+          country: billingAddress.country || '',
+          zipCode: billingAddress.zipCode || '',
+        }
+        : undefined,
+    } as any);
+
+    // Apply coupon if used
+    if (appliedCoupon) {
+      await this.couponsService.applyCoupon(couponCode);
+    }
+
+    // Handle payment based on method and test mode
+    let paymentResult;
+
+    // Handle free orders (100% discount or $0 total)
+    if (finalTotal <= 0) {
+      console.log('🎁 Processing free order (100% discount)');
+      order.status = OrderStatus.COMPLETED;
+      order.paidAt = new Date();
+      order.paymentIntentId = `free_${Date.now()}`;
+      await order.save();
+
+      // Create enrollments
+      await this.createEnrollmentsForOrder(order);
+
+      // Create invoice
+      await this.createInvoice(order);
+
+      // Get user for email
+      const user = await this.userModel.findById(userId);
+      await this.sendPurchaseConfirmationEmail(user, order);
+
+      return {
+        success: true,
+        paymentResult: {
+          sessionId: order.paymentIntentId,
+          url: `${this.configService.get('FRONTEND_URL')}/checkout/success?session_id=${order.paymentIntentId}`,
+        },
+        orderNumber: order.orderNumber,
+        isFreeOrder: true,
+      };
+    }
+
+    if (useTestMode) {
+      // Mock payment - immediately mark as paid for development/testing
+      order.status = OrderStatus.COMPLETED;
+      order.paidAt = new Date();
+      order.paymentIntentId = `test_${Date.now()}`;
+      await order.save();
+
+      // Create enrollments
+      await this.createEnrollmentsForOrder(order);
+
+      // Create invoice
+      await this.createInvoice(order);
+
+      // Get user for email
+      const user = await this.userModel.findById(userId);
+      await this.sendPurchaseConfirmationEmail(user, order);
+
+      return {
+        success: true,
+        paymentResult: {
+          sessionId: order.paymentIntentId,
+          url: `${this.configService.get('FRONTEND_URL')}/checkout/success?session_id=${order.paymentIntentId}`,
+        },
+        orderNumber: order.orderNumber,
+        isTestMode: true,
+      };
+    } else if (paymentMethod === 'stripe') {
+      // Real Stripe payment - fetch course/product names
+      if (!cartItems || cartItems.length === 0) {
+        throw new BadRequestException('Cart is empty');
+      }
+
+      const lineItems = await Promise.all(
+        cartItems.map(async (item: any, index: number) => {
+          // Validate required fields
+          if (!item.price || item.price <= 0) {
+            throw new BadRequestException(`Invalid price for item at index ${index}`);
+          }
+
+          // Initialize with fallback values
+          let name = 'Item';
+          let description = '';
+
+          // Try to get name from item first
+          if (item.courseName && item.courseName.trim()) {
+            name = item.courseName.trim();
+          } else if (item.productName && item.productName.trim()) {
+            name = item.productName.trim();
+          }
+
+          if (item.description) {
+            description = item.description;
+          }
+
+          // Fetch course or product details if ID is provided
+          if (item.courseId) {
+            try {
+              const course = await this.coursesService.findById(item.courseId);
+              if (course?.title) {
+                name = course.title.trim();
+              }
+              if (course?.excerpt || course?.description) {
+                description = (course.excerpt || course.description || '').trim();
+              }
+            } catch (error) {
+              console.error(`Failed to fetch course ${item.courseId}:`, error);
+              // Use fallback: Course + ID
+              if (!name || name === 'Item') {
+                name = `Course ${item.courseId.substring(0, 8)}`;
+              }
+            }
+          } else if (item.productId) {
+            try {
+              const product = await this.productsService.findById(item.productId);
+              if (product?.title) {
+                name = product.title.trim();
+              }
+              if (product?.description) {
+                description = product.description.trim();
+              }
+            } catch (error) {
+              console.error(`Failed to fetch product ${item.productId}:`, error);
+              // Use fallback: Product + ID
+              if (!name || name === 'Item') {
+                name = `Product ${item.productId.substring(0, 8)}`;
+              }
+            }
+          }
+
+          // Final fallback - ensure name is never empty
+          if (!name || name.trim() === '') {
+            name = item.courseId ? `Course ${item.courseId.substring(0, 8)}`
+              : item.productId ? `Product ${item.productId.substring(0, 8)}`
+                : `Item ${index + 1}`;
+          }
+
+          // Final validation - this should never fail now
+          const finalName = name.trim();
+          if (!finalName || finalName.length === 0) {
+            throw new BadRequestException(`Line item ${index} has empty name after all fallbacks`);
+          }
+
+          const lineItem = {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: finalName,
+                description: (description || 'No description available').substring(0, 500), // Stripe limit
+              },
+              unit_amount: Math.round(item.price * 100),
+            },
+            quantity: item.quantity || 1,
+          };
+
+          // Log for debugging
+          console.log(`Line item ${index}:`, JSON.stringify(lineItem, null, 2));
+
+          return lineItem;
+        })
+      );
+
+      // Validate line items before sending to Stripe
+      if (!lineItems || lineItems.length === 0) {
+        throw new BadRequestException('No valid line items to process');
+      }
+
+      // Final validation of all line items
+      for (let i = 0; i < lineItems.length; i++) {
+        const item = lineItems[i];
+        if (!item.price_data?.product_data?.name || item.price_data.product_data.name.trim() === '') {
+          console.error(`Invalid line item at index ${i}:`, JSON.stringify(item, null, 2));
+          throw new BadRequestException(`Line item ${i} is missing required name field`);
+        }
+      }
+
+      const orderId = (order as any)._id?.toString() || (order as any).id?.toString();
+      paymentResult = await this.stripeService.createCheckoutSession({
+        lineItems,
+        successUrl: `${this.configService.get('FRONTEND_URL')}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${this.configService.get('FRONTEND_URL')}/checkout?canceled=true`,
+        metadata: {
+          orderId: orderId,
+          userId: userId,
+        },
+      } as any);
+
+      // Update order with session ID
+      await this.orderModel.findByIdAndUpdate(order._id, {
+        paymentIntentId: paymentResult.sessionId || paymentResult.id,
+      });
+    } else if (paymentMethod === 'paypal') {
+      // Real PayPal payment
+      const items = cartItems.map((item: any) => ({
+        name: item.courseName || item.productName,
+        quantity: item.quantity || 1,
+        unit_amount: {
+          currency_code: 'USD',
+          value: item.price.toFixed(2),
+        },
+      }));
+
+      paymentResult = await this.paypalService.createOrder(
+        finalTotal,
+        'USD',
+        items,
+      );
+
+      await this.orderModel.findByIdAndUpdate(order._id, {
+        paymentIntentId: paymentResult.orderId,
+      });
+    }
+
+    return {
+      success: true,
+      paymentResult,
+      orderNumber: order.orderNumber,
+      isTestMode: false,
+    };
+  }
+
+  /**
    * Process guest checkout
    * - Checks if user exists by email
    * - If not exists: creates guest user with random password and sends credentials
@@ -656,7 +1049,34 @@ export class PaymentsService {
       total,
       subtotal,
       paymentMethod,
+      couponCode,
     } = guestCheckoutDto;
+
+    // Validate and apply coupon if provided
+    let discount = 0;
+    let finalSubtotal = subtotal;
+    let finalTotal = total;
+    let appliedCoupon: any = null;
+
+    if (couponCode) {
+      const couponValidation = await this.couponsService.validate(
+        couponCode,
+        subtotal,
+      );
+
+      if (!couponValidation.valid) {
+        throw new BadRequestException('Invalid or expired coupon code');
+      }
+
+      discount = couponValidation.discount;
+      appliedCoupon = couponValidation.coupon;
+      finalSubtotal = subtotal;
+      finalTotal = subtotal - discount;
+
+      // Apply tax after discount (8%)
+      const tax = finalTotal * 0.08;
+      finalTotal = finalTotal + tax;
+    }
 
     // Check if user exists
     let user = await this.userModel.findOne({ email });
@@ -670,7 +1090,7 @@ export class PaymentsService {
         Math.random().toString(36).slice(-8);
       const hashedPassword = await bcrypt.hash(generatedPassword, 10);
 
-      // Create guest user
+      // Create guest user - email is verified since they provided it during checkout
       user = await this.userModel.create({
         email,
         firstName,
@@ -679,6 +1099,7 @@ export class PaymentsService {
         password: hashedPassword,
         role: 'student',
         status: 'active',
+        emailVerified: true, // Email verified since provided during checkout
       });
       isNewUser = true;
     }
@@ -696,10 +1117,65 @@ export class PaymentsService {
     const order = await this.ordersService.create({
       user: (user._id as any).toString(),
       courses: courseIds,
-      subtotal,
-      total,
+      subtotal: finalSubtotal,
+      discount,
+      total: finalTotal,
       paymentMethod,
     } as any);
+
+    // Store generated password in order metadata for email sending
+    if (generatedPassword) {
+      await this.orderModel.findByIdAndUpdate(order._id, {
+        $set: {
+          'metadata.temporaryPassword': generatedPassword,
+        },
+      });
+    }
+
+    // Apply coupon if used
+    if (appliedCoupon) {
+      await this.couponsService.applyCoupon(couponCode);
+    }
+
+    // Handle free orders (100% discount or $0 total)
+    if (finalTotal <= 0) {
+      console.log('🎁 Processing free guest order (100% discount)');
+      order.status = OrderStatus.COMPLETED;
+      order.paidAt = new Date();
+      order.paymentIntentId = `free_${Date.now()}`;
+      await order.save();
+
+      // Create enrollments
+      await this.createEnrollmentsForOrder(order);
+
+      // Create invoice
+      await this.createInvoice(order);
+
+      // Send appropriate email based on whether user is new or existing
+      if (isNewUser && generatedPassword) {
+        await this.mailService.sendNewUserPurchaseEmail(
+          user,
+          order,
+          generatedPassword,
+        );
+      } else {
+        await this.sendPurchaseConfirmationEmail(user, order);
+      }
+
+      return {
+        success: true,
+        paymentResult: {
+          sessionId: order.paymentIntentId,
+          url: `${this.configService.get('FRONTEND_URL')}/checkout/success?session_id=${order.paymentIntentId}`,
+        },
+        orderNumber: order.orderNumber,
+        isNewUser,
+        userId: (user._id as any).toString(),
+        isFreeOrder: true,
+        discount,
+        appliedCouponCode: appliedCoupon ? appliedCoupon.code : null,
+      };
+    }
 
     // Create payment session based on method
     let paymentResult;
@@ -708,20 +1184,53 @@ export class PaymentsService {
       userId: (user._id as any).toString(),
       email,
       isNewUser: isNewUser.toString(),
+      temporaryPassword: generatedPassword || '',
     };
 
     if (paymentMethod === 'stripe') {
-      const lineItems = cartItems.map((item: any) => ({
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: item.courseName || item.productName,
-            description: item.description || '',
-          },
-          unit_amount: Math.round(item.price * 100),
-        },
-        quantity: item.quantity || 1,
-      }));
+      // Fetch course/product names for Stripe line items
+      const lineItems = await Promise.all(
+        cartItems.map(async (item: any) => {
+          let name = item.courseName || item.productName || 'Item';
+          let description = item.description || '';
+
+          // Fetch course or product details if ID is provided
+          if (item.courseId) {
+            try {
+              const course = await this.coursesService.findById(item.courseId);
+              name = course.title;
+              description = course.excerpt || course.description || description;
+            } catch (error) {
+              console.error(`Failed to fetch course ${item.courseId}:`, error);
+            }
+          } else if (item.productId) {
+            try {
+              const product = await this.productsService.findById(item.productId);
+              name = product.title;
+              description = product.description || description;
+            } catch (error) {
+              console.error(`Failed to fetch product ${item.productId}:`, error);
+            }
+          }
+
+          // Ensure name is never empty (Stripe requirement)
+          if (!name || name.trim() === '') {
+            name = item.courseId ? 'Course' : item.productId ? 'Product' : 'Item';
+          }
+
+          return {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: name.trim(),
+                description: (description || '').substring(0, 500), // Stripe limit
+              },
+              unit_amount: Math.round(item.price * 100),
+            },
+            quantity: item.quantity || 1,
+          };
+        })
+      );
 
       paymentResult = await this.stripeService.createCheckoutSession({
         lineItems,
@@ -744,7 +1253,11 @@ export class PaymentsService {
         },
       }));
 
-      paymentResult = await this.paypalService.createOrder(total, 'USD', items);
+      paymentResult = await this.paypalService.createOrder(
+        finalTotal,
+        'USD',
+        items,
+      );
 
       await this.orderModel.findByIdAndUpdate(order._id, {
         paymentIntentId: paymentResult.orderId,
@@ -757,6 +1270,8 @@ export class PaymentsService {
       orderNumber: order.orderNumber,
       isNewUser,
       userId: (user._id as any).toString(),
+      discount,
+      appliedCouponCode: appliedCoupon ? appliedCoupon.code : null,
       // Don't send password in response for security
     };
   }
@@ -797,22 +1312,19 @@ export class PaymentsService {
 
     // Check if this was a new user registration
     const isNewUser = session.metadata?.isNewUser === 'true';
+    const temporaryPassword = session.metadata?.temporaryPassword || '';
 
     // Send appropriate email
-    if (isNewUser) {
-      // Send welcome email with credentials (password was stored during creation)
-      // Note: In production, use a secure method to retrieve or reset password
-      await this.sendWelcomeEmail(user, order);
+    if (isNewUser && temporaryPassword) {
+      // Send welcome email with credentials
+      await this.sendWelcomeEmail(user, order, temporaryPassword);
     } else {
       // Send purchase confirmation email only
       await this.sendPurchaseConfirmationEmail(user, order);
     }
 
-    // Update course enrollments
-    for (const courseId of order.courses) {
-      await this.coursesService.incrementEnrollment(courseId.toString());
-      await this.coursesService.addRevenue(courseId.toString(), order.total);
-    }
+    // Create enrollments for purchased courses
+    await this.createEnrollmentsForOrder(order);
 
     return {
       success: true,
@@ -824,25 +1336,89 @@ export class PaymentsService {
     };
   }
 
-  private async sendWelcomeEmail(user: any, order: any) {
-    // TODO: Implement email sending with credentials
-    // This should send:
-    // - Welcome message
-    // - Login credentials (email and temporary password)
-    // - Link to reset password
-    // - Purchased items list
-    console.log('Send welcome email to:', user.email);
-    console.log('Order details:', order.orderNumber);
+  private async sendWelcomeEmail(user: any, order: any, password: string) {
+    try {
+      // Get order with populated courses
+      const orderWithCourses = await this.orderModel
+        .findById(order._id)
+        .populate('courses')
+        .exec();
+
+      const courses = orderWithCourses?.courses || [];
+      const courseNames = courses
+        .map((course: any) => course.title || course.name)
+        .join(', ');
+
+      const loginUrl = `${this.configService.get('FRONTEND_URL')}/login`;
+      const resetPasswordUrl = `${this.configService.get('FRONTEND_URL')}/forgot-password`;
+
+      // Use sendMail method with custom template
+      await this.mailService.sendMail({
+        to: user.email,
+        subject: 'Welcome to Personal Wings - Your Account is Ready!',
+        template: 'welcome-with-credentials',
+        context: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          password,
+          loginUrl,
+          resetPasswordUrl,
+          orderNumber: order.orderNumber,
+          courses: courseNames,
+          total: order.total,
+          supportEmail: this.configService.get(
+            'SUPPORT_EMAIL',
+            'support@personalwings.com',
+          ),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to send welcome email:', error);
+      // Don't throw - email failure shouldn't break the flow
+    }
   }
 
   private async sendPurchaseConfirmationEmail(user: any, order: any) {
-    // TODO: Implement email sending
-    // This should send:
-    // - Purchase confirmation
-    // - Purchased items list
-    // - Invoice/receipt
-    // - Access instructions
-    console.log('Send purchase confirmation to:', user.email);
-    console.log('Order details:', order.orderNumber);
+    try {
+      // Get order with populated courses
+      const orderWithCourses = await this.orderModel
+        .findById(order._id)
+        .populate('courses')
+        .exec();
+
+      const courses = orderWithCourses?.courses || [];
+      const courseNames = courses
+        .map((course: any) => course.title || course.name)
+        .join(', ');
+
+      const dashboardUrl = `${this.configService.get('FRONTEND_URL')}/dashboard`;
+      const invoiceUrl = order.invoiceUrl || '';
+
+      // Use sendMail method with custom template
+      await this.mailService.sendMail({
+        to: user.email,
+        subject: 'Purchase Confirmation - Personal Wings',
+        template: 'purchase-confirmation',
+        context: {
+          name: `${user.firstName} ${user.lastName}`,
+          orderNumber: order.orderNumber,
+          courses: courseNames,
+          subtotal: order.subtotal,
+          discount: order.discount || 0,
+          total: order.total,
+          paymentMethod: order.paymentMethod,
+          paidAt: order.paidAt,
+          dashboardUrl,
+          invoiceUrl,
+          supportEmail: this.configService.get(
+            'SUPPORT_EMAIL',
+            'support@personalwings.com',
+          ),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to send purchase confirmation email:', error);
+      // Don't throw - email failure shouldn't break the flow
+    }
   }
 }

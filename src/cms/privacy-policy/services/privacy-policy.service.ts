@@ -12,7 +12,7 @@ export class PrivacyPolicyService {
   constructor(
     @InjectModel(PrivacyPolicy.name)
     private privacyPolicyModel: Model<PrivacyPolicy>,
-  ) {}
+  ) { }
 
   async create(
     createPrivacyPolicyDto: CreatePrivacyPolicyDto,
@@ -303,5 +303,73 @@ export class PrivacyPolicyService {
 
     const createdPolicy = new this.privacyPolicyModel(defaultPrivacyPolicy);
     return createdPolicy.save();
+  }
+
+  async toggleActive(id: string): Promise<PrivacyPolicy> {
+    const privacyPolicy = await this.findOne(id);
+    if (!privacyPolicy) {
+      throw new Error('Privacy policy not found');
+    }
+
+    // If activating, deactivate all others
+    if (!privacyPolicy.isActive) {
+      await this.privacyPolicyModel.updateMany(
+        { _id: { $ne: id } },
+        { isActive: false },
+      );
+    }
+
+    privacyPolicy.isActive = !privacyPolicy.isActive;
+    return privacyPolicy.save();
+  }
+
+  async duplicate(id: string): Promise<PrivacyPolicy> {
+    const original = await this.findOne(id);
+    if (!original) {
+      throw new Error('Privacy policy not found');
+    }
+
+    const duplicated = new this.privacyPolicyModel({
+      headerSection: { ...original.headerSection },
+      lastUpdated: original.lastUpdated,
+      sections: JSON.parse(JSON.stringify(original.sections)),
+      contactInfo: { ...original.contactInfo },
+      seoMeta: { ...original.seoMeta },
+      isActive: false, // Duplicated items are inactive by default
+    });
+
+    return duplicated.save();
+  }
+
+  async export(id: string, format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const privacyPolicy = await this.findOne(id);
+    if (!privacyPolicy) {
+      throw new Error('Privacy policy not found');
+    }
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      // In a real implementation, you'd use a library like pdfkit or puppeteer
+      return JSON.stringify(privacyPolicy, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      privacyPolicy,
+    };
+  }
+
+  async exportAll(format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const allPrivacyPolicies = await this.findAll();
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      return JSON.stringify(allPrivacyPolicies, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      privacyPolicies: allPrivacyPolicies,
+    };
   }
 }

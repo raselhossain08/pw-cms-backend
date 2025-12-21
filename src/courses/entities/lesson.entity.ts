@@ -122,3 +122,11 @@ export class Lesson extends Document {
 }
 
 export const LessonSchema = SchemaFactory.createForClass(Lesson);
+
+// Performance indexes for common queries
+LessonSchema.index({ course: 1, order: 1 }); // For course lessons queries
+LessonSchema.index({ module: 1, order: 1 }); // For module lessons queries
+LessonSchema.index({ course: 1, status: 1 }); // For published lessons filter
+LessonSchema.index({ course: 1, type: 1 }); // For lesson type filtering
+LessonSchema.index({ slug: 1 }, { unique: true }); // For unique slug lookups
+LessonSchema.index({ course: 1, module: 1, order: 1 }); // Composite index for module lessons

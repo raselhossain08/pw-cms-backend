@@ -82,8 +82,15 @@ export class AnalyticsService {
       0,
     );
 
+    // Calculate total orders count from revenue data (each item represents daily orders)
+    const totalOrders = revenueData.reduce(
+      (sum, item) => sum + (item.count || 0),
+      0,
+    );
+
     return {
       totalRevenue,
+      totalOrders,
       chartData,
       period,
       growth: await this.getRevenueGrowth(period),
@@ -236,18 +243,71 @@ export class AnalyticsService {
     const enrollmentByCountry =
       await this.ordersService.getEnrollmentsByCountry();
 
+    // Calculate total for percentages
+    const totalUsers = distribution.reduce((sum, item) => sum + item.count, 0);
+    const totalRevenue = enrollmentByCountry.reduce(
+      (sum, item) => sum + (item.revenue || 0),
+      0,
+    );
+
+    // Merge user distribution with enrollment data and format for frontend
+    const countryMap = new Map();
+
+    // Add user distribution data
+    distribution.forEach((item) => {
+      countryMap.set(item.country, {
+        country: item.country,
+        count: item.count,
+        percentage: totalUsers > 0 ? (item.count / totalUsers) * 100 : 0,
+        revenue: 0,
+      });
+    });
+
+    // Add enrollment/revenue data
+    enrollmentByCountry.forEach((item) => {
+      const country = item._id || 'Unknown';
+      const existing = countryMap.get(country) || {
+        country,
+        count: 0,
+        percentage: 0,
+        revenue: 0,
+      };
+      countryMap.set(country, {
+        ...existing,
+        revenue: item.revenue || 0,
+      });
+    });
+
+    // Convert to array and sort by percentage
+    const countries = Array.from(countryMap.values())
+      .map((item) => ({
+        country: item.country,
+        label: item.country,
+        name: item.country,
+        count: item.count,
+        percentage: Math.round(item.percentage * 100) / 100,
+        pct: Math.round(item.percentage * 100) / 100,
+        visitsPct: Math.round(item.percentage * 100) / 100,
+        revenue: item.revenue,
+      }))
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, 10);
+
     return {
       userDistribution: distribution,
       enrollmentDistribution: enrollmentByCountry,
       topCountries: this.getTopCountries(distribution),
+      countries, // Frontend expects this format
     };
   }
 
   async getConversionRates() {
-    const [visitData, enrollmentData, purchaseData] = await Promise.all([
+    const [visitData, enrollmentData, purchaseData, addToCartData, checkoutData] = await Promise.all([
       this.getPageViews(),
       this.getEnrollmentEvents(),
       this.getPurchaseEvents(),
+      this.getAddToCartEvents(),
+      this.getCheckoutEvents(),
     ]);
 
     const visitToEnrollment = (enrollmentData.length / visitData.length) * 100;
@@ -266,6 +326,11 @@ export class AnalyticsService {
         enrollments: enrollmentData.length,
         purchases: purchaseData.length,
       },
+      // Frontend expects these properties for funnel display
+      visits: visitData.length,
+      addsToCart: addToCartData.length,
+      checkouts: checkoutData.length,
+      purchases: purchaseData.length,
       trends: await this.getConversionTrends(),
     };
   }
@@ -477,6 +542,18 @@ export class AnalyticsService {
 
   private async getPurchaseEvents(): Promise<any[]> {
     return await this.ordersService.findCompletedOrders();
+  }
+
+  private async getAddToCartEvents(): Promise<any[]> {
+    return await this.analyticsModel
+      .find({ eventType: 'add_to_cart' })
+      .exec();
+  }
+
+  private async getCheckoutEvents(): Promise<any[]> {
+    return await this.analyticsModel
+      .find({ eventType: 'checkout_started' })
+      .exec();
   }
 
   private async getConversionTrends() {

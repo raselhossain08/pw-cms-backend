@@ -116,6 +116,24 @@ export class AiBotGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  @SubscribeMessage('stop-generation')
+  handleStopGeneration(
+    @MessageBody() data: any,
+    @ConnectedSocket() client: Socket,
+  ) {
+    // Stop typing indicator immediately
+    this.server
+      .to(`bot-session-${data.sessionId}`)
+      .emit('bot-typing', { isTyping: false });
+    
+    // Notify that generation was stopped
+    this.server
+      .to(`bot-session-${data.sessionId}`)
+      .emit('generation-stopped', { sessionId: data.sessionId });
+    
+    return { event: 'generation-stopped', data: { sessionId: data.sessionId } };
+  }
+
   // Notify when human agent joins the conversation
   notifyAgentJoined(sessionId: string, agentName: string) {
     this.server.to(`bot-session-${sessionId}`).emit('agent-joined', {

@@ -3,10 +3,12 @@ import {
   Get,
   Post,
   Delete,
+  Patch,
   Param,
   UseGuards,
   Req,
   Body,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,11 +20,11 @@ import { WishlistService } from './wishlist.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Wishlist & Cart')
-@Controller()
+@Controller('wishlist')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class WishlistController {
-  constructor(private readonly wishlistService: WishlistService) {}
+  constructor(private readonly wishlistService: WishlistService) { }
 
   @Get('wishlist')
   @ApiOperation({ summary: 'Get user wishlist' })
@@ -42,6 +44,14 @@ export class WishlistController {
     return this.wishlistService.removeFromWishlist(req.user.id, courseId);
   }
 
+  // More specific routes must come before less specific ones
+  @Get('cart/count')
+  @ApiOperation({ summary: 'Get cart item count' })
+  @ApiResponse({ status: 200, description: 'Cart count retrieved' })
+  async getCartCount(@Req() req) {
+    return this.wishlistService.getCartCount(req.user.id);
+  }
+
   @Get('cart')
   @ApiOperation({ summary: 'Get user cart' })
   async getCart(@Req() req) {
@@ -53,19 +63,30 @@ export class WishlistController {
   async addToCart(
     @Body()
     body: {
-      itemId: string;
-      itemType: 'Course' | 'Product';
-      price: number;
+      courseId?: string;
+      productId?: string;
+      itemId?: string; // Legacy support
+      itemType?: 'Course' | 'Product' | 'course' | 'product';
+      price?: number; // Optional if courseId/productId provided
       quantity?: number;
     },
     @Req() req,
   ) {
+    const itemId = body.courseId || body.productId || body.itemId;
+    if (!itemId) {
+      throw new BadRequestException(
+        'Either courseId, productId, or itemId must be provided',
+      );
+    }
+
     return this.wishlistService.addToCart(
       req.user.id,
-      body.itemId,
-      body.itemType,
+      itemId,
+      body.itemType || (body.courseId ? 'Course' : 'Product'),
       body.price,
       body.quantity,
+      body.courseId,
+      body.productId,
     );
   }
 
@@ -79,5 +100,21 @@ export class WishlistController {
   @ApiOperation({ summary: 'Clear cart' })
   async clearCart(@Req() req) {
     return this.wishlistService.clearCart(req.user.id);
+  }
+
+  @Patch('cart/:itemId')
+  @ApiOperation({ summary: 'Update cart item quantity' })
+  @ApiResponse({ status: 200, description: 'Cart item quantity updated' })
+  @ApiResponse({ status: 404, description: 'Cart or item not found' })
+  async updateCartItemQuantity(
+    @Param('itemId') itemId: string,
+    @Body() body: { quantity: number },
+    @Req() req,
+  ) {
+    return this.wishlistService.updateCartItemQuantity(
+      req.user.id,
+      itemId,
+      body.quantity,
+    );
   }
 }

@@ -24,6 +24,7 @@
     "seed:banners": "ts-node -r tsconfig-paths/register src/scripts/seed-banners.ts",
     "seed:banners:clear": "ts-node -r tsconfig-paths/register src/scripts/seed-banners.ts clear",
     "seed:about": "ts-node -r tsconfig-paths/register src/scripts/seed-about-section.ts",
+    "seed:about-us": "ts-node -r tsconfig-paths/register src/scripts/seed-about-us.ts",
     "seed:events": "ts-node -r tsconfig-paths/register src/scripts/seed-events.ts",
     "seed:testimonials": "ts-node -r tsconfig-paths/register src/scripts/seed-testimonials.ts",
     "seed:blog": "ts-node -r tsconfig-paths/register src/cms/home/blog/scripts/seed-blog.ts",
@@ -31,6 +32,9 @@
     "seed:categories": "ts-node -r tsconfig-paths/register src/scripts/seed-categories.ts",
     "seed:categories:direct": "ts-node src/scripts/seed-categories-direct.ts",
     "seed:products": "ts-node -r tsconfig-paths/register src/scripts/seed-products.ts",
+    "seed:coupons": "ts-node -r tsconfig-paths/register src/scripts/seed-coupons.ts",
+    "test:coupons": "ts-node -r tsconfig-paths/register src/scripts/test-coupon-validation.ts",
+    "seed:terms-conditions": "ts-node -r tsconfig-paths/register src/cms/terms-conditions/scripts/seed-terms-conditions.ts",
     "test:footer": "ts-node -r tsconfig-paths/register src/cms/footer/scripts/test-footer.ts",
     "create-admin": "ts-node -r tsconfig-paths/register src/scripts/create-admin.ts"
   },

@@ -16,7 +16,7 @@ export class SupportService {
   constructor(
     @InjectModel(Ticket.name) private ticketModel: Model<Ticket>,
     @InjectModel(TicketReply.name) private ticketReplyModel: Model<TicketReply>,
-  ) {}
+  ) { }
 
   async createTicket(
     createTicketDto: CreateTicketDto,
@@ -127,6 +127,18 @@ export class SupportService {
       ticket.assignedTo = updateTicketDto.assignedTo as any;
     }
 
+    if (updateTicketDto.subject) {
+      ticket.subject = updateTicketDto.subject;
+    }
+
+    if (updateTicketDto.description) {
+      ticket.description = updateTicketDto.description;
+    }
+
+    if (updateTicketDto.category) {
+      ticket.category = updateTicketDto.category;
+    }
+
     return ticket.save();
   }
 
@@ -202,16 +214,72 @@ export class SupportService {
     return ticket.save();
   }
 
+  async deleteTicket(id: string): Promise<void> {
+    const ticket = await this.ticketModel.findById(id).exec();
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    // Delete all replies first
+    await this.ticketReplyModel.deleteMany({ ticketId: id }).exec();
+
+    // Delete the ticket
+    await this.ticketModel.findByIdAndDelete(id).exec();
+  }
+
   async getTicketStats(): Promise<any> {
-    const [total, open, inProgress, resolved, closed] = await Promise.all([
+    const [total, open, inProgress, pending, resolved, closed, escalated] = await Promise.all([
       this.ticketModel.countDocuments().exec(),
       this.ticketModel.countDocuments({ status: TicketStatus.OPEN }).exec(),
       this.ticketModel
         .countDocuments({ status: TicketStatus.IN_PROGRESS })
         .exec(),
+      this.ticketModel
+        .countDocuments({ status: TicketStatus.WAITING_FOR_CUSTOMER })
+        .exec(),
       this.ticketModel.countDocuments({ status: TicketStatus.RESOLVED }).exec(),
       this.ticketModel.countDocuments({ status: TicketStatus.CLOSED }).exec(),
+      this.ticketModel.countDocuments({ priority: 'urgent', status: { $ne: TicketStatus.CLOSED } }).exec(),
     ]);
+
+    // Calculate average response time (time to first reply)
+    const avgResponseTimeResult = await this.ticketReplyModel
+      .aggregate([
+        {
+          $group: {
+            _id: '$ticketId',
+            firstReplyTime: { $min: '$createdAt' },
+          },
+        },
+        {
+          $lookup: {
+            from: 'tickets',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'ticket',
+          },
+        },
+        {
+          $unwind: '$ticket',
+        },
+        {
+          $project: {
+            responseTime: {
+              $divide: [
+                { $subtract: ['$firstReplyTime', '$ticket.createdAt'] },
+                1000 * 60 * 60, // Convert to hours
+              ],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            avgTime: { $avg: '$responseTime' },
+          },
+        },
+      ])
+      .exec();
 
     const avgResolutionTime = await this.ticketModel
       .aggregate([
@@ -253,15 +321,35 @@ export class SupportService {
       ])
       .exec();
 
+    const avgResponseTimeHours = avgResponseTimeResult[0]?.avgTime || 0;
+    const avgRating = satisfactionRating[0]?.avgRating || 0;
+    const satisfactionRate = avgRating > 0 ? Math.round((avgRating / 5) * 100) : 0;
+
+    // Format response time
+    let avgResponseTimeFormatted = '0h';
+    if (avgResponseTimeHours > 0) {
+      if (avgResponseTimeHours < 1) {
+        avgResponseTimeFormatted = `${Math.round(avgResponseTimeHours * 60)}m`;
+      } else if (avgResponseTimeHours < 24) {
+        avgResponseTimeFormatted = `${avgResponseTimeHours.toFixed(1)}h`;
+      } else {
+        avgResponseTimeFormatted = `${(avgResponseTimeHours / 24).toFixed(1)}d`;
+      }
+    }
+
     return {
       total,
       open,
       inProgress,
+      pending,
       resolved,
       closed,
+      escalated,
+      avgResponseTime: avgResponseTimeFormatted,
+      satisfactionRate,
       averageResolutionTime: avgResolutionTime[0]?.avgTime || 0,
       satisfaction: {
-        averageRating: satisfactionRating[0]?.avgRating || 0,
+        averageRating: avgRating,
         totalRatings: satisfactionRating[0]?.totalRatings || 0,
       },
     };

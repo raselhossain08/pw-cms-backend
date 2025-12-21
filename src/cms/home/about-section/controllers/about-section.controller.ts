@@ -4,9 +4,12 @@ import {
   Put,
   Post,
   Body,
+  Query,
+  Res,
   UseInterceptors,
   UploadedFiles,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { AboutSectionService } from '../services/about-section.service';
@@ -22,7 +25,7 @@ export class AboutSectionController {
   constructor(
     private readonly aboutSectionService: AboutSectionService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Get About Section' })
@@ -90,14 +93,14 @@ export class AboutSectionController {
     // Parse SEO metadata from FormData
     let seo:
       | {
-          title: string;
-          description: string;
-          keywords: string;
-          ogImage: string;
-          ogTitle: string;
-          ogDescription: string;
-          canonicalUrl: string;
-        }
+        title: string;
+        description: string;
+        keywords: string;
+        ogImage: string;
+        ogTitle: string;
+        ogDescription: string;
+        canonicalUrl: string;
+      }
       | undefined = undefined;
     if (body['seo[title]']) {
       seo = {
@@ -126,5 +129,48 @@ export class AboutSectionController {
     };
 
     return this.aboutSectionService.upsertAboutSection(createDto);
+  }
+
+  @Post('duplicate')
+  @ApiOperation({ summary: 'Duplicate About Section' })
+  async duplicate() {
+    try {
+      const duplicated = await this.aboutSectionService.duplicate();
+      return {
+        success: true,
+        message: 'About section duplicated successfully',
+        data: duplicated,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to duplicate about section',
+        data: null,
+      };
+    }
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export About Section' })
+  async export(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+    try {
+      const result = await this.aboutSectionService.export(format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="about-section_${new Date().toISOString().split('T')[0]}.pdf"`);
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="about-section_${new Date().toISOString().split('T')[0]}.json"`);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export about section',
+        data: null,
+      });
+    }
   }
 }

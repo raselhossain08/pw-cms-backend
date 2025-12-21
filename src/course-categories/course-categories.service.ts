@@ -44,7 +44,7 @@ export class CourseCategoriesService {
   constructor(
     @InjectModel(CourseCategory.name)
     private categoryModel: Model<CourseCategory>,
-  ) {}
+  ) { }
 
   async listActiveNames(): Promise<string[]> {
     const rows = await this.categoryModel
@@ -178,5 +178,103 @@ export class CourseCategoriesService {
       .exec();
     if (!res) throw new NotFoundException('Category not found');
     return { success: true };
+  }
+
+  async toggleStatus(slug: string) {
+    const category = await this.categoryModel.findOne({ slug }).lean().exec();
+    if (!category) throw new NotFoundException('Category not found');
+
+    const updated = await this.categoryModel
+      .findOneAndUpdate(
+        { slug },
+        { isActive: !category.isActive },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    if (!updated) throw new NotFoundException('Category not found');
+    return updated;
+  }
+
+  async duplicate(slug: string) {
+    const original = await this.categoryModel.findOne({ slug }).lean().exec();
+    if (!original) throw new NotFoundException('Category not found');
+
+    const baseSlug = original.slug;
+    let newSlug = `${baseSlug}-copy`;
+    let counter = 1;
+
+    // Ensure unique slug
+    while (await this.categoryModel.findOne({ slug: newSlug })) {
+      newSlug = `${baseSlug}-copy-${counter}`;
+      counter++;
+    }
+
+    const duplicated = await this.categoryModel.create({
+      name: `${original.name} (Copy)`,
+      slug: newSlug,
+      description: original.description,
+      image: original.image,
+      icon: original.icon,
+      isActive: false, // Duplicated categories start as inactive
+    });
+
+    return duplicated.toObject();
+  }
+
+  async bulkDelete(slugs: string[]): Promise<{ deleted: number }> {
+    let deleted = 0;
+    for (const slug of slugs) {
+      try {
+        const res = await this.categoryModel.findOneAndDelete({ slug }).lean().exec();
+        if (res) deleted++;
+      } catch (error) {
+        console.error(`Failed to delete category ${slug}:`, error);
+      }
+    }
+    return { deleted };
+  }
+
+  async bulkToggleStatus(slugs: string[]): Promise<{ updated: number }> {
+    let updated = 0;
+    for (const slug of slugs) {
+      try {
+        const category = await this.categoryModel.findOne({ slug }).lean().exec();
+        if (category) {
+          await this.categoryModel.findOneAndUpdate(
+            { slug },
+            { isActive: !category.isActive },
+          );
+          updated++;
+        }
+      } catch (error) {
+        console.error(`Failed to toggle status for category ${slug}:`, error);
+      }
+    }
+    return { updated };
+  }
+
+  async getStats() {
+    const [totalCategories, activeCategories, categoriesWithCount] = await Promise.all([
+      this.categoryModel.countDocuments().exec(),
+      this.categoryModel.countDocuments({ isActive: true }).exec(),
+      this.categoryModel.find().lean().exec(),
+    ]);
+
+    const inactiveCategories = totalCategories - activeCategories;
+
+    // Calculate total courses (assuming Course model has categoryId)
+    // TODO: Replace with actual course count when Course model is available
+    const totalCourses = 0;
+    const averageCoursesPerCategory =
+      totalCategories > 0 ? totalCourses / totalCategories : 0;
+
+    return {
+      totalCategories,
+      activeCategories,
+      inactiveCategories,
+      totalCourses,
+      averageCoursesPerCategory: Math.round(averageCoursesPerCategory * 10) / 10,
+    };
   }
 }

@@ -1,15 +1,27 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SystemConfigService } from '../../system-config/system-config.service';
 import Stripe from 'stripe';
 
 @Injectable()
-export class StripeService {
+export class StripeService implements OnModuleInit {
   private stripe: Stripe | null = null;
   private readonly logger = new Logger(StripeService.name);
-  private readonly enabled: boolean;
+  private enabled: boolean = false;
 
-  constructor(private configService: ConfigService) {
-    const secretKey = configService.get<string>('STRIPE_SECRET_KEY');
+  constructor(
+    private configService: ConfigService,
+    private systemConfigService: SystemConfigService,
+  ) { }
+
+  async onModuleInit() {
+    await this.initializeStripe();
+  }
+
+  private async initializeStripe() {
+    const secretKey = await this.systemConfigService.getValue('STRIPE_SECRET_KEY') ||
+      this.configService.get<string>('STRIPE_SECRET_KEY');
+
     if (!secretKey) {
       this.logger.warn(
         'STRIPE_SECRET_KEY is not configured. Stripe payments will be disabled.',
@@ -23,6 +35,13 @@ export class StripeService {
       apiVersion: '2025-10-29.clover',
     });
     this.logger.log('Stripe service initialized successfully');
+  }
+
+  /**
+   * Refresh Stripe configuration from database
+   */
+  async refreshConfig() {
+    await this.initializeStripe();
   }
 
   private checkEnabled() {
@@ -172,13 +191,12 @@ export class StripeService {
     }
   }
 
-  async handleWebhook(payload: any, signature: string) {
+  async handleWebhook(payload: any, signature: string): Promise<{ event: any; type: string }> {
     this.checkEnabled();
 
     try {
-      const webhookSecret = this.configService.get<string>(
-        'STRIPE_WEBHOOK_SECRET',
-      );
+      const webhookSecret = await this.systemConfigService.getValue('STRIPE_WEBHOOK_SECRET') ||
+        this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
       if (!webhookSecret) {
         throw new BadRequestException(
           'STRIPE_WEBHOOK_SECRET is not configured',

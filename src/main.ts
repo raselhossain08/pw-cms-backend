@@ -10,6 +10,8 @@ import { ConfigService } from '@nestjs/config';
 import { GlobalExceptionFilter } from './shared/filters/global-exception.filter';
 import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
 import { LoggingInterceptor } from './shared/interceptors/logging.interceptor';
+import { ActivityLoggingInterceptor } from './shared/interceptors/activity-logging.interceptor';
+import { ActivityLogsService } from './activity-logs/activity-logs.service';
 // Security middleware imports removed - no longer used
 // import { SecurityMiddleware } from './shared/middleware/security.middleware';
 // import { HelmetMiddleware } from './shared/middleware/helmet.middleware';
@@ -61,11 +63,28 @@ async function bootstrap() {
   // }
 
   // Global filters and interceptors
-  app.useGlobalFilters(new GlobalExceptionFilter(configService));
-  app.useGlobalInterceptors(
+  // Get ActivityLogsService for filter and interceptor
+  let activityLogsService: ActivityLogsService;
+  try {
+    activityLogsService = app.get(ActivityLogsService);
+  } catch (e) {
+    // Service might not be available yet, create a null-safe version
+    activityLogsService = null as any;
+  }
+
+  app.useGlobalFilters(new GlobalExceptionFilter(configService, activityLogsService));
+
+  const interceptors: any[] = [
     new LoggingInterceptor(),
     new ResponseInterceptor(),
-  );
+  ];
+
+  // Add activity logging interceptor if service is available
+  if (activityLogsService) {
+    interceptors.push(new ActivityLoggingInterceptor(activityLogsService));
+  }
+
+  app.useGlobalInterceptors(...interceptors);
 
   // Enable CORS with strict settings
   const allowedOrigins = configService

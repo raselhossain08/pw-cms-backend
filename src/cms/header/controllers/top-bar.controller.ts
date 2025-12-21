@@ -6,12 +6,15 @@ import {
   Delete,
   Body,
   Param,
+  Query,
+  Res,
   UseInterceptors,
   UploadedFiles,
   HttpCode,
   HttpStatus,
   VERSION_NEUTRAL,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -25,7 +28,7 @@ import { CreateTopBarDto, UpdateTopBarDto } from '../dto/top-bar.dto';
 @ApiTags('CMS - Top Bar')
 @Controller({ path: 'cms/top-bar', version: VERSION_NEUTRAL })
 export class TopBarController {
-  constructor(private readonly topBarService: TopBarService) {}
+  constructor(private readonly topBarService: TopBarService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create new top bar' })
@@ -104,5 +107,59 @@ export class TopBarController {
       languageCode,
       files.flag[0],
     );
+  }
+
+  @Post(':id/toggle-active')
+  @ApiOperation({ summary: 'Toggle active status' })
+  @ApiResponse({
+    status: 200,
+    description: 'Active status toggled successfully',
+  })
+  async toggleActive(@Param('id') id: string) {
+    return this.topBarService.toggleActive(id);
+  }
+
+  @Post(':id/duplicate')
+  @ApiOperation({ summary: 'Duplicate top bar' })
+  @ApiResponse({
+    status: 200,
+    description: 'Top bar duplicated successfully',
+  })
+  async duplicate(@Param('id') id: string) {
+    return this.topBarService.duplicate(id);
+  }
+
+  @Get(':id/export')
+  @ApiOperation({ summary: 'Export top bar' })
+  async export(
+    @Param('id') id: string,
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
+    try {
+      const result = await this.topBarService.export(id, format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="top-bar_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="top-bar_${new Date().toISOString().split('T')[0]}.json"`,
+      );
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export top bar',
+        data: null,
+      });
+    }
   }
 }

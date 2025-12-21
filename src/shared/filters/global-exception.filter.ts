@@ -5,17 +5,23 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { ActivityLogsService } from '../../activity-logs/activity-logs.service';
+import { ErrorSeverity } from '../../activity-logs/entities/error-log.entity';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    private activityLogsService: ActivityLogsService | null,
+  ) { }
 
-  catch(exception: unknown, host: ArgumentsHost): void {
+  async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
@@ -53,6 +59,31 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       errorResponse.validationErrors = validationErrors;
     }
 
+    // Log error to database (skip for activity-logs endpoints to prevent recursion)
+    if (!request.url.includes('/activity-logs') && this.activityLogsService) {
+      try {
+        await this.activityLogsService.createErrorLog({
+          severity: this.getSeverityFromStatus(status),
+          errorType:
+            exception instanceof Error
+              ? exception.constructor.name
+              : 'UnknownError',
+          message: message,
+          stack: exception instanceof Error ? exception.stack : undefined,
+          endpoint: request.url,
+          method: request.method,
+          statusCode: status,
+          userId: (request as any).user?.id || (request as any).user?._id,
+          ipAddress: request.ip || request.socket.remoteAddress,
+          userAgent: request.headers['user-agent'],
+          isResolved: false,
+        });
+      } catch (logError) {
+        // Don't fail the request if logging fails
+        this.logger.error('Failed to log error to database:', logError);
+      }
+    }
+
     // Log error in development
     if (this.configService.get('NODE_ENV') === 'development') {
       this.logger.error(
@@ -62,5 +93,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     response.status(status).json(errorResponse);
+  }
+
+  private getSeverityFromStatus(status: number): ErrorSeverity {
+    if (status >= 500) return ErrorSeverity.CRITICAL;
+    if (status >= 400) return ErrorSeverity.HIGH;
+    return ErrorSeverity.MEDIUM;
   }
 }

@@ -1,16 +1,30 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SystemConfigService } from '../../system-config/system-config.service';
 import * as paypal from '@paypal/checkout-server-sdk';
 
 @Injectable()
-export class PayPalService {
+export class PayPalService implements OnModuleInit {
   private client: paypal.core.PayPalHttpClient | null = null;
   private readonly logger = new Logger(PayPalService.name);
-  private readonly enabled: boolean;
+  private enabled: boolean = false;
 
-  constructor(private configService: ConfigService) {
-    const clientId = configService.get('PAYPAL_CLIENT_ID');
-    const clientSecret = configService.get('PAYPAL_CLIENT_SECRET');
+  constructor(
+    private configService: ConfigService,
+    private systemConfigService: SystemConfigService,
+  ) { }
+
+  async onModuleInit() {
+    await this.initializePayPal();
+  }
+
+  private async initializePayPal() {
+    const clientId = await this.systemConfigService.getValue('PAYPAL_CLIENT_ID') ||
+      this.configService.get('PAYPAL_CLIENT_ID');
+    const clientSecret = await this.systemConfigService.getValue('PAYPAL_CLIENT_SECRET') ||
+      this.configService.get('PAYPAL_CLIENT_SECRET');
+    const mode = await this.systemConfigService.getValue('PAYPAL_MODE') ||
+      this.configService.get('PAYPAL_MODE', 'sandbox');
 
     if (!clientId || !clientSecret) {
       this.logger.warn(
@@ -21,12 +35,21 @@ export class PayPalService {
     }
 
     this.enabled = true;
-    const environment = new paypal.core.SandboxEnvironment(
-      clientId,
-      clientSecret,
-    );
+
+    // Use appropriate environment based on mode
+    const environment = mode === 'live'
+      ? new paypal.core.LiveEnvironment(clientId, clientSecret)
+      : new paypal.core.SandboxEnvironment(clientId, clientSecret);
+
     this.client = new paypal.core.PayPalHttpClient(environment);
-    this.logger.log('PayPal service initialized successfully');
+    this.logger.log(`PayPal service initialized successfully (${mode} mode)`);
+  }
+
+  /**
+   * Refresh PayPal configuration from database
+   */
+  async refreshConfig() {
+    await this.initializePayPal();
   }
 
   private checkEnabled() {

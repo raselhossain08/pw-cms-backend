@@ -14,7 +14,7 @@ export class TestimonialsService {
     @InjectModel(Testimonials.name)
     private testimonialsModel: Model<Testimonials>,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   async create(
     createTestimonialsDto: CreateTestimonialsDto,
@@ -59,5 +59,53 @@ export class TestimonialsService {
     }
     testimonials.isActive = !testimonials.isActive;
     return testimonials.save();
+  }
+
+  /**
+   * Duplicate a testimonial
+   */
+  async duplicateTestimonial(index: number): Promise<Testimonials> {
+    const testimonials = await this.testimonialsModel.findOne().exec();
+
+    if (!testimonials) {
+      throw new NotFoundException('Testimonials not found');
+    }
+
+    if (!testimonials.testimonials || index < 0 || index >= testimonials.testimonials.length) {
+      throw new NotFoundException('Testimonial not found');
+    }
+
+    // Create a duplicate
+    const testimonial = testimonials.testimonials[index];
+    const duplicatedTestimonial = {
+      ...JSON.parse(JSON.stringify(testimonial)),
+      name: `${testimonial.name} (Copy)`,
+    };
+
+    testimonials.testimonials.push(duplicatedTestimonial as any);
+    await testimonials.save();
+    return testimonials;
+  }
+
+  /**
+   * Export testimonials
+   */
+  async export(format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const testimonials = await this.testimonialsModel.findOne().exec();
+
+    if (!testimonials) {
+      throw new NotFoundException('Testimonials not found');
+    }
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      // In a real implementation, you'd use a library like pdfkit or puppeteer
+      return JSON.stringify(testimonials, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      testimonials,
+    };
   }
 }

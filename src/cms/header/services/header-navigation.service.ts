@@ -21,7 +21,7 @@ export class HeaderNavigationService {
     @InjectModel(HeaderNavigation.name)
     private headerNavigationModel: Model<HeaderNavigationDocument>,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   async create(
     createDto: CreateHeaderNavigationDto,
@@ -197,5 +197,53 @@ export class HeaderNavigationService {
       .exec();
     if (!result) throw new BadRequestException('Header navigation not found');
     return result.toJSON();
+  }
+
+  async toggleActive(id: string): Promise<HeaderNavigation> {
+    const headerNav = await this.findOne(id);
+    const newActiveState = !headerNav.isActive;
+
+    if (newActiveState) {
+      // Deactivate all others first
+      await this.headerNavigationModel.updateMany({}, { isActive: false });
+    }
+
+    const result = await this.headerNavigationModel
+      .findByIdAndUpdate(id, { isActive: newActiveState }, { new: true })
+      .exec();
+
+    if (!result) {
+      throw new NotFoundException(`Header navigation #${id} not found`);
+    }
+
+    return result.toJSON();
+  }
+
+  async duplicate(id: string): Promise<HeaderNavigation> {
+    const original = await this.findOne(id);
+    const duplicated = {
+      ...original,
+      _id: undefined,
+      isActive: false,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+
+    const created = new this.headerNavigationModel(duplicated);
+    return created.save().then((doc) => doc.toJSON());
+  }
+
+  async export(id: string, format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const headerNav = await this.findOne(id);
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      return JSON.stringify(headerNav, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      headerNavigation: headerNav,
+    };
   }
 }

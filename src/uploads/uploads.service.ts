@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -463,5 +464,186 @@ export class UploadsService {
       .limit(limit)
       .sort({ createdAt: -1 })
       .exec();
+  }
+
+  async duplicateFile(fileId: string, userId: string): Promise<File> {
+    const originalFile = await this.fileModel.findById(fileId).exec();
+    if (!originalFile) {
+      throw new NotFoundException(`File with ID ${fileId} not found`);
+    }
+
+    // Check ownership or admin
+    if (originalFile.uploadedBy.toString() !== userId) {
+      throw new BadRequestException('You can only duplicate your own files');
+    }
+
+    // Create a new file record with the same URL but new metadata
+    const duplicatedFile = new this.fileModel({
+      originalName: `Copy of ${originalFile.originalName}`,
+      fileName: originalFile.fileName,
+      mimeType: originalFile.mimeType,
+      size: originalFile.size,
+      type: originalFile.type,
+      status: originalFile.status,
+      path: originalFile.path,
+      url: originalFile.url,
+      uploadedBy: new Types.ObjectId(userId),
+      description: originalFile.description
+        ? `Copy of ${originalFile.description}`
+        : undefined,
+      tags: [...(originalFile.tags || [])],
+      metadata: originalFile.metadata,
+      visibility: originalFile.visibility,
+      processedAt: new Date(),
+    });
+
+    return await duplicatedFile.save();
+  }
+
+  async bulkUpdateVisibility(
+    fileIds: string[],
+    visibility: 'public' | 'private',
+    userId: string,
+    userRole: string,
+  ): Promise<{ updated: number; failed: number }> {
+    let updated = 0;
+    let failed = 0;
+
+    for (const fileId of fileIds) {
+      try {
+        const file = await this.fileModel.findById(fileId).exec();
+        if (!file) {
+          failed++;
+          continue;
+        }
+
+        // Check ownership or admin
+        const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+        if (file.uploadedBy.toString() !== userId && !isAdmin) {
+          failed++;
+          continue;
+        }
+
+        file.visibility = visibility;
+        await file.save();
+        updated++;
+      } catch (error) {
+        failed++;
+      }
+    }
+
+    return { updated, failed };
+  }
+
+  async bulkAddTags(
+    fileIds: string[],
+    tags: string[],
+    userId: string,
+    userRole: string,
+  ): Promise<{ updated: number; failed: number }> {
+    let updated = 0;
+    let failed = 0;
+
+    for (const fileId of fileIds) {
+      try {
+        const file = await this.fileModel.findById(fileId).exec();
+        if (!file) {
+          failed++;
+          continue;
+        }
+
+        // Check ownership or admin
+        const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+        if (file.uploadedBy.toString() !== userId && !isAdmin) {
+          failed++;
+          continue;
+        }
+
+        const existingTags = file.tags || [];
+        const newTags = tags.filter((tag) => !existingTags.includes(tag));
+        file.tags = [...existingTags, ...newTags];
+        await file.save();
+        updated++;
+      } catch (error) {
+        failed++;
+      }
+    }
+
+    return { updated, failed };
+  }
+
+  async exportFiles(
+    userId: string,
+    format: 'json' | 'csv' = 'json',
+  ): Promise<any> {
+    const files = await this.fileModel
+      .find({ uploadedBy: new Types.ObjectId(userId) })
+      .exec();
+
+    if (format === 'csv') {
+      // Convert to CSV format
+      const headers = [
+        'ID',
+        'Original Name',
+        'File Name',
+        'MIME Type',
+        'Size (bytes)',
+        'Type',
+        'Status',
+        'URL',
+        'Description',
+        'Tags',
+        'Visibility',
+        'Download Count',
+        'Created At',
+        'Updated At',
+      ];
+
+      const rows = files.map((file) => [
+        (file._id as any).toString(),
+        file.originalName,
+        file.fileName,
+        file.mimeType,
+        file.size,
+        file.type,
+        file.status,
+        file.url,
+        file.description || '',
+        (file.tags || []).join('; '),
+        file.visibility,
+        file.downloadCount || 0,
+        (file as any).createdAt?.toISOString() || '',
+        (file as any).updatedAt?.toISOString() || '',
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+      ].join('\n');
+
+      return csvContent;
+    }
+
+    // JSON format
+    return {
+      exportedAt: new Date().toISOString(),
+      totalFiles: files.length,
+      files: files.map((file) => ({
+        _id: (file._id as any).toString(),
+        originalName: file.originalName,
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        size: file.size,
+        type: file.type,
+        status: file.status,
+        url: file.url,
+        description: file.description,
+        tags: file.tags || [],
+        visibility: file.visibility,
+        downloadCount: file.downloadCount || 0,
+        createdAt: (file as any).createdAt?.toISOString(),
+        updatedAt: (file as any).updatedAt?.toISOString(),
+      })),
+    };
   }
 }

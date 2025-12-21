@@ -12,7 +12,7 @@ export class TermsConditionsService {
   constructor(
     @InjectModel(TermsConditions.name)
     private termsConditionsModel: Model<TermsConditions>,
-  ) {}
+  ) { }
 
   async create(createDto: CreateTermsConditionsDto): Promise<TermsConditions> {
     // Deactivate all existing terms
@@ -284,10 +284,76 @@ export class TermsConditionsService {
         ogImage: '',
         canonicalUrl: 'https://personalwings.com/terms-conditions',
       },
+      acceptanceSection: {
+        title: 'Acceptance of Terms',
+        content:
+          'By using Personal Wings, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions. If you do not agree to these terms, you must discontinue use of our services immediately.',
+        isActive: true,
+      },
       isActive: true,
     };
 
     const newTerms = new this.termsConditionsModel(defaultTerms);
     return newTerms.save();
+  }
+
+  async toggleActive(id: string): Promise<TermsConditions> {
+    const termsConditions = await this.findOne(id);
+
+    // If activating, deactivate all others
+    if (!termsConditions.isActive) {
+      await this.termsConditionsModel.updateMany(
+        { _id: { $ne: id } },
+        { isActive: false },
+      );
+    }
+
+    termsConditions.isActive = !termsConditions.isActive;
+    return termsConditions.save();
+  }
+
+  async duplicate(id: string): Promise<TermsConditions> {
+    const original = await this.findOne(id);
+
+    const duplicated = new this.termsConditionsModel({
+      headerSection: { ...original.headerSection },
+      lastUpdated: original.lastUpdated,
+      sections: JSON.parse(JSON.stringify(original.sections)),
+      contactInfo: { ...original.contactInfo },
+      seoMeta: { ...original.seoMeta },
+      acceptanceSection: { ...original.acceptanceSection },
+      isActive: false, // Duplicated items are inactive by default
+    });
+
+    return duplicated.save();
+  }
+
+  async export(id: string, format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const termsConditions = await this.findOne(id);
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      // In a real implementation, you'd use a library like pdfkit or puppeteer
+      return JSON.stringify(termsConditions, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      termsConditions,
+    };
+  }
+
+  async exportAll(format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const allTermsConditions = await this.findAll();
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      return JSON.stringify(allTermsConditions, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      termsConditions: allTermsConditions,
+    };
   }
 }

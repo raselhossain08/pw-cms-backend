@@ -26,6 +26,8 @@ import {
 } from '../enrollments/entities/enrollment.entity';
 import { Order, OrderSchema } from '../orders/entities/order.entity';
 import { User, UserSchema } from '../users/entities/user.entity';
+import { ActivityLogsModule } from '../activity-logs/activity-logs.module';
+import { Blog, BlogSchema } from '../cms/home/blog/schemas/blog.schema';
 
 @Module({
   imports: [
@@ -39,6 +41,7 @@ import { User, UserSchema } from '../users/entities/user.entity';
       { name: Enrollment.name, schema: EnrollmentSchema },
       { name: Order.name, schema: OrderSchema },
       { name: User.name, schema: UserSchema },
+      { name: Blog.name, schema: BlogSchema },
     ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -50,6 +53,7 @@ import { User, UserSchema } from '../users/entities/user.entity';
       }),
       inject: [ConfigService],
     }),
+    ActivityLogsModule,
   ],
   controllers: [AiBotController],
   providers: [AiBotService, AiBotGateway, ChatGPTService, BotActionsService],

@@ -82,6 +82,18 @@ export class SeoMeta {
   canonicalUrl?: string;
 }
 
+@Schema({ _id: false })
+export class AcceptanceSection {
+  @Prop({ required: true })
+  title: string;
+
+  @Prop({ required: true })
+  content: string;
+
+  @Prop({ default: true })
+  isActive: boolean;
+}
+
 @Schema({ timestamps: true })
 export class TermsConditions extends Document {
   @Prop({ type: HeaderSection, required: true })
@@ -98,6 +110,9 @@ export class TermsConditions extends Document {
 
   @Prop({ type: SeoMeta, required: true })
   seoMeta: SeoMeta;
+
+  @Prop({ type: AcceptanceSection, required: true })
+  acceptanceSection: AcceptanceSection;
 
   @Prop({ default: true })
   isActive: boolean;

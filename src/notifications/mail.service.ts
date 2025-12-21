@@ -8,7 +8,7 @@ export class MailService {
   constructor(
     private mailerService: MailerService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async sendVerificationEmail(
     email: string,
@@ -157,6 +157,54 @@ export class MailService {
           'support@personalwings.com',
         ),
       },
+    });
+  }
+
+  /**
+   * Send email to new user with purchase details and account credentials
+   */
+  async sendNewUserPurchaseEmail(
+    user: User,
+    order: any,
+    generatedPassword: string,
+  ): Promise<void> {
+    const dashboardUrl = `${this.configService.get('FRONTEND_URL')}/dashboard`;
+    const loginUrl = `${this.configService.get('FRONTEND_URL')}/login`;
+
+    await this.mailerService.sendMail({
+      to: user.email,
+      subject: 'Welcome to Personal Wings - Your Account & Purchase Details',
+      template: 'new-user-purchase',
+      context: {
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        password: generatedPassword,
+        orderNumber: order.orderNumber,
+        total: order.total,
+        loginUrl,
+        dashboardUrl,
+        supportEmail: this.configService.get(
+          'SUPPORT_EMAIL',
+          'support@personalwings.com',
+        ),
+      },
+    });
+  }
+
+  /**
+   * Generic method to send email with custom template and context
+   */
+  async sendMail(options: {
+    to: string;
+    subject: string;
+    template: string;
+    context: any;
+  }): Promise<void> {
+    await this.mailerService.sendMail({
+      to: options.to,
+      subject: options.subject,
+      template: options.template,
+      context: options.context,
     });
   }
 }

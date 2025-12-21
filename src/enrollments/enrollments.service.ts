@@ -9,11 +9,13 @@ import { Model, Types } from 'mongoose';
 import { Enrollment, EnrollmentStatus } from './entities/enrollment.entity';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
+import { Course } from '../courses/entities/course.entity';
 
 @Injectable()
 export class EnrollmentsService {
   constructor(
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
+    @InjectModel(Course.name) private courseModel: Model<Course>,
   ) { }
 
   async enroll(
@@ -28,6 +30,19 @@ export class EnrollmentsService {
 
     if (existing) {
       throw new BadRequestException('Already enrolled in this course');
+    }
+
+    // Check if course exists and if it's free
+    const course = await this.courseModel.findById(createEnrollmentDto.courseId);
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // For paid courses without order, require payment
+    if (!course.isFree && course.price > 0 && !createEnrollmentDto.orderId) {
+      throw new ForbiddenException(
+        'This is a paid course. Please purchase it first.',
+      );
     }
 
     const enrollment = new this.enrollmentModel({

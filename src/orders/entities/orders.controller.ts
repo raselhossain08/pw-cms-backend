@@ -165,4 +165,13 @@ export class OrdersController {
   async remove(@Param('id') id: string) {
     return this.ordersService.remove(id);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get(':id/download')
+  @ApiOperation({ summary: 'Download order receipt/invoice' })
+  @ApiResponse({ status: 200, description: 'Order download URL' })
+  async downloadOrder(@Param('id') id: string, @Req() req) {
+    return this.ordersService.downloadOrder(id, req.user.id);
+  }
 }

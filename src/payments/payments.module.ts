@@ -13,6 +13,11 @@ import { Transaction, TransactionSchema } from './entities/transaction.entity';
 import { User, UserSchema } from '../users/entities/user.entity';
 import { OrdersModule } from '../orders/orders.module';
 import { CoursesModule } from '../courses/courses.module';
+import { CouponsModule } from '../coupons/coupons.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { EnrollmentsModule } from '../enrollments/enrollments.module';
+import { SystemConfigModule } from '../system-config/system-config.module';
+import { ProductsModule } from '../products/products.module';
 
 @Module({
   imports: [
@@ -24,9 +29,14 @@ import { CoursesModule } from '../courses/courses.module';
     ConfigModule,
     forwardRef(() => OrdersModule),
     CoursesModule,
+    ProductsModule,
+    CouponsModule,
+    NotificationsModule,
+    EnrollmentsModule,
+    SystemConfigModule,
   ],
   controllers: [PaymentsController, GuestPaymentsController],
   providers: [PaymentsService, StripeService, PayPalService],
   exports: [PaymentsService],
 })
-export class PaymentsModule {}
+export class PaymentsModule { }

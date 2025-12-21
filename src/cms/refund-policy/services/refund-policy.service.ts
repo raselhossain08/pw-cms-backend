@@ -12,7 +12,7 @@ export class RefundPolicyService {
   constructor(
     @InjectModel(RefundPolicy.name)
     private refundPolicyModel: Model<RefundPolicy>,
-  ) {}
+  ) { }
 
   async create(
     createRefundPolicyDto: CreateRefundPolicyDto,
@@ -295,5 +295,73 @@ export class RefundPolicyService {
 
     const createdRefundPolicy = new this.refundPolicyModel(defaultData);
     return createdRefundPolicy.save();
+  }
+
+  async toggleActive(id: string): Promise<RefundPolicy> {
+    const refundPolicy = await this.findOne(id);
+    if (!refundPolicy) {
+      throw new Error('Refund policy not found');
+    }
+
+    // If activating, deactivate all others
+    if (!refundPolicy.isActive) {
+      await this.refundPolicyModel.updateMany(
+        { _id: { $ne: id } },
+        { isActive: false },
+      );
+    }
+
+    refundPolicy.isActive = !refundPolicy.isActive;
+    return refundPolicy.save();
+  }
+
+  async duplicate(id: string): Promise<RefundPolicy> {
+    const original = await this.findOne(id);
+    if (!original) {
+      throw new Error('Refund policy not found');
+    }
+
+    const duplicated = new this.refundPolicyModel({
+      headerSection: { ...original.headerSection },
+      lastUpdated: original.lastUpdated,
+      sections: JSON.parse(JSON.stringify(original.sections)),
+      contactInfo: { ...original.contactInfo },
+      seoMeta: { ...original.seoMeta },
+      isActive: false, // Duplicated items are inactive by default
+    });
+
+    return duplicated.save();
+  }
+
+  async export(id: string, format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const refundPolicy = await this.findOne(id);
+    if (!refundPolicy) {
+      throw new Error('Refund policy not found');
+    }
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      // In a real implementation, you'd use a library like pdfkit or puppeteer
+      return JSON.stringify(refundPolicy, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      refundPolicy,
+    };
+  }
+
+  async exportAll(format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const allRefundPolicies = await this.findAll();
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      return JSON.stringify(allRefundPolicies, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      refundPolicies: allRefundPolicies,
+    };
   }
 }

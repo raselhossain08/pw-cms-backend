@@ -30,7 +30,7 @@ import { UserRole } from './entities/user.entity';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   // Public endpoint - no auth required
   @Get('instructor/:slug')
@@ -87,6 +87,43 @@ export class UsersController {
     return this.usersService.getStats();
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('me')
+  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiResponse({ status: 200, description: 'Current user profile' })
+  async getMe(@Req() req) {
+    const userId = req.user?.id || req.user?.userId;
+    return this.usersService.findById(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch('me')
+  @ApiOperation({ summary: 'Update current user profile' })
+  @ApiResponse({ status: 200, description: 'Profile updated' })
+  async updateMe(@Req() req, @Body() updateUserDto: UpdateUserDto) {
+    const userId = req.user?.id || req.user?.userId;
+    return this.usersService.update(userId, updateUserDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Put('me/change-password')
+  @ApiOperation({ summary: 'Change current user password' })
+  @ApiResponse({ status: 200, description: 'Password changed' })
+  async changeMyPassword(
+    @Req() req,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    const userId = req.user?.id || req.user?.userId;
+    return this.usersService.changePassword(
+      userId,
+      changePasswordDto.currentPassword,
+      changePasswordDto.newPassword,
+    );
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiResponse({ status: 200, description: 'User details' })
@@ -137,5 +174,61 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Email verified' })
   async verifyEmail(@Param('id') id: string) {
     return this.usersService.verifyEmail(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('notification-preferences')
+  @ApiOperation({ summary: 'Get user notification preferences' })
+  @ApiResponse({ status: 200, description: 'Notification preferences' })
+  async getNotificationPreferences(@Req() req) {
+    return this.usersService.getNotificationPreferences(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch('notification-preferences')
+  @ApiOperation({ summary: 'Update user notification preferences' })
+  @ApiResponse({ status: 200, description: 'Preferences updated' })
+  async updateNotificationPreferences(@Req() req, @Body() preferences: any) {
+    return this.usersService.updateNotificationPreferences(req.user.id, preferences);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('privacy-settings')
+  @ApiOperation({ summary: 'Get user privacy settings' })
+  @ApiResponse({ status: 200, description: 'Privacy settings' })
+  async getPrivacySettings(@Req() req) {
+    return this.usersService.getPrivacySettings(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch('privacy-settings')
+  @ApiOperation({ summary: 'Update user privacy settings' })
+  @ApiResponse({ status: 200, description: 'Settings updated' })
+  async updatePrivacySettings(@Req() req, @Body() settings: any) {
+    return this.usersService.updatePrivacySettings(req.user.id, settings);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('profile/stats')
+  @ApiOperation({ summary: 'Get user profile statistics' })
+  @ApiResponse({ status: 200, description: 'Profile statistics' })
+  async getProfileStats(@Req() req) {
+    return this.usersService.getProfileStats(req.user.id);
+  }
+
+  @Patch(':id/status')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update user status' })
+  @ApiResponse({ status: 200, description: 'Status updated' })
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string },
+  ) {
+    return this.usersService.update(id, { status: body.status as any });
   }
 }

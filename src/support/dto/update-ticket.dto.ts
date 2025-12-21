@@ -1,5 +1,5 @@
 import { IsString, IsEnum, IsOptional } from 'class-validator';
-import { TicketStatus, TicketPriority } from '../entities/ticket.entity';
+import { TicketStatus, TicketPriority, TicketCategory } from '../entities/ticket.entity';
 
 export class UpdateTicketDto {
   @IsEnum(TicketStatus)
@@ -13,4 +13,16 @@ export class UpdateTicketDto {
   @IsString()
   @IsOptional()
   assignedTo?: string;
+
+  @IsString()
+  @IsOptional()
+  subject?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsEnum(TicketCategory)
+  @IsOptional()
+  category?: TicketCategory;
 }

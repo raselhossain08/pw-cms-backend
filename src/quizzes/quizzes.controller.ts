@@ -31,7 +31,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class QuizzesController {
-  constructor(private readonly quizzesService: QuizzesService) {}
+  constructor(private readonly quizzesService: QuizzesService) { }
 
   @Post()
   @UseGuards(RolesGuard)
@@ -160,5 +160,43 @@ export class QuizzesController {
   @ApiResponse({ status: 200, description: 'Quiz statistics' })
   async getStats(@Param('id') id: string) {
     return this.quizzesService.getQuizStats(id);
+  }
+
+  @Patch(':id/toggle-status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Toggle quiz active status' })
+  @ApiResponse({ status: 200, description: 'Quiz status toggled' })
+  async toggleStatus(@Param('id') id: string, @Req() req) {
+    return this.quizzesService.toggleStatus(id, req.user.id);
+  }
+
+  @Post(':id/duplicate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Duplicate a quiz' })
+  @ApiResponse({ status: 201, description: 'Quiz duplicated successfully' })
+  async duplicate(@Param('id') id: string, @Req() req) {
+    return this.quizzesService.duplicate(id, req.user.id);
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bulk delete quizzes' })
+  @ApiResponse({ status: 200, description: 'Quizzes deleted' })
+  async bulkDelete(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.quizzesService.bulkDelete(body.ids, req.user.id);
+    return { message: `${result.deleted} quiz${result.deleted > 1 ? 'zes' : ''} deleted successfully`, ...result };
+  }
+
+  @Post('bulk-toggle-status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bulk toggle quiz status' })
+  @ApiResponse({ status: 200, description: 'Quiz statuses updated' })
+  async bulkToggleStatus(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.quizzesService.bulkToggleStatus(body.ids, req.user.id);
+    return { message: `${result.updated} quiz${result.updated > 1 ? 'zes' : ''} updated successfully`, ...result };
   }
 }

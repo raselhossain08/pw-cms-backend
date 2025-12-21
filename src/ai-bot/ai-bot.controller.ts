@@ -72,6 +72,12 @@ export class AiBotController {
     );
   }
 
+  @Delete('conversations/:sessionId')
+  @UseGuards(JwtAuthGuard)
+  deleteConversation(@Param('sessionId') sessionId: string, @Request() req) {
+    return this.aiBotService.deleteConversation(sessionId, req.user.id);
+  }
+
   // Admin endpoints - Knowledge base management
   @Post('knowledge')
   @UseGuards(JwtAuthGuard, RolesGuard)

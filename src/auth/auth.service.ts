@@ -16,6 +16,7 @@ import { MailService } from '../notifications/mail.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { EmailVerification } from './entities/email-verification.entity';
+import { SessionService } from './session.service';
 
 @Injectable()
 export class AuthService {
@@ -24,9 +25,10 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private mailService: MailService,
+    private sessionService: SessionService,
     @InjectModel(EmailVerification.name)
     private emailVerificationModel: Model<EmailVerification>,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterDto) {
     // Check if user already exists
@@ -247,6 +249,82 @@ export class AuthService {
     } catch (e) {
       throw new BadRequestException('Invalid or expired token');
     }
+  }
+
+  async resendVerificationForUser(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new BadRequestException('User not found');
+    if (user.emailVerified) {
+      throw new BadRequestException('Email already verified');
+    }
+
+    const verificationToken = this.jwtService.sign(
+      { sub: user.id, email: user.email },
+      { expiresIn: '24h' },
+    );
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await this.emailVerificationModel.create({
+      user: user.id,
+      token: code,
+      email: user.email,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      type: 'otp',
+    });
+
+    try {
+      await this.mailService.sendVerificationEmail(
+        user.email,
+        verificationToken,
+        code,
+      );
+      return { message: 'Verification email resent' };
+    } catch (e) {
+      throw new BadRequestException('Failed to send verification email');
+    }
+  }
+
+  async getEmailStatus(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new BadRequestException('User not found');
+    return {
+      emailVerified: user.emailVerified || false,
+      email: user.email,
+    };
+  }
+
+  async getUserSessions(userId: string) {
+    const sessions = await this.sessionService.getUserSessions(userId);
+    return {
+      sessions: sessions.map((session: any) => ({
+        _id: String(session._id || session.id),
+        device: session.deviceType || 'Unknown',
+        browser: session.browser || 'Unknown',
+        ip: session.ipAddress || 'Unknown',
+        location: session.location || 'Unknown',
+        lastActive: session.lastActivity?.toISOString() || (session as any).createdAt?.toISOString() || new Date().toISOString(),
+        isCurrent: session.status === 'active' && new Date(session.expiresAt) > new Date(),
+      })),
+    };
+  }
+
+  async deleteSession(userId: string, sessionId: string) {
+    const sessions = await this.sessionService.getUserSessions(userId);
+    const targetSession = sessions.find((s: any) => String(s._id || s.id) === sessionId);
+    if (!targetSession) {
+      throw new BadRequestException('Session not found');
+    }
+    await this.sessionService.revokeSession(
+      targetSession.sessionToken,
+      'User deleted session',
+    );
+    return { message: 'Session deleted' };
+  }
+
+  async deleteAllSessions(userId: string) {
+    await this.sessionService.revokeAllUserSessions(userId, 'User logged out all sessions');
+    await this.usersService.updateRefreshToken(userId, null);
+    return { message: 'All sessions deleted' };
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {

@@ -4,6 +4,7 @@ import { AboutSectionModule } from './about-section/about-section.module';
 import { EventsModule } from './events/events.module';
 import { TestimonialsModule } from './testimonials/testimonials.module';
 import { BlogModule } from './blog/blog.module';
+import { HomeSEOModule } from './seo/home-seo.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { BlogModule } from './blog/blog.module';
     EventsModule,
     TestimonialsModule,
     BlogModule,
+    HomeSEOModule,
   ],
   exports: [
     BannerModule,
@@ -19,6 +21,7 @@ import { BlogModule } from './blog/blog.module';
     EventsModule,
     TestimonialsModule,
     BlogModule,
+    HomeSEOModule,
   ],
 })
-export class HomeModule {}
+export class HomeModule { }

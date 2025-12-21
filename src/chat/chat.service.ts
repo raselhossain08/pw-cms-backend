@@ -9,6 +9,9 @@ import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { ChatType } from '../activity-logs/entities/chat-log.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class ChatService {
@@ -16,7 +19,9 @@ export class ChatService {
     @InjectModel(Conversation.name)
     private conversationModel: Model<Conversation>,
     @InjectModel(Message.name) private messageModel: Model<Message>,
-  ) {}
+    @InjectModel(User.name) private userModel: Model<User>, // Add this for user lookup
+    private activityLogsService: ActivityLogsService, // Add this
+  ) { }
 
   async createConversation(
     createConversationDto: CreateConversationDto,
@@ -86,6 +91,60 @@ export class ChatService {
       sender: userId,
     });
     const savedMessage = await message.save();
+
+    // Get conversation to determine chat type
+    const conversation = await this.conversationModel
+      .findById(conversationId)
+      .populate('participants', 'firstName lastName')
+      .lean()
+      .exec();
+
+    // Get sender info
+    const sender = await this.userModel.findById(userId).lean().exec();
+    const senderName = sender
+      ? `${sender.firstName} ${sender.lastName}`
+      : 'Unknown';
+
+    // Determine chat type
+    let chatType = ChatType.USER_TO_USER;
+    if (conversation) {
+      const participants = (conversation.participants as any[]) || [];
+      if (participants.length === 2) {
+        chatType = ChatType.USER_TO_USER;
+      } else if (participants.length > 2) {
+        chatType = ChatType.GROUP_CHAT;
+      }
+      // You can add more logic to determine other chat types
+    }
+
+    // Get receiver info if it's a 1-on-1 chat
+    let receiverName: string | undefined;
+    if (conversation && (conversation.participants as any[]).length === 2) {
+      const receiver = (conversation.participants as any[]).find(
+        (p: any) => p._id.toString() !== userId,
+      );
+      receiverName = receiver
+        ? `${receiver.firstName} ${receiver.lastName}`
+        : undefined;
+    }
+
+    // Log chat message
+    await this.activityLogsService
+      .createChatLog({
+        chatType: chatType,
+        senderId: new Types.ObjectId(userId),
+        senderName: senderName,
+        receiverId: conversation
+          ? (conversation.participants as any[])
+            ?.find((p: any) => p._id.toString() !== userId)
+            ?._id
+          : undefined,
+        receiverName: receiverName,
+        conversationId: conversationId,
+        message: createMessageDto.content || '',
+        isRead: false,
+      })
+      .catch((err) => console.error('Failed to log chat message:', err));
 
     // Update conversation's last message
     await this.conversationModel.findByIdAndUpdate(conversationId, {
@@ -247,6 +306,34 @@ export class ChatService {
     }
 
     await this.messageModel.findByIdAndDelete(messageId);
+  }
+
+  async updateMessage(
+    messageId: string,
+    content: string,
+    userId: string,
+  ): Promise<Message> {
+    const message = await this.messageModel.findById(messageId);
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (message.sender.toString() !== userId) {
+      throw new ForbiddenException('Can only update your own messages');
+    }
+
+    message.content = content;
+    message.isEdited = true;
+    const updatedMessage = await message.save();
+
+    // Populate sender info
+    const populatedMessage = await this.messageModel
+      .findById(updatedMessage._id)
+      .populate('sender', 'firstName lastName avatar')
+      .exec();
+
+    return populatedMessage!;
   }
 
   async getUnreadCount(userId: string): Promise<number> {

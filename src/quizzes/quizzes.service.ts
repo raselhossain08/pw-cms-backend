@@ -434,4 +434,87 @@ export class QuizzesService {
       }
     );
   }
+
+  async toggleStatus(id: string, instructorId: string): Promise<Quiz> {
+    const quiz = await this.quizModel.findById(id);
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    if (quiz.instructor.toString() !== instructorId) {
+      throw new ForbiddenException('You can only update your own quizzes');
+    }
+
+    quiz.isActive = !quiz.isActive;
+    return await quiz.save();
+  }
+
+  async duplicate(id: string, instructorId: string): Promise<Quiz> {
+    const originalQuiz = await this.quizModel.findById(id);
+
+    if (!originalQuiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    if (originalQuiz.instructor.toString() !== instructorId) {
+      throw new ForbiddenException('You can only duplicate your own quizzes');
+    }
+
+    const duplicatedData: any = originalQuiz.toObject();
+    delete duplicatedData._id;
+    delete duplicatedData.createdAt;
+    delete duplicatedData.updatedAt;
+
+    duplicatedData.title = `${originalQuiz.title} (Copy)`;
+    duplicatedData.isActive = false;
+
+    // Generate new IDs for questions
+    duplicatedData.questions = duplicatedData.questions.map((q: any) => ({
+      ...q,
+      id: new Types.ObjectId().toString(),
+    }));
+
+    const duplicatedQuiz = new this.quizModel(duplicatedData);
+    return await duplicatedQuiz.save();
+  }
+
+  async bulkDelete(ids: string[], instructorId: string): Promise<{ deleted: number }> {
+    const quizzes = await this.quizModel.find({
+      _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      instructor: instructorId,
+    });
+
+    if (quizzes.length === 0) {
+      throw new NotFoundException('No quizzes found to delete');
+    }
+
+    await this.quizModel.updateMany(
+      { _id: { $in: quizzes.map((q) => q._id) } },
+      { isActive: false }
+    );
+
+    return { deleted: quizzes.length };
+  }
+
+  async bulkToggleStatus(
+    ids: string[],
+    instructorId: string,
+  ): Promise<{ updated: number }> {
+    const quizzes = await this.quizModel.find({
+      _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      instructor: instructorId,
+    });
+
+    if (quizzes.length === 0) {
+      throw new NotFoundException('No quizzes found to update');
+    }
+
+    await this.quizModel.updateMany(
+      { _id: { $in: quizzes.map((q) => q._id) } },
+      [{ $set: { isActive: { $not: '$isActive' } } }]
+    );
+
+    return { updated: quizzes.length };
+  }
 }

@@ -11,7 +11,9 @@ import {
   Query,
   Put,
   Req,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -325,5 +327,133 @@ export class UploadsController {
     @Req() req?,
   ) {
     return this.uploadsService.searchFiles(query, req.user.id, type, limit);
+  }
+
+  @Post(':id/duplicate')
+  @ApiOperation({ summary: 'Duplicate a file' })
+  @ApiParam({
+    name: 'id',
+    description: 'File ID',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'File duplicated successfully',
+    type: File,
+  })
+  @ApiResponse({ status: 404, description: 'File not found' })
+  async duplicateFile(@Param('id') id: string, @Req() req) {
+    return this.uploadsService.duplicateFile(id, req.user.id);
+  }
+
+  @Post('bulk-update-visibility')
+  @ApiOperation({ summary: 'Bulk update file visibility' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['fileIds', 'visibility'],
+      properties: {
+        fileIds: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        visibility: {
+          type: 'string',
+          enum: ['public', 'private'],
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Visibility updated successfully',
+  })
+  async bulkUpdateVisibility(
+    @Body() body: { fileIds: string[]; visibility: 'public' | 'private' },
+    @Req() req,
+  ) {
+    return this.uploadsService.bulkUpdateVisibility(
+      body.fileIds,
+      body.visibility,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Post('bulk-add-tags')
+  @ApiOperation({ summary: 'Bulk add tags to files' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['fileIds', 'tags'],
+      properties: {
+        fileIds: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tags added successfully',
+  })
+  async bulkAddTags(
+    @Body() body: { fileIds: string[]; tags: string[] },
+    @Req() req,
+  ) {
+    return this.uploadsService.bulkAddTags(
+      body.fileIds,
+      body.tags,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export files list' })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    enum: ['json', 'csv'],
+    description: 'Export format',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Files exported successfully',
+  })
+  async exportFiles(
+    @Query('format') format: 'json' | 'csv' = 'json',
+    @Req() req,
+    @Res() res: Response,
+  ) {
+    try {
+      const result = await this.uploadsService.exportFiles(req.user.id, format);
+
+      if (format === 'csv') {
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="media-library-export_${new Date().toISOString().split('T')[0]}.csv"`,
+        );
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="media-library-export_${new Date().toISOString().split('T')[0]}.json"`,
+      );
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export files',
+      });
+    }
   }
 }

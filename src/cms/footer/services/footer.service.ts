@@ -8,7 +8,7 @@ import { CreateFooterDto, UpdateFooterDto } from '../dto/footer.dto';
 export class FooterService {
   constructor(
     @InjectModel(Footer.name) private footerModel: Model<FooterDocument>,
-  ) {}
+  ) { }
 
   async findAll(): Promise<Footer[]> {
     return this.footerModel.find().lean();
@@ -74,5 +74,48 @@ export class FooterService {
     const doc = await this.footerModel.findById(id).lean();
     if (!doc) throw new NotFoundException('Footer not found');
     return doc as Footer;
+  }
+
+  async toggleActive(id: string): Promise<Footer> {
+    const footer = await this.findById(id);
+    const newActiveState = !footer.isActive;
+
+    if (newActiveState) {
+      // Deactivate all others first
+      await this.footerModel.updateMany({ isActive: true }, { isActive: false });
+    }
+
+    await this.footerModel.findByIdAndUpdate(id, { isActive: newActiveState });
+    const doc = await this.footerModel.findById(id).lean();
+    if (!doc) throw new NotFoundException('Footer not found');
+    return doc as Footer;
+  }
+
+  async duplicate(id: string): Promise<Footer> {
+    const original = await this.findById(id);
+    const duplicated = {
+      ...original,
+      _id: undefined,
+      isActive: false,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+
+    const created = await this.footerModel.create(duplicated);
+    return created.toObject() as Footer;
+  }
+
+  async export(id: string, format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const footer = await this.findById(id);
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      return JSON.stringify(footer, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      footer,
+    };
   }
 }

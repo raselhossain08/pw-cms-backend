@@ -28,7 +28,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class AssignmentsController {
-  constructor(private readonly assignmentsService: AssignmentsService) {}
+  constructor(private readonly assignmentsService: AssignmentsService) { }
 
   @Post('course/:courseId')
   @UseGuards(RolesGuard)
@@ -65,6 +65,48 @@ export class AssignmentsController {
     return this.assignmentsService.getCourseAssignments(courseId, page, limit);
   }
 
+  // Specific routes must come before parameterized routes
+  @Get('my-submissions')
+  @ApiOperation({ summary: 'Get student submissions' })
+  @ApiQuery({ name: 'courseId', required: false })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'List of submissions' })
+  async getMySubmissions(
+    @Req() req,
+    @Query('courseId') courseId?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.assignmentsService.getStudentSubmissions(
+      req.user.id,
+      courseId,
+      page,
+      limit,
+    );
+  }
+
+  @Get('submissions/:id')
+  @ApiOperation({ summary: 'Get submission by ID' })
+  @ApiResponse({ status: 200, description: 'Submission details' })
+  async getSubmission(@Param('id') id: string, @Req() req) {
+    return this.assignmentsService.getSubmission(id, req.user.id);
+  }
+
+  @Post('submissions/:id/grade')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Grade assignment submission' })
+  @ApiResponse({ status: 200, description: 'Submission graded' })
+  async grade(
+    @Param('id') id: string,
+    @Body() body: { grade: number; feedback?: string },
+    @Req() req,
+  ) {
+    return this.assignmentsService.gradeSubmission(id, req.user.id, body);
+  }
+
+  // Parameterized routes come last
   @Get(':id')
   @ApiOperation({ summary: 'Get assignment by ID' })
   @ApiResponse({ status: 200, description: 'Assignment details' })
@@ -101,33 +143,6 @@ export class AssignmentsController {
     return this.assignmentsService.submitAssignment(id, req.user.id, body);
   }
 
-  @Get('my-submissions')
-  @ApiOperation({ summary: 'Get student submissions' })
-  @ApiQuery({ name: 'courseId', required: false })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'List of submissions' })
-  async getMySubmissions(
-    @Req() req,
-    @Query('courseId') courseId?: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-  ) {
-    return this.assignmentsService.getStudentSubmissions(
-      req.user.id,
-      courseId,
-      page,
-      limit,
-    );
-  }
-
-  @Get('submissions/:id')
-  @ApiOperation({ summary: 'Get submission by ID' })
-  @ApiResponse({ status: 200, description: 'Submission details' })
-  async getSubmission(@Param('id') id: string, @Req() req) {
-    return this.assignmentsService.getSubmission(id, req.user.id);
-  }
-
   @Get(':id/submissions')
   @UseGuards(RolesGuard)
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
@@ -143,19 +158,6 @@ export class AssignmentsController {
     return this.assignmentsService.getAssignmentSubmissions(id, page, limit);
   }
 
-  @Post('submissions/:id/grade')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Grade assignment submission' })
-  @ApiResponse({ status: 200, description: 'Submission graded' })
-  async grade(
-    @Param('id') id: string,
-    @Body() body: { grade: number; feedback?: string },
-    @Req() req,
-  ) {
-    return this.assignmentsService.gradeSubmission(id, req.user.id, body);
-  }
-
   @Get(':id/stats')
   @UseGuards(RolesGuard)
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
@@ -163,5 +165,55 @@ export class AssignmentsController {
   @ApiResponse({ status: 200, description: 'Assignment statistics' })
   async getStats(@Param('id') id: string) {
     return this.assignmentsService.getAssignmentStats(id);
+  }
+
+  @Patch(':id/toggle-status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Toggle assignment status (active/inactive)' })
+  @ApiResponse({ status: 200, description: 'Assignment status toggled' })
+  async toggleStatus(@Param('id') id: string, @Req() req) {
+    return this.assignmentsService.toggleStatus(id, req.user.id);
+  }
+
+  @Post(':id/duplicate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Duplicate an assignment' })
+  @ApiResponse({ status: 201, description: 'Assignment duplicated successfully' })
+  async duplicate(@Param('id') id: string, @Req() req) {
+    return this.assignmentsService.duplicate(id, req.user.id);
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bulk delete assignments' })
+  @ApiResponse({ status: 200, description: 'Assignments deleted' })
+  async bulkDelete(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.assignmentsService.bulkDelete(
+      body.ids,
+      req.user.id,
+    );
+    return {
+      message: `${result.deleted} assignment${result.deleted > 1 ? 's' : ''} deleted successfully`,
+      ...result,
+    };
+  }
+
+  @Post('bulk-toggle-status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bulk toggle assignment status' })
+  @ApiResponse({ status: 200, description: 'Assignment statuses updated' })
+  async bulkToggleStatus(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.assignmentsService.bulkToggleStatus(
+      body.ids,
+      req.user.id,
+    );
+    return {
+      message: `${result.updated} assignment${result.updated > 1 ? 's' : ''} updated successfully`,
+      ...result,
+    };
   }
 }

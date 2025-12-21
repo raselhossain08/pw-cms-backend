@@ -28,11 +28,12 @@ import { Roles } from '../shared/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { CourseStatus } from './entities/course.entity';
 import { Public } from '../shared/decorators/public.decorator';
+import { CourseAccessGuard } from './guards/course-access.guard';
 
 @ApiTags('Courses')
 @Controller('courses')
 export class CoursesController {
-  constructor(private readonly coursesService: CoursesService) {}
+  constructor(private readonly coursesService: CoursesService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -188,6 +189,88 @@ export class CoursesController {
     return this.coursesService.duplicate(id, req.user.id);
   }
 
+  @Patch(':id/toggle-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Toggle course status (published/draft)' })
+  @ApiResponse({ status: 200, description: 'Course status toggled' })
+  async toggleStatus(@Param('id') id: string, @Req() req) {
+    return this.coursesService.toggleStatus(id, req.user.id, req.user.role);
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk delete courses' })
+  @ApiResponse({ status: 200, description: 'Courses deleted' })
+  async bulkDelete(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.coursesService.bulkDelete(
+      body.ids,
+      req.user.id,
+      req.user.role,
+    );
+    return {
+      message: `${result.deleted} course${result.deleted > 1 ? 's' : ''} deleted successfully`,
+      ...result,
+    };
+  }
+
+  @Post('bulk-toggle-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk toggle course status' })
+  @ApiResponse({ status: 200, description: 'Course statuses updated' })
+  async bulkToggleStatus(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.coursesService.bulkToggleStatus(
+      body.ids,
+      req.user.id,
+      req.user.role,
+    );
+    return {
+      message: `${result.updated} course${result.updated > 1 ? 's' : ''} updated successfully`,
+      ...result,
+    };
+  }
+
+  @Post('bulk-publish')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk publish courses' })
+  @ApiResponse({ status: 200, description: 'Courses published' })
+  async bulkPublish(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.coursesService.bulkPublish(
+      body.ids,
+      req.user.id,
+      req.user.role,
+    );
+    return {
+      message: `${result.published} course${result.published > 1 ? 's' : ''} published successfully`,
+      ...result,
+    };
+  }
+
+  @Post('bulk-unpublish')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk unpublish courses' })
+  @ApiResponse({ status: 200, description: 'Courses unpublished' })
+  async bulkUnpublish(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.coursesService.bulkUnpublish(
+      body.ids,
+      req.user.id,
+      req.user.role,
+    );
+    return {
+      message: `${result.unpublished} course${result.unpublished > 1 ? 's' : ''} unpublished successfully`,
+      ...result,
+    };
+  }
+
   // Lesson endpoints
   @Post(':id/lessons')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -204,12 +287,21 @@ export class CoursesController {
   }
 
   @Get(':id/lessons')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, CourseAccessGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get course lessons' })
+  @ApiOperation({ summary: 'Get course lessons (requires enrollment)' })
   @ApiResponse({ status: 200, description: 'List of course lessons' })
   async getCourseLessons(@Param('id') id: string, @Req() req) {
     return this.coursesService.getCourseLessons(id, req.user.id, req.user.role);
+  }
+
+  @Get('lessons/:lessonId')
+  @UseGuards(JwtAuthGuard, CourseAccessGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get lesson by ID (requires enrollment)' })
+  @ApiResponse({ status: 200, description: 'Lesson details' })
+  async getLesson(@Param('lessonId') lessonId: string, @Req() req) {
+    return this.coursesService.getLesson(lessonId, req.user.id, req.user.role);
   }
 
   @Patch('lessons/:lessonId')
@@ -263,5 +355,58 @@ export class CoursesController {
       req.user.role,
       body.moduleId,
     );
+  }
+
+  @Patch('lessons/:lessonId/toggle-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Toggle lesson status (published/draft)' })
+  @ApiResponse({ status: 200, description: 'Lesson status toggled' })
+  async toggleLessonStatus(
+    @Param('lessonId') lessonId: string,
+    @Req() req,
+  ) {
+    return this.coursesService.toggleLessonStatus(
+      lessonId,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Post('lessons/bulk-delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk delete lessons' })
+  @ApiResponse({ status: 200, description: 'Lessons deleted' })
+  async bulkDeleteLessons(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.coursesService.bulkDeleteLessons(
+      body.ids,
+      req.user.id,
+      req.user.role,
+    );
+    return {
+      message: `${result.deleted} lesson${result.deleted > 1 ? 's' : ''} deleted successfully`,
+      ...result,
+    };
+  }
+
+  @Post('lessons/bulk-toggle-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk toggle lesson status' })
+  @ApiResponse({ status: 200, description: 'Lesson statuses updated' })
+  async bulkToggleLessonStatus(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.coursesService.bulkToggleLessonStatus(
+      body.ids,
+      req.user.id,
+      req.user.role,
+    );
+    return {
+      message: `${result.updated} lesson${result.updated > 1 ? 's' : ''} updated successfully`,
+      ...result,
+    };
   }
 }

@@ -23,7 +23,7 @@ import { ProcessPaymentDto } from './dto/process-payment.dto';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(private readonly paymentsService: PaymentsService) { }
 
   @Post('create-intent')
   @ApiOperation({ summary: 'Create payment intent' })
@@ -79,6 +79,13 @@ export class PaymentsController {
     return this.paymentsService.getInvoice(id, req.user.id);
   }
 
+  @Get('invoices/:id/download')
+  @ApiOperation({ summary: 'Download invoice PDF' })
+  @ApiResponse({ status: 200, description: 'Invoice download URL' })
+  async downloadInvoice(@Param('id') id: string, @Req() req) {
+    return this.paymentsService.downloadInvoice(id, req.user.id);
+  }
+
   @Post('refund/:orderId')
   @ApiOperation({ summary: 'Request refund' })
   @ApiResponse({ status: 200, description: 'Refund processed' })
@@ -121,6 +128,13 @@ export class PaymentsController {
   async verifyStripeSession(@Param('sessionId') sessionId: string, @Req() req) {
     return this.paymentsService.verifyStripeSession(sessionId, req.user.id);
   }
+
+  @Post('checkout')
+  @ApiOperation({ summary: 'Process authenticated checkout' })
+  @ApiResponse({ status: 201, description: 'Checkout processed' })
+  async checkout(@Body() checkoutDto: any, @Req() req) {
+    return this.paymentsService.processCheckout(checkoutDto, req.user.id);
+  }
 }
 
 import { GuestCheckoutDto } from './dto/guest-checkout.dto';
@@ -128,7 +142,7 @@ import { GuestCheckoutDto } from './dto/guest-checkout.dto';
 @ApiTags('Guest Payments')
 @Controller('payments/guest')
 export class GuestPaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(private readonly paymentsService: PaymentsService) { }
 
   @Post('checkout')
   @ApiOperation({ summary: 'Guest checkout - creates user if not exists' })

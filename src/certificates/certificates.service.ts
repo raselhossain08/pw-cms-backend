@@ -19,7 +19,7 @@ export class CertificatesService {
     @InjectModel(CertificateTemplate.name)
     private templateModel: Model<CertificateTemplate>,
     private mailService: MailService,
-  ) {}
+  ) { }
 
   async generateCertificate(
     userId: string,
@@ -51,12 +51,22 @@ export class CertificatesService {
   }
 
   async getUserCertificates(userId: string): Promise<Certificate[]> {
-    return this.certificateModel
+    const certificates = await this.certificateModel
       .find({ student: userId })
       .populate('course', 'title instructor')
       .populate('student', 'firstName lastName')
       .sort({ issuedAt: -1 })
       .exec();
+
+    // Ensure all certificates have issuedAt (for backward compatibility)
+    for (const cert of certificates) {
+      if (!cert.issuedAt) {
+        cert.issuedAt = (cert as any).createdAt || new Date();
+        await cert.save();
+      }
+    }
+
+    return certificates;
   }
 
   async verifyCertificate(certificateId: string): Promise<Certificate | null> {
@@ -271,5 +281,246 @@ export class CertificatesService {
     }
 
     await this.templateModel.findByIdAndDelete(id);
+  }
+
+  // Template Configuration Methods
+  async saveTemplateConfig(config: any, userId: string): Promise<any> {
+    // Store the configuration in the user's template
+    // Find or create a configuration template for this user
+    let template = await this.templateModel.findOne({
+      createdBy: userId,
+      name: 'Certificate Configuration'
+    });
+
+    if (!template) {
+      // Create a new template specifically for storing configuration
+      template = new this.templateModel({
+        name: 'Certificate Configuration',
+        description: 'Certificate template configuration and styling',
+        createdBy: userId,
+        config: config,
+        elements: [],
+        thumbnail: '',
+        isActive: true,
+      });
+    } else {
+      // Update existing template configuration
+      template.config = config;
+      template.isActive = true; // Ensure it's active
+    }
+
+    await template.save();
+
+    return {
+      success: true,
+      message: 'Template configuration saved successfully',
+      config,
+      templateId: template._id
+    };
+  }
+
+  async getTemplateConfig(userId: string): Promise<any> {
+    // Look for the user's configuration template
+    const template = await this.templateModel.findOne({
+      createdBy: userId,
+      name: 'Certificate Configuration',
+      isActive: true
+    });
+
+    if (!template || !template.config) {
+      // Return default configuration with all styling options
+      return {
+        namePosition: { x: 50, y: 45 },
+        barcodePosition: { x: 15, y: 75 },
+        nameStyle: {
+          fontSize: 32,
+          color: '#dc2626',
+          fontWeight: '600'
+        },
+        barcodeStyle: {
+          fontSize: 14,
+          color: '#000000',
+          width: 2,
+          height: 50,
+          displayWidth: 200,
+          displayHeight: 80
+        },
+      };
+    }
+
+    return template.config;
+  }
+
+  // Certificate Revocation
+  async revokeCertificate(
+    certificateId: string,
+    adminId: string,
+    reason?: string,
+  ): Promise<Certificate> {
+    const certificate = await this.certificateModel.findById(certificateId);
+
+    if (!certificate) {
+      throw new NotFoundException('Certificate not found');
+    }
+
+    if (certificate.isRevoked) {
+      throw new BadRequestException('Certificate is already revoked');
+    }
+
+    certificate.isRevoked = true;
+    certificate.revokedAt = new Date();
+    certificate.revokedBy = adminId as any;
+    certificate.revocationReason = reason || 'No reason provided';
+
+    return certificate.save();
+  }
+
+  async restoreCertificate(certificateId: string): Promise<Certificate> {
+    const certificate = await this.certificateModel.findById(certificateId);
+
+    if (!certificate) {
+      throw new NotFoundException('Certificate not found');
+    }
+
+    if (!certificate.isRevoked) {
+      throw new BadRequestException('Certificate is not revoked');
+    }
+
+    certificate.isRevoked = false;
+    certificate.revokedAt = undefined;
+    certificate.revokedBy = undefined;
+    certificate.revocationReason = undefined;
+
+    return certificate.save();
+  }
+
+  // Search and filter certificates
+  async searchCertificates(
+    query: string,
+    filters?: {
+      courseId?: string;
+      status?: 'issued' | 'revoked' | 'expired';
+      startDate?: Date;
+      endDate?: Date;
+    },
+    page = 1,
+    limit = 20,
+  ): Promise<{ certificates: Certificate[]; total: number }> {
+    const queryBuilder: any = {};
+
+    // Text search
+    if (query) {
+      queryBuilder.$or = [
+        { certificateId: { $regex: query, $options: 'i' } },
+      ];
+    }
+
+    // Filter by course
+    if (filters?.courseId) {
+      queryBuilder.course = filters.courseId;
+    }
+
+    // Filter by status
+    if (filters?.status) {
+      if (filters.status === 'revoked') {
+        queryBuilder.isRevoked = true;
+      } else if (filters.status === 'issued') {
+        queryBuilder.isRevoked = false;
+      } else if (filters.status === 'expired') {
+        queryBuilder.expiryDate = { $lt: new Date() };
+        queryBuilder.isRevoked = false;
+      }
+    }
+
+    // Filter by date range
+    if (filters?.startDate || filters?.endDate) {
+      queryBuilder.issuedAt = {};
+      if (filters.startDate) {
+        queryBuilder.issuedAt.$gte = filters.startDate;
+      }
+      if (filters.endDate) {
+        queryBuilder.issuedAt.$lte = filters.endDate;
+      }
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [certificates, total] = await Promise.all([
+      this.certificateModel
+        .find(queryBuilder)
+        .populate('student', 'firstName lastName email')
+        .populate('course', 'title')
+        .sort({ issuedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.certificateModel.countDocuments(queryBuilder),
+    ]);
+
+    return { certificates, total };
+  }
+
+  // Get certificate statistics
+  async getCertificateStats(userId?: string): Promise<any> {
+    const matchQuery: any = {};
+    if (userId) {
+      matchQuery.student = userId;
+    }
+
+    const [
+      totalIssued,
+      totalRevoked,
+      totalExpired,
+      recentCertificates,
+      topCourses,
+    ] = await Promise.all([
+      this.certificateModel.countDocuments({
+        ...matchQuery,
+        isRevoked: false,
+      }),
+      this.certificateModel.countDocuments({ ...matchQuery, isRevoked: true }),
+      this.certificateModel.countDocuments({
+        ...matchQuery,
+        isRevoked: false,
+        expiryDate: { $lt: new Date() },
+      }),
+      this.certificateModel
+        .find({ ...matchQuery, isRevoked: false })
+        .sort({ issuedAt: -1 })
+        .limit(10)
+        .populate('student', 'firstName lastName')
+        .populate('course', 'title')
+        .exec(),
+      this.certificateModel.aggregate([
+        { $match: { ...matchQuery, isRevoked: false } },
+        { $group: { _id: '$course', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'courses',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'courseDetails',
+          },
+        },
+        { $unwind: '$courseDetails' },
+        {
+          $project: {
+            courseId: '$_id',
+            courseName: '$courseDetails.title',
+            count: 1,
+          },
+        },
+      ]),
+    ]);
+
+    return {
+      totalIssued,
+      totalRevoked,
+      totalExpired,
+      recentCertificates,
+      topCourses,
+    };
   }
 }

@@ -20,5 +20,5 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
   },
-  "exclude": ["temp-modules/**/*"]
+  "exclude": ["node_modules", "dist", "temp-modules/**/*"]
 }

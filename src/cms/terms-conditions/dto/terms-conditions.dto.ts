@@ -101,6 +101,18 @@ export class SeoMetaDto {
   canonicalUrl?: string;
 }
 
+export class AcceptanceSectionDto {
+  @IsString()
+  title: string;
+
+  @IsString()
+  content: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
 export class CreateTermsConditionsDto {
   @ValidateNested()
   @Type(() => HeaderSectionDto)
@@ -122,6 +134,10 @@ export class CreateTermsConditionsDto {
   @ValidateNested()
   @Type(() => SeoMetaDto)
   seoMeta: SeoMetaDto;
+
+  @ValidateNested()
+  @Type(() => AcceptanceSectionDto)
+  acceptanceSection: AcceptanceSectionDto;
 
   @IsOptional()
   @IsBoolean()
@@ -153,6 +169,11 @@ export class UpdateTermsConditionsDto {
   @ValidateNested()
   @Type(() => SeoMetaDto)
   seoMeta?: SeoMetaDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AcceptanceSectionDto)
+  acceptanceSection?: AcceptanceSectionDto;
 
   @IsOptional()
   @IsBoolean()

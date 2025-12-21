@@ -113,6 +113,17 @@ export class ChatController {
     return this.chatService.deleteConversation(id, req.user.id);
   }
 
+  @Patch('messages/:id')
+  @ApiOperation({ summary: 'Update a message' })
+  @ApiResponse({ status: 200, description: 'Message updated successfully' })
+  async updateMessage(
+    @Param('id') messageId: string,
+    @Body() body: { content: string },
+    @Req() req,
+  ) {
+    return this.chatService.updateMessage(messageId, body.content, req.user.id);
+  }
+
   @Delete('messages/:id')
   @ApiOperation({ summary: 'Delete a message' })
   @ApiResponse({ status: 200, description: 'Message deleted successfully' })

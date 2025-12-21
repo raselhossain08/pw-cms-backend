@@ -8,7 +8,7 @@ import { CreateContactDto, UpdateContactDto } from '../dto/contact.dto';
 export class ContactService {
   constructor(
     @InjectModel(Contact.name) private contactModel: Model<ContactDocument>,
-  ) {}
+  ) { }
 
   async create(createContactDto: CreateContactDto): Promise<Contact> {
     const contact = new this.contactModel(createContactDto);
@@ -97,5 +97,53 @@ export class ContactService {
     });
 
     return defaultContact.save();
+  }
+
+  async toggleActive(id: string): Promise<Contact> {
+    const contact = await this.findOne(id);
+    const newActiveState = !contact.isActive;
+
+    if (newActiveState) {
+      // Deactivate all others first
+      await this.contactModel.updateMany({ isActive: true }, { isActive: false });
+    }
+
+    const updated = await this.contactModel
+      .findByIdAndUpdate(id, { isActive: newActiveState }, { new: true })
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException(`Contact with ID ${id} not found`);
+    }
+
+    return updated;
+  }
+
+  async duplicate(id: string): Promise<Contact> {
+    const original = await this.findOne(id);
+    const duplicated = {
+      ...JSON.parse(JSON.stringify(original)),
+      _id: undefined,
+      isActive: false,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+
+    const created = new this.contactModel(duplicated);
+    return created.save();
+  }
+
+  async export(id: string, format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const contact = await this.findOne(id);
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      return JSON.stringify(contact, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      contact,
+    };
   }
 }

@@ -232,29 +232,49 @@ export class AssignmentsService {
     page: number = 1,
     limit: number = 10,
   ): Promise<{ submissions: AssignmentSubmission[]; total: number }> {
-    const skip = (page - 1) * limit;
+    try {
+      const skip = (page - 1) * limit;
 
-    const filter: any = { student: studentId };
+      // Convert studentId to ObjectId
+      const studentObjectId = new Types.ObjectId(studentId);
+      const filter: any = { student: studentObjectId };
 
-    if (courseId) {
-      const assignments = await this.assignmentModel
-        .find({ course: courseId })
-        .select('_id');
-      filter.assignment = { $in: assignments.map((a) => a._id) };
+      if (courseId) {
+        // Convert courseId to ObjectId
+        const courseObjectId = new Types.ObjectId(courseId);
+        const assignments = await this.assignmentModel
+          .find({ course: courseObjectId })
+          .select('_id')
+          .lean();
+
+        // Only add assignment filter if assignments exist
+        if (assignments && assignments.length > 0) {
+          const assignmentIds = assignments.map((a) => a._id);
+          filter.assignment = { $in: assignmentIds };
+        } else {
+          // If no assignments found for the course, return empty result
+          return { submissions: [], total: 0 };
+        }
+      }
+
+      const [submissions, total] = await Promise.all([
+        this.submissionModel
+          .find(filter)
+          .populate('assignment', 'title dueDate maxPoints')
+          .sort({ submittedAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.submissionModel.countDocuments(filter),
+      ]);
+
+      return { submissions, total };
+    } catch (error) {
+      console.error('Error in getStudentSubmissions:', error);
+      throw new BadRequestException(
+        `Failed to retrieve student submissions: ${error.message}`,
+      );
     }
-
-    const [submissions, total] = await Promise.all([
-      this.submissionModel
-        .find(filter)
-        .populate('assignment', 'title dueDate maxPoints')
-        .sort({ submittedAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      this.submissionModel.countDocuments(filter),
-    ]);
-
-    return { submissions, total };
   }
 
   async getAssignmentSubmissions(
@@ -343,5 +363,112 @@ export class AssignmentsService {
       averageGrade: Math.round(averageGrade * 100) / 100,
       maxPoints: assignment.maxPoints,
     };
+  }
+
+  async toggleStatus(id: string, instructorId: string): Promise<Assignment> {
+    const assignment = await this.assignmentModel.findById(id);
+
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    if (assignment.instructor.toString() !== instructorId) {
+      throw new ForbiddenException('You can only toggle your own assignments');
+    }
+
+    // Toggle isActive if it exists, otherwise toggle a status field
+    if ('isActive' in assignment) {
+      (assignment as any).isActive = !(assignment as any).isActive;
+    } else {
+      // If no isActive field, you might want to add a status field
+      // For now, we'll just return the assignment as-is
+    }
+
+    return await assignment.save();
+  }
+
+  async duplicate(id: string, instructorId: string): Promise<Assignment> {
+    const original = await this.assignmentModel.findById(id);
+
+    if (!original) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    if (original.instructor.toString() !== instructorId) {
+      throw new ForbiddenException('You can only duplicate your own assignments');
+    }
+
+    // Create duplicate with modified title and new due date (7 days from now)
+    const duplicated = new this.assignmentModel({
+      course: original.course,
+      instructor: original.instructor,
+      title: `${original.title} (Copy)`,
+      description: original.description,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      maxPoints: original.maxPoints,
+      attachments: original.attachments || [],
+      module: original.module,
+      lesson: original.lesson,
+    });
+
+    return await duplicated.save();
+  }
+
+  async bulkDelete(
+    ids: string[],
+    instructorId: string,
+  ): Promise<{ deleted: number }> {
+    let deleted = 0;
+
+    for (const id of ids) {
+      try {
+        const assignment = await this.assignmentModel.findById(id);
+        if (!assignment) continue;
+
+        // Check permissions
+        if (assignment.instructor.toString() !== instructorId) {
+          continue; // Skip assignments user doesn't have permission to delete
+        }
+
+        await Promise.all([
+          this.assignmentModel.findByIdAndDelete(id),
+          this.submissionModel.deleteMany({ assignment: id }),
+        ]);
+        deleted++;
+      } catch (error) {
+        console.error(`Failed to delete assignment ${id}:`, error);
+      }
+    }
+
+    return { deleted };
+  }
+
+  async bulkToggleStatus(
+    ids: string[],
+    instructorId: string,
+  ): Promise<{ updated: number }> {
+    let updated = 0;
+
+    for (const id of ids) {
+      try {
+        const assignment = await this.assignmentModel.findById(id);
+        if (!assignment) continue;
+
+        // Check permissions
+        if (assignment.instructor.toString() !== instructorId) {
+          continue; // Skip assignments user doesn't have permission to update
+        }
+
+        if ('isActive' in assignment) {
+          (assignment as any).isActive = !(assignment as any).isActive;
+          await assignment.save();
+          updated++;
+        }
+      } catch (error) {
+        console.error(`Failed to toggle status for assignment ${id}:`, error);
+      }
+    }
+
+    return { updated };
   }
 }

@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<User>) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Check if user already exists
@@ -268,7 +268,7 @@ export class UsersService {
     const avgRating =
       courses.length > 0
         ? courses.reduce((sum, course) => sum + (course.rating || 0), 0) /
-          courses.length
+        courses.length
         : 0;
 
     // Format lessons as duration string
@@ -310,5 +310,91 @@ export class UsersService {
       country: item._id || 'Unknown',
       count: item.count,
     }));
+  }
+
+  async getNotificationPreferences(userId: string): Promise<any> {
+    const user = await this.findById(userId);
+    const prefs = user.preferences as any;
+    return {
+      preferences: prefs?.notificationPreferences || {
+        email: {
+          courseUpdates: true,
+          marketing: false,
+          security: true,
+          system: true,
+        },
+        push: {
+          courseUpdates: true,
+          marketing: false,
+          security: true,
+          system: true,
+        },
+      },
+    };
+  }
+
+  async updateNotificationPreferences(userId: string, preferences: any): Promise<any> {
+    const user = await this.findById(userId);
+    if (!user.preferences) {
+      user.preferences = {} as any;
+    }
+    (user.preferences as any).notificationPreferences = preferences;
+    await user.save();
+    return { message: 'Notification preferences updated', preferences };
+  }
+
+  async getPrivacySettings(userId: string): Promise<any> {
+    const user = await this.findById(userId);
+    const prefs = user.preferences as any;
+    return {
+      settings: prefs?.privacySettings || {
+        profileVisibility: 'public',
+        showEmail: false,
+        showPhone: false,
+        allowMessages: true,
+        showActivity: true,
+      },
+    };
+  }
+
+  async updatePrivacySettings(userId: string, settings: any): Promise<any> {
+    const user = await this.findById(userId);
+    if (!user.preferences) {
+      user.preferences = {} as any;
+    }
+    (user.preferences as any).privacySettings = settings;
+    await user.save();
+    return { message: 'Privacy settings updated', settings };
+  }
+
+  async getProfileStats(userId: string): Promise<any> {
+    const user = await this.findById(userId);
+
+    // Import Course and Enrollment models dynamically
+    const { Model } = await import('mongoose');
+    const enrollmentModel = this.userModel.db.model('Enrollment');
+    const certificateModel = this.userModel.db.model('Certificate');
+
+    // Get enrollments count
+    const enrollments = await enrollmentModel.countDocuments({ user: userId });
+
+    // Get completed courses count
+    const completedCourses = await enrollmentModel.countDocuments({
+      user: userId,
+      progress: 100,
+    });
+
+    // Get certificates count
+    const certificates = await certificateModel.countDocuments({ user: userId });
+
+    return {
+      stats: {
+        coursesEnrolled: enrollments,
+        coursesCompleted: completedCourses,
+        certificatesEarned: certificates,
+        totalSpent: user.totalSpent || 0,
+        lastLogin: user.lastLogin?.toISOString(),
+      },
+    };
   }
 }

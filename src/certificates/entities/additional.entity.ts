@@ -14,7 +14,7 @@ export class Certificate extends Document {
   @Prop({ required: true, unique: true })
   certificateId: string;
 
-  @Prop({ required: true })
+  @Prop({ type: Date, default: () => new Date() })
   issuedAt: Date;
 
   @Prop()
@@ -25,6 +25,21 @@ export class Certificate extends Document {
 
   @Prop()
   emailSentAt?: Date;
+
+  @Prop({ default: false })
+  isRevoked?: boolean;
+
+  @Prop()
+  revokedAt?: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  revokedBy?: Types.ObjectId;
+
+  @Prop()
+  revocationReason?: string;
+
+  @Prop()
+  expiryDate?: Date;
 }
 
 export const CertificateSchema = SchemaFactory.createForClass(Certificate);
@@ -112,6 +127,13 @@ export class Assignment extends Document {
 
 export const AssignmentSchema = SchemaFactory.createForClass(Assignment);
 
+// Performance indexes for common queries
+AssignmentSchema.index({ course: 1, dueDate: 1 }); // For course assignments with due date sorting
+AssignmentSchema.index({ module: 1 }); // For module assignments
+AssignmentSchema.index({ lesson: 1 }); // For lesson assignments
+AssignmentSchema.index({ instructor: 1, createdAt: -1 }); // For instructor's assignments
+AssignmentSchema.index({ course: 1, module: 1 }); // Composite index for course module assignments
+
 @Schema({ timestamps: true })
 export class AssignmentSubmission extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Assignment', required: true })
@@ -141,3 +163,9 @@ export class AssignmentSubmission extends Document {
 
 export const AssignmentSubmissionSchema =
   SchemaFactory.createForClass(AssignmentSubmission);
+
+// Performance indexes for common queries
+AssignmentSubmissionSchema.index({ assignment: 1, student: 1 }, { unique: true }); // For unique submission check
+AssignmentSubmissionSchema.index({ student: 1, submittedAt: -1 }); // For student submissions
+AssignmentSubmissionSchema.index({ assignment: 1, submittedAt: -1 }); // For assignment submissions
+AssignmentSubmissionSchema.index({ assignment: 1, grade: 1 }); // For grading queries

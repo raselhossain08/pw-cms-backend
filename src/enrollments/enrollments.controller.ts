@@ -34,10 +34,20 @@ export class EnrollmentsController {
   constructor(private readonly enrollmentsService: EnrollmentsService) { }
 
   @Post()
-  @ApiOperation({ summary: 'Enroll in a course' })
+  @ApiOperation({ summary: 'Enroll in a course (free or paid with order)' })
   @ApiResponse({ status: 201, description: 'Successfully enrolled' })
   async enroll(@Body() createEnrollmentDto: CreateEnrollmentDto, @Req() req) {
     return this.enrollmentsService.enroll(createEnrollmentDto, req.user.id);
+  }
+
+  @Post('free/:courseId')
+  @ApiOperation({ summary: 'Enroll in a free course' })
+  @ApiResponse({ status: 201, description: 'Successfully enrolled in free course' })
+  async enrollInFreeCourse(@Param('courseId') courseId: string, @Req() req) {
+    return this.enrollmentsService.enroll(
+      { courseId },
+      req.user.id,
+    );
   }
 
   @Get('my-enrollments')

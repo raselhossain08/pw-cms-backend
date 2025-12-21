@@ -28,7 +28,7 @@ import { UserRole } from '../users/entities/user.entity';
 @ApiTags('Course Modules')
 @Controller('course-modules')
 export class CourseModulesController {
-  constructor(private readonly modulesService: CourseModulesService) {}
+  constructor(private readonly modulesService: CourseModulesService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -117,5 +117,56 @@ export class CourseModulesController {
   @ApiOperation({ summary: 'Get lessons in a module' })
   async getModuleLessons(@Param('id') id: string, @Req() req) {
     return this.modulesService.getModuleLessons(id, req.user.id, req.user.role);
+  }
+
+  @Patch(':id/toggle-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Toggle module status (published/draft)' })
+  @ApiResponse({ status: 200, description: 'Module status toggled' })
+  async toggleStatus(@Param('id') id: string, @Req() req) {
+    return this.modulesService.toggleStatus(id, req.user.id, req.user.role);
+  }
+
+  @Post(':id/duplicate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Duplicate a module' })
+  @ApiResponse({ status: 201, description: 'Module duplicated successfully' })
+  async duplicate(@Param('id') id: string, @Req() req) {
+    return this.modulesService.duplicate(id, req.user.id, req.user.role);
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk delete modules' })
+  @ApiResponse({ status: 200, description: 'Modules deleted' })
+  async bulkDelete(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.modulesService.bulkDelete(body.ids, req.user.id, req.user.role);
+    return { message: `${result.deleted} module${result.deleted > 1 ? 's' : ''} deleted successfully`, ...result };
+  }
+
+  @Post('bulk-toggle-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk toggle module status' })
+  @ApiResponse({ status: 200, description: 'Module statuses updated' })
+  async bulkToggleStatus(@Body() body: { ids: string[] }, @Req() req) {
+    const result = await this.modulesService.bulkToggleStatus(body.ids, req.user.id, req.user.role);
+    return { message: `${result.updated} module${result.updated > 1 ? 's' : ''} updated successfully`, ...result };
+  }
+
+  @Get(':id/stats')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get module statistics' })
+  @ApiResponse({ status: 200, description: 'Module statistics' })
+  async getStats(@Param('id') id: string) {
+    return this.modulesService.getModuleStats(id);
   }
 }

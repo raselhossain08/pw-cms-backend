@@ -6,6 +6,8 @@ import {
     Query,
     UseGuards,
     Param,
+    Delete,
+    Req,
 } from '@nestjs/common';
 import { ActivityLogsService } from './activity-logs.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -85,5 +87,36 @@ export class ActivityLogsController {
     @Get('export/:type')
     exportLogs(@Param('type') type: string, @Query() query: any) {
         return this.activityLogsService.exportLogs(type, query);
+    }
+
+    // ==================== LOG ACTIONS ====================
+    @Get(':type/:id')
+    getLogById(@Param('type') type: string, @Param('id') id: string) {
+        return this.activityLogsService.getLogById(type, id);
+    }
+
+    @Post('errors/:id/resolve')
+    markErrorAsResolved(@Param('id') id: string, @Body() body: { solution?: string }, @Req() req: any) {
+        return this.activityLogsService.markErrorAsResolved(id, req.user.id, body.solution);
+    }
+
+    @Post('errors/:id/unresolve')
+    markErrorAsUnresolved(@Param('id') id: string) {
+        return this.activityLogsService.markErrorAsUnresolved(id);
+    }
+
+    @Post('errors/bulk-resolve')
+    bulkMarkErrorsAsResolved(@Body() body: { ids: string[]; solution?: string }, @Req() req: any) {
+        return this.activityLogsService.bulkMarkErrorsAsResolved(body.ids, req.user.id, body.solution);
+    }
+
+    @Delete(':type/:id')
+    deleteLog(@Param('type') type: string, @Param('id') id: string) {
+        return this.activityLogsService.deleteLog(type, id);
+    }
+
+    @Post(':type/bulk-delete')
+    bulkDeleteLogs(@Param('type') type: string, @Body() body: { ids: string[] }) {
+        return this.activityLogsService.bulkDeleteLogs(type, body.ids);
     }
 }

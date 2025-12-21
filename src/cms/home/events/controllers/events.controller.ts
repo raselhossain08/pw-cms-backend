@@ -4,9 +4,13 @@ import {
   Put,
   Post,
   Body,
+  Param,
+  Query,
+  Res,
   UseInterceptors,
   UploadedFiles,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { EventsService } from '../services/events.service';
@@ -19,7 +23,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Get Events Section' })
@@ -124,5 +128,48 @@ export class EventsController {
   @ApiOperation({ summary: 'Create Events Section' })
   async createEvents(@Body() dto: CreateEventsDto) {
     return this.eventsService.createEvents(dto);
+  }
+
+  @Post(':slug/duplicate')
+  @ApiOperation({ summary: 'Duplicate Event' })
+  async duplicateEvent(@Param('slug') slug: string) {
+    try {
+      const duplicated = await this.eventsService.duplicateEvent(slug);
+      return {
+        success: true,
+        message: 'Event duplicated successfully',
+        data: duplicated,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to duplicate event',
+        data: null,
+      };
+    }
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export Events' })
+  async export(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+    try {
+      const result = await this.eventsService.export(format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="events_${new Date().toISOString().split('T')[0]}.pdf"`);
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="events_${new Date().toISOString().split('T')[0]}.json"`);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export events',
+        data: null,
+      });
+    }
   }
 }

@@ -23,18 +23,22 @@ export class OrdersService {
   ) { }
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
-    // Calculate totals
-    const courses = await this.coursesService.findByIds(createOrderDto.courses);
-    const subtotal = courses.reduce((sum, course) => sum + course.price, 0);
-    const tax = subtotal * 0.1; // 10% tax for example
-    const total = subtotal + tax;
+    // Generate order number explicitly to ensure it's always set
+    const count = await this.orderModel.countDocuments();
+    const orderNumber = `ORD-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, '0')}`;
+
+    // Use provided totals (they should already be calculated from the checkout)
+    const subtotal = createOrderDto.subtotal || 0;
+    const tax = createOrderDto.tax || 0;
+    const total = createOrderDto.total || 0;
 
     const order = new this.orderModel({
       ...createOrderDto,
+      orderNumber, // Explicitly set order number to prevent validation error
       subtotal,
       tax,
       total,
-      courses: createOrderDto.courses.map((id) => new Types.ObjectId(id)),
+      courses: createOrderDto.courses?.map((id) => new Types.ObjectId(id)) || [],
       user: new Types.ObjectId(createOrderDto.user),
     });
 
@@ -356,6 +360,24 @@ export class OrdersService {
     }
 
     return orders;
+  }
+
+  async downloadOrder(orderId: string, userId: string): Promise<{ url: string }> {
+    const order = await this.orderModel.findOne({
+      _id: orderId,
+      user: userId,
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // In production, generate a PDF and return a signed URL
+    // For now, return a mock URL
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    return {
+      url: `${baseUrl}/api/orders/${orderId}/receipt.pdf`,
+    };
   }
 
   async getOrderStats(): Promise<any> {

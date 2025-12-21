@@ -6,9 +6,12 @@ import {
   Delete,
   Body,
   Param,
+  Query,
+  Res,
   UseInterceptors,
   UploadedFiles,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { RefundPolicyService } from '../services/refund-policy.service';
 import {
@@ -22,7 +25,7 @@ export class RefundPolicyController {
   constructor(
     private readonly refundPolicyService: RefundPolicyService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   @Post()
   async create(@Body() createRefundPolicyDto: CreateRefundPolicyDto) {
@@ -253,6 +256,88 @@ export class RefundPolicyController {
         success: false,
         message: error.message || 'Failed to delete refund policy',
       };
+    }
+  }
+
+  @Post(':id/toggle-active')
+  async toggleActive(@Param('id') id: string) {
+    try {
+      const refundPolicy = await this.refundPolicyService.toggleActive(id);
+      return {
+        success: true,
+        message: 'Refund policy status toggled successfully',
+        data: refundPolicy,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to toggle refund policy status',
+        data: null,
+      };
+    }
+  }
+
+  @Post(':id/duplicate')
+  async duplicate(@Param('id') id: string) {
+    try {
+      const refundPolicy = await this.refundPolicyService.duplicate(id);
+      return {
+        success: true,
+        message: 'Refund policy duplicated successfully',
+        data: refundPolicy,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to duplicate refund policy',
+        data: null,
+      };
+    }
+  }
+
+  @Get(':id/export')
+  async export(@Param('id') id: string, @Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+    try {
+      const result = await this.refundPolicyService.export(id, format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="refund-policy_${new Date().toISOString().split('T')[0]}.pdf"`);
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="refund-policy_${new Date().toISOString().split('T')[0]}.json"`);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export refund policy',
+        data: null,
+      });
+    }
+  }
+
+  @Get('export')
+  async exportAll(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+    try {
+      const result = await this.refundPolicyService.exportAll(format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="refund-policy-all_${new Date().toISOString().split('T')[0]}.pdf"`);
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="refund-policy-all_${new Date().toISOString().split('T')[0]}.json"`);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export refund policy',
+        data: null,
+      });
     }
   }
 }

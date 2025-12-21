@@ -8,6 +8,8 @@ import {
   Cart,
   CartSchema,
 } from './entities/wishlist.entity';
+import { CoursesModule } from '../courses/courses.module';
+import { ProductsModule } from '../products/products.module';
 
 @Module({
   imports: [
@@ -15,9 +17,11 @@ import {
       { name: Wishlist.name, schema: WishlistSchema },
       { name: Cart.name, schema: CartSchema },
     ]),
+    CoursesModule,
+    ProductsModule,
   ],
   controllers: [WishlistController],
   providers: [WishlistService],
   exports: [WishlistService],
 })
-export class WishlistModule {}
+export class WishlistModule { }

@@ -10,7 +10,7 @@ export class BlogService {
   constructor(
     @InjectModel(Blog.name) private blogModel: Model<BlogDocument>,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   async create(createBlogDto: CreateBlogDto): Promise<Blog> {
     const blog = new this.blogModel(createBlogDto);
@@ -96,5 +96,233 @@ export class BlogService {
     file: Express.Multer.File,
   ): Promise<{ url: string; publicId: string }> {
     return this.cloudinaryService.uploadImage(file, 'blog-images');
+  }
+
+  async incrementView(slug: string): Promise<{ views: number }> {
+    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    const blogPost = blog.blogs.find((post) => post.slug === slug);
+    if (!blogPost) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    blogPost.views = (blogPost.views || 0) + 1;
+    await blog.save();
+
+    return { views: blogPost.views };
+  }
+
+  async toggleLike(
+    slug: string,
+    userId?: string,
+  ): Promise<{ likes: number; isLiked: boolean }> {
+    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    const blogPost = blog.blogs.find((post) => post.slug === slug);
+    if (!blogPost) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    // For now, just increment/decrement likes
+    // In production, you'd want to track which users liked which posts
+    const isLiked = (blogPost as any).likedBy?.includes(userId) || false;
+
+    if (isLiked) {
+      blogPost.likes = Math.max(0, (blogPost.likes || 0) - 1);
+      if ((blogPost as any).likedBy) {
+        (blogPost as any).likedBy = (blogPost as any).likedBy.filter(
+          (id: string) => id !== userId,
+        );
+      }
+    } else {
+      blogPost.likes = (blogPost.likes || 0) + 1;
+      if (!(blogPost as any).likedBy) {
+        (blogPost as any).likedBy = [];
+      }
+      (blogPost as any).likedBy.push(userId);
+    }
+
+    await blog.save();
+
+    return {
+      likes: blogPost.likes,
+      isLiked: !isLiked,
+    };
+  }
+
+  async getLikeStatus(
+    slug: string,
+    userId?: string,
+  ): Promise<{ likes: number; isLiked: boolean }> {
+    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    const blogPost = blog.blogs.find((post) => post.slug === slug);
+    if (!blogPost) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    const isLiked =
+      userId && (blogPost as any).likedBy
+        ? (blogPost as any).likedBy.includes(userId)
+        : false;
+
+    return {
+      likes: blogPost.likes || 0,
+      isLiked,
+    };
+  }
+
+  async getComments(slug: string): Promise<any[]> {
+    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    const blogPost = blog.blogs.find((post) => post.slug === slug);
+    if (!blogPost) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    // Return comments from blogPost if they exist
+    return (blogPost as any).comments || [];
+  }
+
+  async addComment(
+    slug: string,
+    commentData: {
+      userId?: string;
+      userName: string;
+      userEmail: string;
+      content: string;
+      parentId?: string;
+    },
+  ): Promise<any> {
+    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    const blogPost = blog.blogs.find((post) => post.slug === slug);
+    if (!blogPost) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    if (!(blogPost as any).comments) {
+      (blogPost as any).comments = [];
+    }
+
+    const comment = {
+      _id: new Date().getTime().toString(),
+      postSlug: slug,
+      userId: commentData.userId,
+      userName: commentData.userName,
+      userEmail: commentData.userEmail,
+      content: commentData.content,
+      parentId: commentData.parentId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    (blogPost as any).comments.push(comment);
+    blogPost.commentsCount = ((blogPost as any).comments?.length || 0) + 1;
+    await blog.save();
+
+    return comment;
+  }
+
+  async deleteComment(
+    slug: string,
+    commentId: string,
+    userId?: string,
+  ): Promise<void> {
+    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    const blogPost = blog.blogs.find((post) => post.slug === slug);
+    if (!blogPost) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    if (!(blogPost as any).comments) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    const commentIndex = (blogPost as any).comments.findIndex(
+      (c: any) => c._id === commentId,
+    );
+
+    if (commentIndex === -1) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    const comment = (blogPost as any).comments[commentIndex];
+
+    // Check if user owns the comment or is admin
+    if (userId && comment.userId !== userId) {
+      throw new NotFoundException('Unauthorized to delete this comment');
+    }
+
+    (blogPost as any).comments.splice(commentIndex, 1);
+    blogPost.commentsCount = Math.max(
+      0,
+      (blogPost.commentsCount || 0) - 1,
+    );
+    await blog.save();
+  }
+
+  async duplicateBlogPost(slug: string): Promise<Blog> {
+    const blog = await this.blogModel.findOne().exec();
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    const blogPost = blog.blogs.find((post) => post.slug === slug);
+    if (!blogPost) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    // Create a duplicate with a new slug
+    const duplicatedPost = {
+      ...JSON.parse(JSON.stringify(blogPost)),
+      slug: `${blogPost.slug}-copy-${Date.now()}`,
+      title: `${blogPost.title} (Copy)`,
+      featured: false, // Duplicated posts are not featured by default
+      publishedAt: new Date().toISOString(),
+      views: 0,
+      likes: 0,
+      commentsCount: 0,
+    };
+
+    blog.blogs.push(duplicatedPost as any);
+    return blog.save();
+  }
+
+  async export(format: 'json' | 'pdf' = 'json'): Promise<any> {
+    const blog = await this.blogModel.findOne().exec();
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    if (format === 'pdf') {
+      // For PDF, return the data structure that can be converted to PDF
+      // In a real implementation, you'd use a library like pdfkit or puppeteer
+      return JSON.stringify(blog, null, 2);
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      blog,
+    };
   }
 }

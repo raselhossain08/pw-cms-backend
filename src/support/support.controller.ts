@@ -96,7 +96,7 @@ export class SupportController {
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  close(@Param('id') id: string) {
-    return this.supportService.closeTicket(id);
+  delete(@Param('id') id: string) {
+    return this.supportService.deleteTicket(id);
   }
 }

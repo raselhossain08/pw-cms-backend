@@ -404,4 +404,146 @@ export class ActivityLogsService {
             count: logs.length,
         };
     }
+
+    // ==================== LOG ACTIONS ====================
+    async getLogById(type: string, id: string) {
+        let log: any;
+
+        switch (type) {
+            case 'activity':
+                log = await this.activityLogModel.findById(id).populate('userId', 'firstName lastName email').lean().exec();
+                break;
+            case 'error':
+                log = await this.errorLogModel.findById(id).lean().exec();
+                break;
+            case 'ai':
+                log = await this.aiLogModel.findById(id).populate('userId', 'firstName lastName email').lean().exec();
+                break;
+            case 'chat':
+                log = await this.chatLogModel.findById(id)
+                    .populate('senderId', 'firstName lastName email')
+                    .populate('receiverId', 'firstName lastName email')
+                    .lean()
+                    .exec();
+                break;
+            case 'system':
+                log = await this.systemLogModel.findById(id).lean().exec();
+                break;
+            default:
+                throw new Error('Invalid log type');
+        }
+
+        if (!log) {
+            throw new Error('Log not found');
+        }
+
+        return { success: true, data: log };
+    }
+
+    async markErrorAsResolved(id: string, resolvedBy: string, solution?: string) {
+        const error = await this.errorLogModel.findByIdAndUpdate(
+            id,
+            {
+                isResolved: true,
+                resolvedBy,
+                resolvedAt: new Date(),
+                ...(solution && { solution }),
+            },
+            { new: true }
+        );
+
+        if (!error) {
+            throw new Error('Error log not found');
+        }
+
+        return { success: true, data: error };
+    }
+
+    async markErrorAsUnresolved(id: string) {
+        const error = await this.errorLogModel.findByIdAndUpdate(
+            id,
+            {
+                isResolved: false,
+                resolvedBy: null,
+                resolvedAt: null,
+            },
+            { new: true }
+        );
+
+        if (!error) {
+            throw new Error('Error log not found');
+        }
+
+        return { success: true, data: error };
+    }
+
+    async bulkMarkErrorsAsResolved(ids: string[], resolvedBy: string, solution?: string) {
+        const result = await this.errorLogModel.updateMany(
+            { _id: { $in: ids } },
+            {
+                isResolved: true,
+                resolvedBy,
+                resolvedAt: new Date(),
+                ...(solution && { solution }),
+            }
+        );
+
+        return { success: true, modifiedCount: result.modifiedCount };
+    }
+
+    async deleteLog(type: string, id: string) {
+        let result: any;
+
+        switch (type) {
+            case 'activity':
+                result = await this.activityLogModel.findByIdAndDelete(id);
+                break;
+            case 'error':
+                result = await this.errorLogModel.findByIdAndDelete(id);
+                break;
+            case 'ai':
+                result = await this.aiLogModel.findByIdAndDelete(id);
+                break;
+            case 'chat':
+                result = await this.chatLogModel.findByIdAndDelete(id);
+                break;
+            case 'system':
+                result = await this.systemLogModel.findByIdAndDelete(id);
+                break;
+            default:
+                throw new Error('Invalid log type');
+        }
+
+        if (!result) {
+            throw new Error('Log not found');
+        }
+
+        return { success: true, message: 'Log deleted successfully' };
+    }
+
+    async bulkDeleteLogs(type: string, ids: string[]) {
+        let result: any;
+
+        switch (type) {
+            case 'activity':
+                result = await this.activityLogModel.deleteMany({ _id: { $in: ids } });
+                break;
+            case 'error':
+                result = await this.errorLogModel.deleteMany({ _id: { $in: ids } });
+                break;
+            case 'ai':
+                result = await this.aiLogModel.deleteMany({ _id: { $in: ids } });
+                break;
+            case 'chat':
+                result = await this.chatLogModel.deleteMany({ _id: { $in: ids } });
+                break;
+            case 'system':
+                result = await this.systemLogModel.deleteMany({ _id: { $in: ids } });
+                break;
+            default:
+                throw new Error('Invalid log type');
+        }
+
+        return { success: true, deletedCount: result.deletedCount };
+    }
 }

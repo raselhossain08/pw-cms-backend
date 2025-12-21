@@ -8,6 +8,8 @@ import {
   UseGuards,
   Req,
   Query,
+  Delete,
+  Param,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,7 +30,7 @@ import { UserRole } from '../users/entities/user.entity';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
@@ -124,16 +126,49 @@ export class AuthController {
     return this.authService.verifyEmailCode(String(code || ''));
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Resend email verification using token' })
+  @ApiOperation({ summary: 'Resend email verification for current user' })
   @ApiResponse({ status: 200, description: 'Verification email resent' })
-  async resendVerification(
-    @Body('token') token?: string,
-    @Query('token') queryToken?: string,
-  ) {
-    return this.authService.resendVerification(
-      String(token || queryToken || ''),
-    );
+  async resendVerification(@Req() req) {
+    return this.authService.resendVerificationForUser(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('email-status')
+  @ApiOperation({ summary: 'Get email verification status' })
+  @ApiResponse({ status: 200, description: 'Email verification status' })
+  async getEmailStatus(@Req() req) {
+    return this.authService.getEmailStatus(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('sessions')
+  @ApiOperation({ summary: 'Get user active sessions' })
+  @ApiResponse({ status: 200, description: 'List of active sessions' })
+  async getSessions(@Req() req) {
+    return this.authService.getUserSessions(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Delete('sessions/:sessionId')
+  @ApiOperation({ summary: 'Delete a specific session' })
+  @ApiResponse({ status: 200, description: 'Session deleted' })
+  async deleteSession(@Req() req, @Param('sessionId') sessionId: string) {
+    return this.authService.deleteSession(req.user.id, sessionId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Delete('sessions')
+  @ApiOperation({ summary: 'Delete all sessions except current' })
+  @ApiResponse({ status: 200, description: 'All sessions deleted' })
+  async deleteAllSessions(@Req() req) {
+    return this.authService.deleteAllSessions(req.user.id);
   }
 }

@@ -31,7 +31,7 @@ import { UserRole } from '../users/entities/user.entity';
 @ApiTags('Course Categories')
 @Controller('course-categories')
 export class CourseCategoriesController {
-  constructor(private readonly service: CourseCategoriesService) {}
+  constructor(private readonly service: CourseCategoriesService) { }
 
   @Get('names')
   @Public()
@@ -55,6 +55,17 @@ export class CourseCategoriesController {
         total: data.length,
       },
     };
+  }
+
+  @Get('stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get category statistics' })
+  @ApiResponse({ status: 200, description: 'Category statistics' })
+  async getStats() {
+    const data = await this.service.getStats();
+    return { success: true, data };
   }
 
   @Get(':slug')
@@ -121,5 +132,57 @@ export class CourseCategoriesController {
   async remove(@Param('slug') slug: string) {
     await this.service.removeBySlug(slug);
     return { success: true, message: 'Category deleted successfully' };
+  }
+
+  @Patch(':slug/toggle-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Toggle category status (active/inactive)' })
+  @ApiResponse({ status: 200, description: 'Category status toggled' })
+  async toggleStatus(@Param('slug') slug: string) {
+    const data = await this.service.toggleStatus(slug);
+    return { success: true, data, message: 'Category status toggled successfully' };
+  }
+
+  @Post(':slug/duplicate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Duplicate a course category' })
+  @ApiResponse({ status: 201, description: 'Category duplicated successfully' })
+  async duplicate(@Param('slug') slug: string) {
+    const data = await this.service.duplicate(slug);
+    return { success: true, data, message: 'Category duplicated successfully' };
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk delete categories' })
+  @ApiResponse({ status: 200, description: 'Categories deleted' })
+  async bulkDelete(@Body() body: { slugs: string[] }) {
+    const result = await this.service.bulkDelete(body.slugs);
+    return {
+      success: true,
+      message: `${result.deleted} categor${result.deleted > 1 ? 'ies' : 'y'} deleted successfully`,
+      ...result,
+    };
+  }
+
+  @Post('bulk-toggle-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk toggle category status' })
+  @ApiResponse({ status: 200, description: 'Category statuses updated' })
+  async bulkToggleStatus(@Body() body: { slugs: string[] }) {
+    const result = await this.service.bulkToggleStatus(body.slugs);
+    return {
+      success: true,
+      message: `${result.updated} categor${result.updated > 1 ? 'ies' : 'y'} updated successfully`,
+      ...result,
+    };
   }
 }

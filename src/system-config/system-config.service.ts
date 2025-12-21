@@ -16,7 +16,7 @@ export class SystemConfigService implements OnModuleInit {
   constructor(
     @InjectModel(SystemConfig.name) private configModel: Model<SystemConfig>,
     private nestConfigService: NestConfigService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     // Initialize default configs on startup
@@ -79,6 +79,43 @@ export class SystemConfigService implements OnModuleInit {
     return defaultValue;
   }
 
+  /**
+   * Get public payment configuration (non-secret keys for frontend)
+   */
+  async getPublicPaymentConfig(): Promise<{
+    stripePublishableKey?: string;
+    paypalClientId?: string;
+    paypalMode?: string;
+  }> {
+    const [stripeKey, paypalClientId, paypalMode] = await Promise.all([
+      this.getValue('STRIPE_PUBLISHABLE_KEY'),
+      this.getValue('PAYPAL_CLIENT_ID'),
+      this.getValue('PAYPAL_MODE'),
+    ]);
+
+    return {
+      stripePublishableKey: stripeKey,
+      paypalClientId: paypalClientId,
+      paypalMode: paypalMode || 'sandbox',
+    };
+  }
+
+  /**
+   * Refresh config cache (useful when configs are updated)
+   */
+  async refreshCache(key?: string): Promise<void> {
+    if (key) {
+      const config = await this.findByKey(key);
+      if (config) {
+        this.configCache.set(key, config.value);
+      } else {
+        this.configCache.delete(key);
+      }
+    } else {
+      await this.loadConfigsIntoCache();
+    }
+  }
+
   async create(createConfigDto: CreateConfigDto): Promise<SystemConfig> {
     try {
       const saved = await this.configModel
@@ -129,6 +166,12 @@ export class SystemConfigService implements OnModuleInit {
     if (config && updateConfigDto.value) {
       // Update cache
       this.configCache.set(key, updateConfigDto.value);
+
+      // Refresh payment services if payment configs are updated
+      if (key.startsWith('STRIPE_') || key.startsWith('PAYPAL_')) {
+        // This will be handled by the payment services listening to config changes
+        // For now, services will refresh on next use
+      }
     }
 
     return config;

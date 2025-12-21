@@ -63,6 +63,7 @@ import {
 // Tasks
 import { EmailTasksService } from './tasks/email-tasks.service';
 import { AnalyticsTasksService } from './tasks/analytics-tasks.service';
+import { SystemHealthMonitor } from './shared/services/system-health-monitor.service';
 
 // Gateways
 import { NotificationsGateway } from './notifications/gateways/notifications.gateway';
@@ -206,6 +207,9 @@ import { AiBotGateway } from './ai-bot/ai-bot.gateway';
     // Background tasks
     EmailTasksService,
     AnalyticsTasksService,
+
+    // System monitoring
+    SystemHealthMonitor, // Add this for system health logging
 
     // WebSocket gateways
     NotificationsGateway,

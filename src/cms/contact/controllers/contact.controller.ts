@@ -6,11 +6,14 @@ import {
   Delete,
   Body,
   Param,
+  Query,
+  Res,
   HttpCode,
   HttpStatus,
   UseInterceptors,
   UploadedFiles,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { ContactService } from '../services/contact.service';
@@ -23,7 +26,7 @@ export class ContactController {
   constructor(
     private readonly contactService: ContactService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -129,14 +132,14 @@ export class ContactController {
     // Parse SEO metadata from FormData
     let seo:
       | {
-          title?: string;
-          description?: string;
-          keywords?: string;
-          ogImage?: string;
-          ogTitle?: string;
-          ogDescription?: string;
-          canonicalUrl?: string;
-        }
+        title?: string;
+        description?: string;
+        keywords?: string;
+        ogImage?: string;
+        ogTitle?: string;
+        ogDescription?: string;
+        canonicalUrl?: string;
+      }
       | undefined;
 
     if (
@@ -179,5 +182,61 @@ export class ContactController {
       success: true,
       message: 'Contact deleted successfully',
     };
+  }
+
+  @Post(':id/toggle-active')
+  @ApiOperation({ summary: 'Toggle active status' })
+  async toggleActive(@Param('id') id: string) {
+    const contact = await this.contactService.toggleActive(id);
+    return {
+      success: true,
+      message: 'Active status toggled successfully',
+      data: contact,
+    };
+  }
+
+  @Post(':id/duplicate')
+  @ApiOperation({ summary: 'Duplicate Contact' })
+  async duplicate(@Param('id') id: string) {
+    const contact = await this.contactService.duplicate(id);
+    return {
+      success: true,
+      message: 'Contact duplicated successfully',
+      data: contact,
+    };
+  }
+
+  @Get(':id/export')
+  @ApiOperation({ summary: 'Export Contact' })
+  async export(
+    @Param('id') id: string,
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
+    try {
+      const result = await this.contactService.export(id, format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="contact_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="contact_${new Date().toISOString().split('T')[0]}.json"`,
+      );
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export contact',
+        data: null,
+      });
+    }
   }
 }

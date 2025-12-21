@@ -69,6 +69,16 @@ export class CoursesService {
       delete courseData.isPublished;
     }
 
+    // Handle isFree flag - if isFree is true, set price to 0
+    if (courseData.isFree === true) {
+      courseData.price = 0;
+    } else if (courseData.price === 0) {
+      // If price is 0, automatically set isFree to true
+      courseData.isFree = true;
+    } else {
+      courseData.isFree = courseData.isFree || false;
+    }
+
     const course = new this.courseModel({
       ...courseData,
       slug,
@@ -196,9 +206,20 @@ export class CoursesService {
     userId: string,
     userRole: UserRole,
   ): Promise<Course> {
+    // Handle isFree flag - if isFree is true, set price to 0
+    const courseData: any = { ...updateCourseDto };
+    if (courseData.isFree === true) {
+      courseData.price = 0;
+    } else if (courseData.price === 0) {
+      // If price is 0, automatically set isFree to true
+      courseData.isFree = true;
+    } else if (courseData.price !== undefined && courseData.price > 0) {
+      courseData.isFree = false;
+    }
+
     console.log(
       'Updating course with DTO:',
-      JSON.stringify(updateCourseDto, null, 2),
+      JSON.stringify(courseData, null, 2),
     );
     console.log('Thumbnail URL:', updateCourseDto.thumbnail);
 
@@ -229,6 +250,16 @@ export class CoursesService {
         ? CourseStatus.PUBLISHED
         : CourseStatus.DRAFT;
       delete updateData.isPublished;
+    }
+
+    // Handle isFree flag - if isFree is true, set price to 0
+    if (updateData.isFree === true) {
+      updateData.price = 0;
+    } else if (updateData.price === 0) {
+      // If price is 0, automatically set isFree to true
+      updateData.isFree = true;
+    } else if (updateData.price !== undefined && updateData.price > 0) {
+      updateData.isFree = false;
     }
 
     const updatedCourse = await this.courseModel
@@ -366,6 +397,39 @@ export class CoursesService {
       .exec();
   }
 
+  async getLesson(
+    lessonId: string,
+    userId?: string,
+    userRole?: UserRole,
+  ): Promise<Lesson> {
+    const lesson = await this.lessonModel
+      .findById(lessonId)
+      .populate('module', 'title')
+      .populate('course', 'title instructor')
+      .exec();
+
+    if (!lesson) {
+      throw new NotFoundException('Lesson not found');
+    }
+
+    // Check if user has access to the lesson
+    const course = lesson.course as any;
+    const courseInstructorId = course.instructor?._id
+      ? course.instructor._id.toString()
+      : course.instructor?.toString();
+
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.SUPER_ADMIN &&
+      courseInstructorId !== userId &&
+      lesson.status !== 'published'
+    ) {
+      throw new ForbiddenException('You do not have access to this lesson');
+    }
+
+    return lesson;
+  }
+
   async updateLesson(
     lessonId: string,
     updateData: any,
@@ -474,6 +538,109 @@ export class CoursesService {
     }));
     await (this.lessonModel as any).bulkWrite(bulk);
     return { message: 'Lessons reordered' };
+  }
+
+  async toggleLessonStatus(
+    lessonId: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<Lesson> {
+    const lesson = await this.lessonModel.findById(lessonId).populate('course');
+    if (!lesson) {
+      throw new NotFoundException('Lesson not found');
+    }
+
+    const course = lesson.course as Course;
+
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.SUPER_ADMIN &&
+      course.instructor.toString() !== userId
+    ) {
+      throw new ForbiddenException(
+        'You can only update lessons in your own courses',
+      );
+    }
+
+    const currentStatus = lesson.status || 'draft';
+    const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+
+    lesson.status = newStatus as any;
+    return await lesson.save();
+  }
+
+  async bulkDeleteLessons(
+    ids: string[],
+    userId: string,
+    userRole: UserRole,
+  ): Promise<{ deleted: number }> {
+    const lessons = await this.lessonModel
+      .find({ _id: { $in: ids.map((id) => new Types.ObjectId(id)) } })
+      .populate('course');
+
+    if (lessons.length === 0) {
+      throw new NotFoundException('No lessons found to delete');
+    }
+
+    // Check permissions
+    for (const lesson of lessons) {
+      const course = lesson.course as Course;
+      if (
+        userRole !== UserRole.ADMIN &&
+        userRole !== UserRole.SUPER_ADMIN &&
+        course.instructor.toString() !== userId
+      ) {
+        throw new ForbiddenException('You can only delete your own lessons');
+      }
+    }
+
+    await this.lessonModel.deleteMany({
+      _id: { $in: lessons.map((l) => l._id) },
+    });
+
+    return { deleted: lessons.length };
+  }
+
+  async bulkToggleLessonStatus(
+    ids: string[],
+    userId: string,
+    userRole: UserRole,
+  ): Promise<{ updated: number }> {
+    const lessons = await this.lessonModel
+      .find({ _id: { $in: ids.map((id) => new Types.ObjectId(id)) } })
+      .populate('course');
+
+    if (lessons.length === 0) {
+      throw new NotFoundException('No lessons found to update');
+    }
+
+    // Check permissions
+    for (const lesson of lessons) {
+      const course = lesson.course as Course;
+      if (
+        userRole !== UserRole.ADMIN &&
+        userRole !== UserRole.SUPER_ADMIN &&
+        course.instructor.toString() !== userId
+      ) {
+        throw new ForbiddenException('You can only update your own lessons');
+      }
+    }
+
+    // Toggle status for all lessons
+    const bulkOps = lessons.map((lesson) => {
+      const currentStatus = lesson.status || 'draft';
+      const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+      return {
+        updateOne: {
+          filter: { _id: lesson._id },
+          update: { $set: { status: newStatus } },
+        },
+      };
+    });
+
+    await (this.lessonModel as any).bulkWrite(bulkOps);
+
+    return { updated: lessons.length };
   }
 
   async getStats(): Promise<any> {
@@ -713,5 +880,173 @@ export class CoursesService {
       throw new NotFoundException('Duplicated course not found');
     }
     return final;
+  }
+
+  async toggleStatus(
+    id: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<Course> {
+    const course = await this.courseModel.findById(id);
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Check permissions
+    if (
+      userRole !== UserRole.SUPER_ADMIN &&
+      userRole !== UserRole.ADMIN &&
+      course.instructor.toString() !== userId
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to toggle this course status',
+      );
+    }
+
+    const currentStatus = course.status || CourseStatus.DRAFT;
+    const newStatus =
+      currentStatus === CourseStatus.PUBLISHED
+        ? CourseStatus.DRAFT
+        : CourseStatus.PUBLISHED;
+
+    course.status = newStatus;
+    return await course.save();
+  }
+
+  async bulkDelete(
+    ids: string[],
+    userId: string,
+    userRole: UserRole,
+  ): Promise<{ deleted: number }> {
+    let deleted = 0;
+
+    for (const id of ids) {
+      try {
+        const course = await this.courseModel.findById(id);
+        if (!course) continue;
+
+        // Check permissions
+        if (
+          userRole !== UserRole.SUPER_ADMIN &&
+          userRole !== UserRole.ADMIN &&
+          course.instructor.toString() !== userId
+        ) {
+          continue; // Skip courses user doesn't have permission to delete
+        }
+
+        await this.courseModel.findByIdAndDelete(id);
+        deleted++;
+      } catch (error) {
+        // Continue with other courses even if one fails
+        console.error(`Failed to delete course ${id}:`, error);
+      }
+    }
+
+    return { deleted };
+  }
+
+  async bulkToggleStatus(
+    ids: string[],
+    userId: string,
+    userRole: UserRole,
+  ): Promise<{ updated: number }> {
+    let updated = 0;
+
+    for (const id of ids) {
+      try {
+        const course = await this.courseModel.findById(id);
+        if (!course) continue;
+
+        // Check permissions
+        if (
+          userRole !== UserRole.SUPER_ADMIN &&
+          userRole !== UserRole.ADMIN &&
+          course.instructor.toString() !== userId
+        ) {
+          continue; // Skip courses user doesn't have permission to update
+        }
+
+        const currentStatus = course.status || CourseStatus.DRAFT;
+        const newStatus =
+          currentStatus === CourseStatus.PUBLISHED
+            ? CourseStatus.DRAFT
+            : CourseStatus.PUBLISHED;
+
+        course.status = newStatus;
+        await course.save();
+        updated++;
+      } catch (error) {
+        // Continue with other courses even if one fails
+        console.error(`Failed to toggle status for course ${id}:`, error);
+      }
+    }
+
+    return { updated };
+  }
+
+  async bulkPublish(
+    ids: string[],
+    userId: string,
+    userRole: UserRole,
+  ): Promise<{ published: number }> {
+    let published = 0;
+
+    for (const id of ids) {
+      try {
+        const course = await this.courseModel.findById(id);
+        if (!course) continue;
+
+        // Check permissions
+        if (
+          userRole !== UserRole.SUPER_ADMIN &&
+          userRole !== UserRole.ADMIN &&
+          course.instructor.toString() !== userId
+        ) {
+          continue; // Skip courses user doesn't have permission to publish
+        }
+
+        course.status = CourseStatus.PUBLISHED;
+        await course.save();
+        published++;
+      } catch (error) {
+        // Continue with other courses even if one fails
+        console.error(`Failed to publish course ${id}:`, error);
+      }
+    }
+
+    return { published };
+  }
+
+  async bulkUnpublish(
+    ids: string[],
+    userId: string,
+    userRole: UserRole,
+  ): Promise<{ unpublished: number }> {
+    let unpublished = 0;
+
+    for (const id of ids) {
+      try {
+        const course = await this.courseModel.findById(id);
+        if (!course) continue;
+
+        // Check permissions
+        if (
+          userRole !== UserRole.SUPER_ADMIN &&
+          userRole !== UserRole.ADMIN &&
+          course.instructor.toString() !== userId
+        ) {
+          continue; // Skip courses user doesn't have permission to unpublish
+        }
+
+        course.status = CourseStatus.DRAFT;
+        await course.save();
+        unpublished++;
+      } catch (error) {
+        // Continue with other courses even if one fails
+        console.error(`Failed to unpublish course ${id}:`, error);
+      }
+    }
+
+    return { unpublished };
   }
 }

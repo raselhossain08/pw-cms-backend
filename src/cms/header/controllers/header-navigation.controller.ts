@@ -6,12 +6,15 @@ import {
   Delete,
   Body,
   Param,
+  Query,
+  Res,
   UseInterceptors,
   UploadedFiles,
   HttpCode,
   HttpStatus,
   VERSION_NEUTRAL,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -30,7 +33,7 @@ import {
 export class HeaderNavigationController {
   constructor(
     private readonly headerNavigationService: HeaderNavigationService,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Create new header navigation' })
