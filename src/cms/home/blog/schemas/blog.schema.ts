@@ -26,7 +26,7 @@ export class Author {
 
 export const AuthorSchema = SchemaFactory.createForClass(Author);
 
-@Schema({ _id: false })
+@Schema({ _id: false, toJSON: { getters: true, virtuals: true } })
 export class BlogPost {
   @Prop({ default: '' })
   title: string;
@@ -66,6 +66,22 @@ export class BlogPost {
 
   @Prop({ default: 0 })
   likes: number;
+
+  @Prop({ type: [{
+    userId: { type: String, required: true },
+    userName: { type: String, required: true },
+    userAvatar: { type: String },
+    content: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }], default: [] })
+  comments: {
+    userId: string;
+    userName: string;
+    userAvatar?: string;
+    content: string;
+    createdAt: Date;
+    _id?: string;
+  }[];
 
   @Prop({ default: 0 })
   commentsCount: number;

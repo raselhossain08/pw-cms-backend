@@ -57,4 +57,13 @@ export class CreatePaymentIntentDto {
   @IsString()
   @IsOptional()
   customerId?: string;
+
+  @ApiProperty({
+    example: 'SUMMER2025',
+    description: 'Coupon code',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  couponCode?: string;
 }

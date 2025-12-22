@@ -1,17 +1,26 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Wishlist, Cart } from './entities/wishlist.entity';
 import { CoursesService } from '../courses/courses.service';
 import { ProductsService } from '../products/products.service';
+import { CouponsService } from '../coupons/coupons.service';
 
 @Injectable()
 export class WishlistService {
+  private readonly logger = new Logger(WishlistService.name);
+
   constructor(
     @InjectModel(Wishlist.name) private wishlistModel: Model<Wishlist>,
     @InjectModel(Cart.name) private cartModel: Model<Cart>,
     private coursesService: CoursesService,
     private productsService: ProductsService,
+    private couponsService: CouponsService,
   ) { }
 
   async addToWishlist(userId: string, courseId: string): Promise<Wishlist> {
@@ -47,6 +56,45 @@ export class WishlistService {
       .findOne({ user: userId })
       .populate('courses')
       .exec();
+  }
+
+  private async recalculateCart(cart: Cart): Promise<Cart> {
+    // 1. Calculate Subtotal
+    const subtotal = cart.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+
+    // 2. Handle Coupon
+    if (cart.appliedCoupon) {
+      try {
+        const coupon = await this.couponsService.findOne(cart.appliedCoupon.toString());
+        if (coupon) {
+          const validation = await this.couponsService.validate(coupon.code, subtotal);
+          if (validation.valid) {
+            cart.discount = validation.discount;
+          } else {
+            // Coupon no longer valid (e.g. subtotal too low)
+            cart.appliedCoupon = undefined;
+            cart.discount = 0;
+          }
+        } else {
+          cart.appliedCoupon = undefined;
+          cart.discount = 0;
+        }
+      } catch (error) {
+        // If coupon not found or other error
+        cart.appliedCoupon = undefined;
+        cart.discount = 0;
+      }
+    } else {
+      cart.discount = 0;
+    }
+
+    // 3. Final Total
+    cart.totalAmount = Math.max(0, subtotal - cart.discount);
+
+    return cart;
   }
 
   async addToCart(
@@ -113,10 +161,7 @@ export class WishlistService {
       } as any);
     }
 
-    cart.totalAmount = cart.items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0,
-    );
+    await this.recalculateCart(cart);
     return await cart.save();
   }
 
@@ -169,10 +214,7 @@ export class WishlistService {
       cart.items = cart.items.filter(
         (item) => item.itemId.toString() !== itemId,
       );
-      cart.totalAmount = cart.items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0,
-      );
+      await this.recalculateCart(cart);
       await cart.save();
     }
     return cart;
@@ -207,11 +249,8 @@ export class WishlistService {
     }
 
     item.quantity = quantity;
-    cart.totalAmount = cart.items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0,
-    );
 
+    await this.recalculateCart(cart);
     return await cart.save();
   }
 
@@ -223,5 +262,42 @@ export class WishlistService {
 
     const count = cart.items.reduce((sum, item) => sum + item.quantity, 0);
     return { count };
+  }
+
+  async applyCoupon(userId: string, code: string): Promise<Cart> {
+    const cart = await this.cartModel.findOne({ user: userId });
+    if (!cart) {
+      throw new NotFoundException('Cart not found');
+    }
+
+    const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const validation = await this.couponsService.validate(code, subtotal);
+
+    if (!validation.valid) {
+      this.logger.warn(`User ${userId} failed to apply coupon "${code}": ${validation.message}`);
+      throw new BadRequestException(validation.message);
+    }
+
+    if (!validation.coupon) {
+      this.logger.error(`User ${userId} passed validation for coupon "${code}" but no coupon object returned`);
+      throw new BadRequestException('Invalid coupon data');
+    }
+
+    this.logger.log(`User ${userId} successfully applied coupon "${code}"`);
+    cart.appliedCoupon = validation.coupon._id as any;
+    await this.recalculateCart(cart);
+    return await cart.save();
+  }
+
+  async removeCoupon(userId: string): Promise<Cart> {
+    const cart = await this.cartModel.findOne({ user: userId });
+    if (!cart) {
+      throw new NotFoundException('Cart not found');
+    }
+
+    cart.appliedCoupon = undefined;
+    cart.discount = 0;
+    await this.recalculateCart(cart);
+    return await cart.save();
   }
 }

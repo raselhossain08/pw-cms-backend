@@ -90,6 +90,26 @@ export class WishlistController {
     );
   }
 
+  @Post('cart/coupon')
+  @ApiOperation({ summary: 'Apply coupon to cart' })
+  @ApiResponse({ status: 200, description: 'Coupon applied successfully' })
+  async applyCoupon(
+    @Body() body: { code: string },
+    @Req() req,
+  ) {
+    if (!body.code) {
+      throw new BadRequestException('Coupon code is required');
+    }
+    return this.wishlistService.applyCoupon(req.user.id, body.code);
+  }
+
+  @Delete('cart/coupon')
+  @ApiOperation({ summary: 'Remove coupon from cart' })
+  @ApiResponse({ status: 200, description: 'Coupon removed successfully' })
+  async removeCoupon(@Req() req) {
+    return this.wishlistService.removeCoupon(req.user.id);
+  }
+
   @Delete('cart/:itemId')
   @ApiOperation({ summary: 'Remove from cart' })
   async removeFromCart(@Param('itemId') itemId: string, @Req() req) {

@@ -40,6 +40,11 @@ export class CreateOrderDto {
   @IsOptional()
   discount?: number;
 
+  @ApiProperty({ example: 'coupon_123', description: 'Coupon ID', required: false })
+  @IsString()
+  @IsOptional()
+  coupon?: string;
+
   @ApiProperty({ example: 3299.98, description: 'Total amount' })
   @IsNumber()
   @Min(0)

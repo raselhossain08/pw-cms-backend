@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -12,6 +13,8 @@ import { BulkDeleteDto, BulkToggleDto } from './dto/bulk-operations.dto';
 
 @Injectable()
 export class CouponsService {
+  private readonly logger = new Logger(CouponsService.name);
+
   constructor(@InjectModel(Coupon.name) private couponModel: Model<Coupon>) { }
 
   async create(data: CreateCouponDto): Promise<Coupon> {
@@ -57,18 +60,22 @@ export class CouponsService {
     });
 
     if (!coupon) {
+      this.logger.warn(`Coupon validation failed: Code "${code}" not found or inactive`);
       return { valid: false, discount: 0, message: 'Coupon code not found or inactive' };
     }
 
     if (coupon.expiresAt && coupon.expiresAt < new Date()) {
+      this.logger.warn(`Coupon validation failed: Code "${code}" expired at ${coupon.expiresAt}`);
       return { valid: false, discount: 0, message: 'Coupon has expired' };
     }
 
     if (coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses) {
+      this.logger.warn(`Coupon validation failed: Code "${code}" usage limit reached (${coupon.usedCount}/${coupon.maxUses})`);
       return { valid: false, discount: 0, message: 'Coupon usage limit reached' };
     }
 
     if (amount < coupon.minPurchaseAmount) {
+      this.logger.warn(`Coupon validation failed: Code "${code}" min purchase ${coupon.minPurchaseAmount} not met (Amount: ${amount})`);
       return {
         valid: false,
         discount: 0,
@@ -91,6 +98,10 @@ export class CouponsService {
       await coupon.save();
     }
     return coupon;
+  }
+
+  async incrementUsage(id: string): Promise<void> {
+    await this.couponModel.findByIdAndUpdate(id, { $inc: { usedCount: 1 } });
   }
 
   async findAll(page: number = 1, limit: number = 10, search?: string): Promise<{

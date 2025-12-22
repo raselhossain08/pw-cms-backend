@@ -230,13 +230,30 @@ export class AuthService {
     return { message: 'Email verified successfully' };
   }
 
-  async resendVerification(token: string) {
+  async resendVerification(token?: string, email?: string) {
     try {
-      const payload = this.jwtService.verify(token);
-      const user = await this.usersService.findById(payload.sub);
-      if (!user) throw new BadRequestException('Invalid token');
+      let user;
+
+      if (token) {
+        const payload = this.jwtService.verify(token);
+        user = await this.usersService.findById(payload.sub);
+      } else if (email) {
+        user = await this.usersService.findByEmail(email);
+      }
+
+      if (!user) throw new BadRequestException('Invalid request');
+      if (user.emailVerified) throw new BadRequestException('Email already verified');
+
+      // Generate new verification token
+      const verificationToken = this.jwtService.sign(
+        { sub: user.id, email: user.email },
+        { expiresIn: '24h' },
+      );
 
       const code = String(Math.floor(100000 + Math.random() * 900000));
+
+      // Invalidate previous codes for this user? Optional but good practice.
+      // For now just create new one.
       await this.emailVerificationModel.create({
         user: user.id,
         token: code,
@@ -244,10 +261,16 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 15 * 60 * 1000),
         type: 'otp',
       });
-      await this.mailService.sendVerificationEmail(user.email, token, code);
+
+      // We should also update the link token? 
+      // The original implementation didn't update the link token in the emailVerificationModel for 'signup' type,
+      // but sent a token in the email.
+      // We will send the new token in the email.
+
+      await this.mailService.sendVerificationEmail(user.email, verificationToken, code);
       return { message: 'Verification email resent' };
     } catch (e) {
-      throw new BadRequestException('Invalid or expired token');
+      throw new BadRequestException('Invalid or expired token/email');
     }
   }
 

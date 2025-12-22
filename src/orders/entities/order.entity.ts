@@ -48,6 +48,10 @@ export class Order extends Document {
   @Prop({ default: 0 })
   discount: number;
 
+  @ApiProperty({ type: String, description: 'Coupon ID', required: false })
+  @Prop({ type: Types.ObjectId, ref: 'Coupon' })
+  coupon: Types.ObjectId;
+
   @ApiProperty({ example: 3299.98, description: 'Total amount' })
   @Prop({ required: true, default: 0 })
   total: number;

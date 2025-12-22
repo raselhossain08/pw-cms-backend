@@ -140,13 +140,31 @@ export class IntegrationsService {
     async testConnection(id: string): Promise<{ success: boolean; message: string }> {
         const integration = await this.findOne(id);
 
-        // Basic validation
-        if (!integration.config || Object.keys(integration.config).length === 0) {
+        // Check if credentials or config exist
+        const hasCredentials = integration.credentials && Object.keys(integration.credentials).length > 0;
+        const hasConfig = integration.config && Object.keys(integration.config).length > 0;
+
+        if (!hasCredentials && !hasConfig) {
             return { success: false, message: 'Integration not configured' };
         }
 
-        // Here you would implement actual connection testing logic
-        // For now, return success if configuration exists
+        // Specific validation for known providers
+        if (integration.slug === 'stripe') {
+            const hasKey = integration.credentials?.secretKey || process.env.STRIPE_SECRET_KEY;
+            if (!hasKey) {
+                return { success: false, message: 'Stripe Secret Key is missing' };
+            }
+        }
+
+        if (integration.slug === 'paypal') {
+            const hasClientId = integration.credentials?.clientId || process.env.PAYPAL_CLIENT_ID;
+            const hasClientSecret = integration.credentials?.clientSecret || process.env.PAYPAL_CLIENT_SECRET;
+
+            if (!hasClientId || !hasClientSecret) {
+                return { success: false, message: 'PayPal credentials are incomplete' };
+            }
+        }
+
         return { success: true, message: 'Connection test successful' };
     }
 
@@ -254,5 +272,25 @@ export class IntegrationsService {
         for (const data of seedData) {
             await this.create(data);
         }
+    }
+
+    async delete(id: string): Promise<void> {
+        const result = await this.integrationModel.findByIdAndDelete(id).exec();
+        if (!result) {
+            throw new NotFoundException(`Integration with ID ${id} not found`);
+        }
+    }
+
+    async toggleStatus(id: string, status: boolean): Promise<Integration> {
+        const integration = await this.integrationModel.findByIdAndUpdate(
+            id,
+            { status: status ? IntegrationStatus.CONNECTED : IntegrationStatus.DISCONNECTED },
+            { new: true }
+        ).exec();
+
+        if (!integration) {
+            throw new NotFoundException(`Integration with ID ${id} not found`);
+        }
+        return integration;
     }
 }

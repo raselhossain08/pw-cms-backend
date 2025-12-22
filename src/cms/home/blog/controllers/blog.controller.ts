@@ -25,10 +25,7 @@ export class BlogController {
   @Get()
   async getBlog() {
     const blog = await this.blogService.findOne();
-    return {
-      success: true,
-      data: blog,
-    };
+    return blog;
   }
 
   @Get(':slug')
@@ -43,10 +40,7 @@ export class BlogController {
       throw new NotFoundException('Blog post not found');
     }
 
-    return {
-      success: true,
-      data: blogPost,
-    };
+    return blogPost;
   }
 
   @Patch()
@@ -88,43 +82,27 @@ export class BlogController {
     }
 
     const blog = await this.blogService.update(updateBlogDto, files);
-    return {
-      success: true,
-      data: blog,
-      message: 'Blog section updated successfully',
-    };
+    return blog;
   }
 
   @Patch('toggle-active')
   async toggleActive() {
     const blog = await this.blogService.toggleActive();
-    return {
-      success: true,
-      data: blog,
-      message: `Blog section is now ${blog.isActive ? 'active' : 'inactive'}`,
-    };
+    return blog;
   }
 
   @Post(':slug/view')
   async trackView(@Param('slug') slug: string) {
     const result = await this.blogService.incrementView(slug);
-    return {
-      success: true,
-      data: { views: result.views },
-      message: 'View tracked successfully',
-    };
+    return { views: result.views };
   }
 
   @Post(':slug/like')
   async toggleLike(@Param('slug') slug: string, @Req() req: any) {
     const result = await this.blogService.toggleLike(slug, req.user?.userId);
     return {
-      success: true,
-      data: {
-        likes: result.likes,
-        isLiked: result.isLiked,
-      },
-      message: result.isLiked ? 'Post liked' : 'Post unliked',
+      likes: result.likes,
+      isLiked: result.isLiked,
     };
   }
 
@@ -132,21 +110,15 @@ export class BlogController {
   async getLikeStatus(@Param('slug') slug: string, @Req() req: any) {
     const result = await this.blogService.getLikeStatus(slug, req.user?.userId);
     return {
-      success: true,
-      data: {
-        likes: result.likes,
-        isLiked: result.isLiked,
-      },
+      likes: result.likes,
+      isLiked: result.isLiked,
     };
   }
 
   @Get(':slug/comments')
   async getComments(@Param('slug') slug: string) {
     const comments = await this.blogService.getComments(slug);
-    return {
-      success: true,
-      data: comments,
-    };
+    return comments;
   }
 
   @Post(':slug/comments')
@@ -159,11 +131,7 @@ export class BlogController {
       ...createCommentDto,
       userId: req.user?.userId,
     });
-    return {
-      success: true,
-      data: comment,
-      message: 'Comment added successfully',
-    };
+    return comment;
   }
 
   @Delete(':slug/comments/:commentId')
@@ -173,28 +141,13 @@ export class BlogController {
     @Req() req: any,
   ) {
     await this.blogService.deleteComment(slug, commentId, req.user?.userId);
-    return {
-      success: true,
-      message: 'Comment deleted successfully',
-    };
+    return { deleted: true };
   }
 
   @Post(':slug/duplicate')
   async duplicateBlogPost(@Param('slug') slug: string) {
-    try {
-      const duplicated = await this.blogService.duplicateBlogPost(slug);
-      return {
-        success: true,
-        message: 'Blog post duplicated successfully',
-        data: duplicated,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to duplicate blog post',
-        data: null,
-      };
-    }
+    const duplicated = await this.blogService.duplicateBlogPost(slug);
+    return duplicated;
   }
 
   @Get('export')

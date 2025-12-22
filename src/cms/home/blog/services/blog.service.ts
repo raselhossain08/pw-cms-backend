@@ -18,7 +18,20 @@ export class BlogService {
   }
 
   async findOne(): Promise<Blog | null> {
-    return this.blogModel.findOne({ isActive: true }).exec();
+    const blog = await this.blogModel.findOne({ isActive: true }).lean().exec();
+
+    if (blog && blog.blogs) {
+      // Explicitly convert dates to strings to ensure they survive JSON serialization
+      blog.blogs = blog.blogs.map(post => {
+        const p = post as any;
+        return {
+          ...p,
+          publishedAt: p.publishedAt ? new Date(p.publishedAt).toISOString() : new Date().toISOString(),
+        };
+      });
+    }
+
+    return blog ? (blog as unknown as Blog) : null;
   }
 
   async update(

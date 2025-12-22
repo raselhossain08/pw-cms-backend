@@ -65,6 +65,34 @@ export class PaymentsController {
     return this.paymentsService.handlePayPalWebhook(body, req.headers);
   }
 
+  @Get('transactions')
+  @ApiOperation({ summary: 'Get user transactions' })
+  @ApiResponse({ status: 200, description: 'List of transactions' })
+  async getUserTransactions(@Req() req) {
+    return this.paymentsService.getUserTransactions(req.user.id);
+  }
+
+  @Get('methods')
+  @ApiOperation({ summary: 'Get saved payment methods' })
+  @ApiResponse({ status: 200, description: 'List of payment methods' })
+  async getPaymentMethods(@Req() req) {
+    return this.paymentsService.getPaymentMethods(req.user.id);
+  }
+
+  @Post('methods')
+  @ApiOperation({ summary: 'Add payment method' })
+  @ApiResponse({ status: 201, description: 'Payment method added' })
+  async addPaymentMethod(@Body() body: any, @Req() req) {
+    return this.paymentsService.addPaymentMethod(req.user.id, body.paymentMethodId);
+  }
+
+  @Post('methods/:id/delete')
+  @ApiOperation({ summary: 'Delete payment method' })
+  @ApiResponse({ status: 200, description: 'Payment method deleted' })
+  async deletePaymentMethod(@Param('id') id: string, @Req() req) {
+    return this.paymentsService.deletePaymentMethod(req.user.id, id);
+  }
+
   @Get('invoices')
   @ApiOperation({ summary: 'Get user invoices' })
   @ApiResponse({ status: 200, description: 'List of invoices' })

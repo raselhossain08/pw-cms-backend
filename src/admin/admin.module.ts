@@ -19,9 +19,11 @@ import { Coupon, CouponSchema } from '../coupons/entities/coupon.entity';
 import { Transaction, TransactionSchema } from '../payments/entities/transaction.entity';
 import { Invoice, InvoiceSchema } from '../payments/entities/invoice.entity';
 import { SecurityMiddleware } from '../shared/middleware/security.middleware';
+import { IntegrationsModule } from '../integrations/integrations.module';
 
 @Module({
   imports: [
+    IntegrationsModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Course.name, schema: CourseSchema },

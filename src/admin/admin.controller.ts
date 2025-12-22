@@ -21,6 +21,25 @@ import { UserRole } from '../users/entities/user.entity';
 export class AdminController {
   constructor(private readonly adminService: AdminService) { }
 
+  // ==================== INTEGRATIONS MANAGEMENT ====================
+  @Get('integrations')
+  getAllIntegrations() {
+    return this.adminService.getAllIntegrations();
+  }
+
+  @Patch('integrations/:id')
+  updateIntegration(@Param('id') id: string, @Body() updateData: any) {
+    return this.adminService.updateIntegration(id, updateData);
+  }
+
+  @Post('integrations/:id/toggle')
+  toggleIntegrationStatus(
+    @Param('id') id: string,
+    @Body('status') status: boolean,
+  ) {
+    return this.adminService.toggleIntegrationStatus(id, status);
+  }
+
   // ==================== DASHBOARD ====================
   @Get('dashboard/stats')
   getDashboardStats() {

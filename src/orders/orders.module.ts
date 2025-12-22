@@ -6,6 +6,7 @@ import { Order, OrderSchema } from './entities/order.entity';
 import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CouponsModule } from '../coupons/coupons.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     CoursesModule,
     UsersModule,
     NotificationsModule,
+    CouponsModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

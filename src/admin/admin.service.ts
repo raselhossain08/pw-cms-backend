@@ -17,6 +17,7 @@ import { Coupon } from '../coupons/entities/coupon.entity';
 import { Transaction, TransactionStatus } from '../payments/entities/transaction.entity';
 import { Invoice } from '../payments/entities/invoice.entity';
 import { SecurityMiddleware } from '../shared/middleware/security.middleware';
+import { IntegrationsService } from '../integrations/integrations.service';
 
 @Injectable()
 export class AdminService {
@@ -32,7 +33,21 @@ export class AdminService {
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
     @InjectModel(Invoice.name) private invoiceModel: Model<Invoice>,
     @Inject(SecurityMiddleware) private securityMiddleware: SecurityMiddleware,
+    private integrationsService: IntegrationsService,
   ) { }
+
+  // ==================== INTEGRATIONS MANAGEMENT ====================
+  async getAllIntegrations() {
+    return this.integrationsService.findAll();
+  }
+
+  async updateIntegration(id: string, updateData: any) {
+    return this.integrationsService.update(id, updateData);
+  }
+
+  async toggleIntegrationStatus(id: string, status: boolean) {
+    return this.integrationsService.toggleStatus(id, status);
+  }
 
   // ==================== DASHBOARD OVERVIEW ====================
   async getDashboardStats(): Promise<any> {

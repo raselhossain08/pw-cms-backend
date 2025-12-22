@@ -12,6 +12,7 @@ import { CoursesService } from '../courses/courses.service';
 import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { CouponsService } from '../coupons/coupons.service';
 
 @Injectable()
 export class OrdersService {
@@ -20,6 +21,7 @@ export class OrdersService {
     private coursesService: CoursesService,
     private usersService: UsersService,
     private notificationsService: NotificationsService,
+    private couponsService: CouponsService,
   ) { }
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
@@ -32,6 +34,11 @@ export class OrdersService {
     const tax = createOrderDto.tax || 0;
     const total = createOrderDto.total || 0;
 
+    // Increment coupon usage if coupon is present
+    if (createOrderDto.coupon) {
+      await this.couponsService.incrementUsage(createOrderDto.coupon);
+    }
+
     const order = new this.orderModel({
       ...createOrderDto,
       orderNumber, // Explicitly set order number to prevent validation error
@@ -40,6 +47,7 @@ export class OrdersService {
       total,
       courses: createOrderDto.courses?.map((id) => new Types.ObjectId(id)) || [],
       user: new Types.ObjectId(createOrderDto.user),
+      coupon: createOrderDto.coupon ? new Types.ObjectId(createOrderDto.coupon) : undefined,
     });
 
     return await order.save();
@@ -68,6 +76,7 @@ export class OrdersService {
         .populate('user', 'firstName lastName email')
         .populate('courses', 'title slug price thumbnail')
         .populate('affiliate', 'firstName lastName email')
+        .populate('coupon', 'code value type')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -88,6 +97,7 @@ export class OrdersService {
       .populate('user', 'firstName lastName email phone')
       .populate('courses', 'title slug price thumbnail instructor')
       .populate('affiliate', 'firstName lastName email')
+      .populate('coupon', 'code value type')
       .exec();
 
     if (!order) {
@@ -102,6 +112,7 @@ export class OrdersService {
       .findOne({ orderNumber })
       .populate('user', 'firstName lastName email phone')
       .populate('courses', 'title slug price thumbnail instructor')
+      .populate('coupon', 'code value type')
       .exec();
 
     if (!order) {

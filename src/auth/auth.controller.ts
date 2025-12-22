@@ -126,6 +126,15 @@ export class AuthController {
     return this.authService.verifyEmailCode(String(code || ''));
   }
 
+  @Post('resend-verification-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend email verification using token or email' })
+  @ApiResponse({ status: 200, description: 'Verification email resent' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token/email' })
+  async resendVerificationToken(@Body() body: { token?: string; email?: string }) {
+    return this.authService.resendVerification(body.token, body.email);
+  }
+
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @Post('resend-verification')

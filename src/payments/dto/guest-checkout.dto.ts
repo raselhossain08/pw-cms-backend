@@ -7,8 +7,69 @@ import {
   IsNumber,
   IsOptional,
   IsEnum,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaymentMethod } from '../../orders/entities/order.entity';
+
+class CartItemDto {
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  courseId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  productId?: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  quantity: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  price: number;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  courseName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  productName?: string;
+}
+
+class BillingAddressDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  address: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  city: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  state: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  zipCode: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  country: string;
+}
 
 export class GuestCheckoutDto {
   @ApiProperty({ example: 'john@example.com' })
@@ -31,15 +92,12 @@ export class GuestCheckoutDto {
   @IsOptional()
   phone?: string;
 
-  @ApiProperty({ example: ['course-id-1', 'course-id-2'] })
+  @ApiProperty({ type: [CartItemDto] })
   @IsArray()
   @IsNotEmpty()
-  cartItems: Array<{
-    courseId?: string;
-    productId?: string;
-    quantity: number;
-    price: number;
-  }>;
+  @ValidateNested({ each: true })
+  @Type(() => CartItemDto)
+  cartItems: CartItemDto[];
 
   @ApiProperty({ example: 199.99 })
   @IsNumber()
@@ -61,13 +119,9 @@ export class GuestCheckoutDto {
   @IsOptional()
   couponCode?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ type: BillingAddressDto, required: false })
   @IsOptional()
-  billingAddress?: {
-    address: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
+  @ValidateNested()
+  @Type(() => BillingAddressDto)
+  billingAddress?: BillingAddressDto;
 }

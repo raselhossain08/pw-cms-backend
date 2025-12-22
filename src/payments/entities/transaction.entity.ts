@@ -34,6 +34,18 @@ export class Transaction extends Document {
   @Prop({ default: 'USD' })
   currency: string;
 
+  @ApiProperty({ example: 1.0, description: 'Exchange rate used' })
+  @Prop()
+  exchangeRate: number;
+
+  @ApiProperty({ example: 100.5, description: 'Amount in base currency' })
+  @Prop()
+  baseAmount: number;
+
+  @ApiProperty({ example: 'USD', description: 'Base currency' })
+  @Prop()
+  baseCurrency: string;
+
   @ApiProperty({
     enum: TransactionType,
     example: TransactionType.PAYMENT,

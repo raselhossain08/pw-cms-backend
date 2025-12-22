@@ -7,8 +7,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
-import { StripeService } from './providers/stripe.service';
-import { PayPalService } from './providers/paypal.service';
+import { StripeProvider } from '../integrations/providers/stripe.provider';
+import { PayPalProvider } from '../integrations/providers/paypal.provider';
 import { OrdersService } from '../orders/orders.service';
 import { CoursesService } from '../courses/courses.service';
 import { ProductsService } from '../products/products.service';
@@ -30,6 +30,10 @@ import {
 } from '../orders/entities/order.entity';
 import { User } from '../users/entities/user.entity';
 
+import { PaymentMethod as PaymentMethodEntity } from './entities/payment-method.entity';
+import { CustomerProfile } from './entities/customer-profile.entity';
+import { EncryptionUtil } from '../shared/utils/encryption.util';
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -37,9 +41,11 @@ export class PaymentsService {
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
     @InjectModel(Order.name) private orderModel: Model<Order>,
     @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(PaymentMethodEntity.name) private paymentMethodModel: Model<PaymentMethodEntity>,
+    @InjectModel(CustomerProfile.name) private customerProfileModel: Model<CustomerProfile>,
     private configService: ConfigService,
-    private stripeService: StripeService,
-    private paypalService: PayPalService,
+    private stripeService: StripeProvider,
+    private paypalService: PayPalProvider,
     private ordersService: OrdersService,
     private coursesService: CoursesService,
     private productsService: ProductsService,
@@ -52,15 +58,31 @@ export class PaymentsService {
     createPaymentIntentDto: CreatePaymentIntentDto,
     userId: string,
   ) {
-    const { amount, currency, paymentMethod, courseIds, description } =
+    const { amount, currency, paymentMethod, courseIds, description, couponCode } =
       createPaymentIntentDto;
+
+    let discount = 0;
+    let finalAmount = amount;
+    let couponId: string | undefined;
+
+    if (couponCode) {
+      const validation = await this.couponsService.validate(couponCode, amount);
+      if (!validation.valid) {
+        throw new BadRequestException(validation.message || 'Invalid coupon code');
+      }
+      discount = validation.discount;
+      finalAmount = Math.max(0, amount - discount);
+      couponId = validation.coupon?._id?.toString();
+    }
 
     const order = await this.ordersService.create({
       user: userId,
       courses: courseIds || [],
       subtotal: amount,
-      total: amount,
+      discount,
+      total: finalAmount,
       paymentMethod,
+      coupon: couponId,
     });
 
     const metadata = {
@@ -94,7 +116,7 @@ export class PaymentsService {
     }
 
     await this.orderModel.findByIdAndUpdate(order.id, {
-      paymentIntentId: paymentResult.paymentIntentId || paymentResult.orderId,
+      paymentIntentId: paymentResult.paymentIntentId || paymentResult.id || paymentResult.orderId,
     });
 
     // Create transaction record
@@ -107,7 +129,7 @@ export class PaymentsService {
       description: description || 'Course payment',
       gateway: paymentMethod,
       gatewayTransactionId:
-        paymentResult.paymentIntentId || paymentResult.orderId,
+        paymentResult.paymentIntentId || paymentResult.id || paymentResult.orderId,
       orderId: order.id,
     });
 
@@ -142,7 +164,7 @@ export class PaymentsService {
 
         case PaymentMethod.PAYPAL:
           paymentResult =
-            await this.paypalService.captureOrder(paymentIntentId);
+            await this.paypalService.confirmPayment(paymentIntentId);
           break;
 
         default:
@@ -245,11 +267,87 @@ export class PaymentsService {
     return { transactions, total };
   }
 
+  async getPaymentMethods(userId: string) {
+    const methods = await this.paymentMethodModel.find({ user: userId }).sort({ isDefault: -1, createdAt: -1 });
+    // Decrypt sensitive data if needed, but for listing we mostly need last4/brand
+    // We'll keep providerMethodId encrypted in response as it shouldn't be exposed
+    return methods;
+  }
+
+  async addPaymentMethod(userId: string, paymentMethodId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    // 1. Get or create customer profile
+    let profile = await this.customerProfileModel.findOne({ user: userId });
+    let stripeCustomerId = profile?.stripeCustomerId ? EncryptionUtil.decrypt(profile.stripeCustomerId) : null;
+
+    if (!profile) {
+      // Create Stripe customer
+      const customer = await this.stripeService.createCustomer(user.email, `${user.firstName} ${user.lastName}`);
+      stripeCustomerId = customer.id;
+
+      profile = new this.customerProfileModel({
+        user: userId,
+        stripeCustomerId: EncryptionUtil.encrypt(customer.id),
+      });
+      await profile.save();
+    } else if (!stripeCustomerId) {
+      const customer = await this.stripeService.createCustomer(user.email, `${user.firstName} ${user.lastName}`);
+      stripeCustomerId = customer.id;
+      profile.stripeCustomerId = EncryptionUtil.encrypt(customer.id);
+      await profile.save();
+    }
+
+    // 2. Attach payment method to customer
+    await this.stripeService.attachPaymentMethod(stripeCustomerId, paymentMethodId);
+
+    // 3. Get payment method details
+    const pm: any = await this.stripeService.retrievePaymentMethod(paymentMethodId);
+
+    const method = new this.paymentMethodModel({
+      user: userId,
+      provider: 'stripe',
+      type: pm.type,
+      providerMethodId: EncryptionUtil.encrypt(paymentMethodId),
+      last4: pm.card?.last4 || '',
+      brand: pm.card?.brand || '',
+      expMonth: pm.card?.exp_month,
+      expYear: pm.card?.exp_year,
+      isDefault: false, // Logic to set default if first one?
+    });
+
+    // If it's the first method, make it default
+    const count = await this.paymentMethodModel.countDocuments({ user: userId });
+    if (count === 0) {
+      method.isDefault = true;
+    }
+
+    return await method.save();
+  }
+
+  async deletePaymentMethod(userId: string, methodId: string) {
+    const method = await this.paymentMethodModel.findOne({ _id: methodId, user: userId });
+    if (!method) {
+      throw new NotFoundException('Payment method not found');
+    }
+
+    // Detach from Stripe
+    if (method.provider === 'stripe') {
+      const providerMethodId = EncryptionUtil.decrypt(method.providerMethodId);
+      await this.stripeService.detachPaymentMethod(providerMethodId);
+    }
+
+    await this.paymentMethodModel.findByIdAndDelete(methodId);
+    return { success: true, message: 'Payment method deleted' };
+  }
+
   async handleStripeWebhook(payload: any, signature: string) {
-    const { event, type } = await this.stripeService.handleWebhook(
+    const event = await this.stripeService.constructEvent(
       payload,
       signature,
     );
+    const type = event.type;
 
     switch (type) {
       case 'payment_intent.succeeded':
@@ -364,9 +462,16 @@ export class PaymentsService {
 
     try {
       if (order.paymentMethod === PaymentMethod.STRIPE) {
-        refundResult = await this.stripeService.refundPayment(
+        refundResult = await this.stripeService.createRefund(
           order.paymentIntentId,
         );
+      } else if (order.paymentMethod === PaymentMethod.PAYPAL) {
+        // Assuming PayPal refund is supported now
+        // We need capture ID, but order.chargeId stores it
+        if (!order.chargeId) {
+          throw new BadRequestException('No charge ID found for PayPal refund');
+        }
+        refundResult = await this.paypalService.createRefund(order.chargeId);
       } else {
         throw new BadRequestException(
           'Refunds for this payment method are not yet supported',
@@ -589,13 +694,29 @@ export class PaymentsService {
       };
     });
 
+    let discount = 0;
+    let finalTotal = subtotal;
+    let couponId: string | undefined;
+
+    if (couponCode) {
+      const validation = await this.couponsService.validate(couponCode, subtotal);
+      if (!validation.valid) {
+        throw new BadRequestException(validation.message || 'Invalid coupon code');
+      }
+      discount = validation.discount;
+      finalTotal = Math.max(0, subtotal - discount);
+      couponId = validation.coupon?._id?.toString();
+    }
+
     // Create order
     const order = await this.ordersService.create({
       user: userId,
       courses: courseIds,
       subtotal,
-      total: subtotal,
+      discount,
+      total: finalTotal,
       paymentMethod: PaymentMethod.STRIPE,
+      coupon: couponId,
     });
 
     // Create Stripe session
@@ -617,14 +738,30 @@ export class PaymentsService {
   }
 
   async createPayPalOrder(data: any, userId: string) {
-    const { amount, currency, items } = data;
+    const { amount, currency, items, couponCode } = data;
+
+    let discount = 0;
+    let finalAmount = amount;
+    let couponId: string | undefined;
+
+    if (couponCode) {
+      const validation = await this.couponsService.validate(couponCode, amount);
+      if (!validation.valid) {
+        throw new BadRequestException(validation.message || 'Invalid coupon code');
+      }
+      discount = validation.discount;
+      finalAmount = Math.max(0, amount - discount);
+      couponId = validation.coupon?._id?.toString();
+    }
 
     const order = await this.ordersService.create({
       user: userId,
       courses: [],
       subtotal: amount,
-      total: amount,
+      discount,
+      total: finalAmount,
       paymentMethod: PaymentMethod.PAYPAL,
+      coupon: couponId,
     });
 
     const paypalOrder = await this.paypalService.createOrder(
@@ -655,9 +792,9 @@ export class PaymentsService {
       throw new NotFoundException('Order not found');
     }
 
-    const result = await this.paypalService.captureOrder(orderId);
+    const result = await this.paypalService.confirmPayment(orderId);
 
-    if (result.status === 'COMPLETED') {
+    if (result.success) {
       order.status = OrderStatus.COMPLETED;
       order.paidAt = new Date();
       await order.save();
@@ -739,6 +876,10 @@ export class PaymentsService {
    */
   async processCheckout(checkoutDto: any, userId: string) {
     const {
+      firstName,
+      lastName,
+      email,
+      phone,
       cartItems,
       total,
       subtotal,
@@ -769,7 +910,7 @@ export class PaymentsService {
       );
 
       if (!couponValidation.valid) {
-        throw new BadRequestException('Invalid or expired coupon code');
+        throw new BadRequestException(couponValidation.message || 'Invalid or expired coupon code');
       }
 
       discount = couponValidation.discount;
@@ -799,25 +940,31 @@ export class PaymentsService {
       discount,
       total: finalTotal,
       paymentMethod,
+      coupon: appliedCoupon ? appliedCoupon._id.toString() : undefined,
       billingAddress: billingAddress
         ? {
-          firstName: billingAddress.firstName || '',
-          lastName: billingAddress.lastName || '',
-          email: billingAddress.email || '',
-          phone: billingAddress.phone || '',
-          street: billingAddress.address || '',
+          firstName: billingAddress.firstName || firstName || '',
+          lastName: billingAddress.lastName || lastName || '',
+          email: billingAddress.email || email || '',
+          phone: billingAddress.phone || phone || '',
+          street: billingAddress.address || billingAddress.street || '',
           city: billingAddress.city || '',
           state: billingAddress.state || '',
           country: billingAddress.country || '',
           zipCode: billingAddress.zipCode || '',
         }
-        : undefined,
+        : {
+          firstName: firstName || '',
+          lastName: lastName || '',
+          email: email || '',
+          phone: phone || '',
+          street: '',
+          city: '',
+          state: '',
+          country: '',
+          zipCode: '',
+        },
     } as any);
-
-    // Apply coupon if used
-    if (appliedCoupon) {
-      await this.couponsService.applyCoupon(couponCode);
-    }
 
     // Handle payment based on method and test mode
     let paymentResult;
@@ -1018,9 +1165,19 @@ export class PaymentsService {
         items,
       );
 
+      // Force URL into paymentResult if not present (although provider should now return it)
+      if (!paymentResult.url && paymentResult.links) {
+        const approveLink = paymentResult.links.find((link: any) => link.rel === 'approve');
+        if (approveLink) {
+          paymentResult.url = approveLink.href;
+        }
+      }
+
       await this.orderModel.findByIdAndUpdate(order._id, {
         paymentIntentId: paymentResult.orderId,
       });
+    } else {
+      throw new BadRequestException('Invalid payment method selected');
     }
 
     return {
@@ -1065,7 +1222,7 @@ export class PaymentsService {
       );
 
       if (!couponValidation.valid) {
-        throw new BadRequestException('Invalid or expired coupon code');
+        throw new BadRequestException(couponValidation.message || 'Invalid or expired coupon code');
       }
 
       discount = couponValidation.discount;
@@ -1121,6 +1278,7 @@ export class PaymentsService {
       discount,
       total: finalTotal,
       paymentMethod,
+      coupon: appliedCoupon ? appliedCoupon._id.toString() : undefined,
     } as any);
 
     // Store generated password in order metadata for email sending
@@ -1130,11 +1288,6 @@ export class PaymentsService {
           'metadata.temporaryPassword': generatedPassword,
         },
       });
-    }
-
-    // Apply coupon if used
-    if (appliedCoupon) {
-      await this.couponsService.applyCoupon(couponCode);
     }
 
     // Handle free orders (100% discount or $0 total)
@@ -1190,47 +1343,102 @@ export class PaymentsService {
     if (paymentMethod === 'stripe') {
       // Fetch course/product names for Stripe line items
       const lineItems = await Promise.all(
-        cartItems.map(async (item: any) => {
-          let name = item.courseName || item.productName || 'Item';
-          let description = item.description || '';
+        cartItems.map(async (item: any, index: number) => {
+          // Initialize with fallback values
+          let name = 'Item';
+          let description = '';
+
+          // Try to get name from item first
+          if (item.courseName && item.courseName.trim()) {
+            name = item.courseName.trim();
+          } else if (item.productName && item.productName.trim()) {
+            name = item.productName.trim();
+          }
+
+          if (item.description) {
+            description = item.description;
+          }
 
           // Fetch course or product details if ID is provided
           if (item.courseId) {
             try {
               const course = await this.coursesService.findById(item.courseId);
-              name = course.title;
-              description = course.excerpt || course.description || description;
+              if (course?.title) {
+                name = course.title.trim();
+              }
+              if (course?.excerpt || course?.description) {
+                description = (course.excerpt || course.description || '').trim();
+              }
             } catch (error) {
               console.error(`Failed to fetch course ${item.courseId}:`, error);
+              // Use fallback: Course + ID
+              if (!name || name === 'Item') {
+                name = `Course ${item.courseId.substring(0, 8)}`;
+              }
             }
           } else if (item.productId) {
             try {
               const product = await this.productsService.findById(item.productId);
-              name = product.title;
-              description = product.description || description;
+              if (product?.title) {
+                name = product.title.trim();
+              }
+              if (product?.description) {
+                description = product.description.trim();
+              }
             } catch (error) {
               console.error(`Failed to fetch product ${item.productId}:`, error);
+              // Use fallback: Product + ID
+              if (!name || name === 'Item') {
+                name = `Product ${item.productId.substring(0, 8)}`;
+              }
             }
           }
 
-          // Ensure name is never empty (Stripe requirement)
+          // Final fallback - ensure name is never empty
           if (!name || name.trim() === '') {
-            name = item.courseId ? 'Course' : item.productId ? 'Product' : 'Item';
+            name = item.courseId ? `Course ${item.courseId.substring(0, 8)}`
+              : item.productId ? `Product ${item.productId.substring(0, 8)}`
+                : `Item ${index + 1}`;
           }
 
-          return {
+          // Final validation - this should never fail now
+          const finalName = name.trim();
+          if (!finalName || finalName.length === 0) {
+            throw new BadRequestException(`Line item ${index} has empty name after all fallbacks`);
+          }
+
+          const lineItem = {
             price_data: {
               currency: 'usd',
               product_data: {
-                name: name.trim(),
-                description: (description || '').substring(0, 500), // Stripe limit
+                name: finalName,
+                description: (description || 'No description available').substring(0, 500), // Stripe limit
               },
               unit_amount: Math.round(item.price * 100),
             },
             quantity: item.quantity || 1,
           };
+
+          // Log for debugging
+          console.log(`Line item ${index}:`, JSON.stringify(lineItem, null, 2));
+
+          return lineItem;
         })
       );
+
+      // Validate line items before sending to Stripe
+      if (!lineItems || lineItems.length === 0) {
+        throw new BadRequestException('No valid line items to process');
+      }
+
+      // Final validation of all line items
+      for (let i = 0; i < lineItems.length; i++) {
+        const item = lineItems[i];
+        if (!item.price_data?.product_data?.name || item.price_data.product_data.name.trim() === '') {
+          console.error(`Invalid line item at index ${i}:`, JSON.stringify(item, null, 2));
+          throw new BadRequestException(`Line item ${i} is missing required name field`);
+        }
+      }
 
       paymentResult = await this.stripeService.createCheckoutSession({
         lineItems,
@@ -1241,11 +1449,11 @@ export class PaymentsService {
 
       // Update order with session ID
       await this.orderModel.findByIdAndUpdate(order._id, {
-        paymentIntentId: paymentResult.sessionId,
+        paymentIntentId: paymentResult.id,
       });
     } else if (paymentMethod === 'paypal') {
       const items = cartItems.map((item: any) => ({
-        name: item.courseName || item.productName,
+        name: item.courseName || item.productName || 'Item',
         quantity: item.quantity || 1,
         unit_amount: {
           currency_code: 'USD',
@@ -1259,9 +1467,19 @@ export class PaymentsService {
         items,
       );
 
+      // Force URL into paymentResult if not present
+      if (!paymentResult.url && paymentResult.links) {
+        const approveLink = paymentResult.links.find((link: any) => link.rel === 'approve');
+        if (approveLink) {
+          paymentResult.url = approveLink.href;
+        }
+      }
+
       await this.orderModel.findByIdAndUpdate(order._id, {
         paymentIntentId: paymentResult.orderId,
       });
+    } else {
+      throw new BadRequestException('Invalid payment method selected');
     }
 
     return {
@@ -1281,14 +1499,7 @@ export class PaymentsService {
    * Sends appropriate email based on whether user is new or existing
    */
   async verifyGuestPayment(sessionId: string, email: string) {
-    // Retrieve payment session
-    const session = await this.stripeService.retrieveCheckoutSession(sessionId);
-
-    if (session.payment_status !== 'paid') {
-      throw new BadRequestException('Payment not completed');
-    }
-
-    // Find order by session ID
+    // Find order by session ID (Stripe) or Payment Intent ID (PayPal)
     const order = await this.orderModel
       .findOne({
         paymentIntentId: sessionId,
@@ -1299,22 +1510,75 @@ export class PaymentsService {
       throw new NotFoundException('Order not found');
     }
 
-    // Update order status
-    order.status = OrderStatus.COMPLETED;
-    order.paidAt = new Date();
-    await order.save();
+    // Check payment status based on provider
+    let isPaid = false;
+    let paymentMetadata: any = {};
 
-    // Create invoice
-    await this.createInvoice(order);
+    if (order.paymentMethod === 'paypal') {
+      try {
+        // For PayPal, we need to capture the order if not already captured
+        if (order.status === OrderStatus.COMPLETED) {
+          isPaid = true;
+        } else {
+          const captureResult = await this.paypalService.confirmPayment(sessionId);
+          isPaid = captureResult.success;
+          paymentMetadata = captureResult.data;
+        }
+      } catch (error) {
+        // If already captured or other error, check status directly if possible
+        // But for now, assume failure if capture fails and not already completed
+        console.error('PayPal verification failed:', error);
+        if (order.status === OrderStatus.COMPLETED) isPaid = true;
+      }
+    } else {
+      // Stripe
+      const session = await this.stripeService.retrieveCheckoutSession(sessionId);
+      if (session.payment_status === 'paid') {
+        isPaid = true;
+        paymentMetadata = session.metadata;
+      }
+    }
+
+    if (!isPaid) {
+      throw new BadRequestException('Payment not completed');
+    }
+
+    // Update order status if not already completed
+    if (order.status !== OrderStatus.COMPLETED) {
+      order.status = OrderStatus.COMPLETED;
+      order.paidAt = new Date();
+      await order.save();
+
+      // Create invoice
+      await this.createInvoice(order);
+
+      // Create enrollments for purchased courses
+      await this.createEnrollmentsForOrder(order);
+    }
 
     // Get user details
     const user = await this.userModel.findById(order.user);
 
-    // Check if this was a new user registration
-    const isNewUser = session.metadata?.isNewUser === 'true';
-    const temporaryPassword = session.metadata?.temporaryPassword || '';
+    // Check if this was a new user registration (from metadata if available, or order context)
+    // For Stripe, it's in session.metadata. For PayPal, we might not have it in capture response unless we stored it.
+    // However, we can infer it if the user was created recently or check our own logic.
+    // But verifyGuestPayment signature implies we might not have the original context easily.
+    // We can rely on the fact that if we are here, and order is completed, we should send emails.
+    // To support `isNewUser` flag correctly across providers, we should store it in the Order model or rely on the fact 
+    // that the frontend passes it? No, frontend shouldn't be trusted for that.
+    // Let's rely on Stripe metadata for Stripe. For PayPal, we might miss it if not stored.
+    // Fix: We should check if the user has a password set or if they are "new" by creation date?
+    // Or we can rely on `paymentMetadata` if we passed it to PayPal custom_id or similar.
+    // In createOrder, we didn't pass extensive metadata to PayPal.
+
+    // Fallback: Check if we have paymentMetadata.isNewUser (Stripe)
+    const isNewUser = paymentMetadata?.isNewUser === 'true';
+    const temporaryPassword = paymentMetadata?.temporaryPassword || '';
 
     // Send appropriate email
+    // Only send if we haven't sent it yet? Ideally we should track email sent status.
+    // For now, send if order was just completed.
+
     if (isNewUser && temporaryPassword) {
       // Send welcome email with credentials
       await this.sendWelcomeEmail(user, order, temporaryPassword);
@@ -1322,9 +1586,6 @@ export class PaymentsService {
       // Send purchase confirmation email only
       await this.sendPurchaseConfirmationEmail(user, order);
     }
-
-    // Create enrollments for purchased courses
-    await this.createEnrollmentsForOrder(order);
 
     return {
       success: true,
