@@ -32,6 +32,7 @@ import { CouponsModule } from './coupons/coupons.module';
 import { CertificatesModule } from './certificates/certificates.module';
 import { DiscussionsModule } from './discussions/discussions.module';
 import { AssignmentsModule } from './assignments/assignments.module';
+import { TrainingProgramsModule } from './training-programs/training-programs.module';
 
 // Admin & Analytics Modules
 import { AdminModule } from './admin/admin.module';
@@ -178,6 +179,7 @@ import { AiBotGateway } from './ai-bot/ai-bot.gateway';
     CertificatesModule,
     DiscussionsModule,
     AssignmentsModule,
+    TrainingProgramsModule,
 
     // Admin & Analytics Modules
     AdminModule,

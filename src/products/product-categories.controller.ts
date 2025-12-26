@@ -31,9 +31,7 @@ import { Public } from '../shared/decorators/public.decorator';
 @ApiTags('Product Categories')
 @Controller('products/categories')
 export class ProductCategoriesController {
-  constructor(
-    private readonly categoriesService: ProductCategoriesService,
-  ) { }
+  constructor(private readonly categoriesService: ProductCategoriesService) {}
 
   @Get()
   @Public()
@@ -128,7 +126,10 @@ export class ProductCategoriesController {
   @ApiOperation({ summary: 'Delete a product category' })
   @ApiResponse({ status: 200, description: 'Category deleted successfully' })
   @ApiResponse({ status: 404, description: 'Category not found' })
-  @ApiResponse({ status: 400, description: 'Cannot delete category with products or subcategories' })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot delete category with products or subcategories',
+  })
   async remove(@Param('id') id: string) {
     await this.categoriesService.remove(id);
     return {

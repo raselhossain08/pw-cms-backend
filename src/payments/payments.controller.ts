@@ -23,7 +23,7 @@ import { ProcessPaymentDto } from './dto/process-payment.dto';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) { }
+  constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('create-intent')
   @ApiOperation({ summary: 'Create payment intent' })
@@ -83,7 +83,10 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Add payment method' })
   @ApiResponse({ status: 201, description: 'Payment method added' })
   async addPaymentMethod(@Body() body: any, @Req() req) {
-    return this.paymentsService.addPaymentMethod(req.user.id, body.paymentMethodId);
+    return this.paymentsService.addPaymentMethod(
+      req.user.id,
+      body.paymentMethodId,
+    );
   }
 
   @Post('methods/:id/delete')
@@ -170,7 +173,7 @@ import { GuestCheckoutDto } from './dto/guest-checkout.dto';
 @ApiTags('Guest Payments')
 @Controller('payments/guest')
 export class GuestPaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) { }
+  constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('checkout')
   @ApiOperation({ summary: 'Guest checkout - creates user if not exists' })
@@ -182,11 +185,40 @@ export class GuestPaymentsController {
 
   @Post('verify-payment/:sessionId')
   @ApiOperation({ summary: 'Verify guest payment and send confirmation email' })
-  @ApiResponse({ status: 200, description: 'Payment verified' })
+  @ApiResponse({ status: 200, description: 'Payment verified successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid session or payment not completed',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Order or payment session not found',
+  })
   async verifyGuestPayment(
     @Param('sessionId') sessionId: string,
     @Body() body: { email: string },
   ) {
-    return this.paymentsService.verifyGuestPayment(sessionId, body.email);
+    try {
+      // Validate request body
+      if (!body.email) {
+        throw new Error('Email is required');
+      }
+
+      return await this.paymentsService.verifyGuestPayment(
+        sessionId,
+        body.email,
+      );
+    } catch (error) {
+      // Log error for debugging
+      console.error('[GuestPaymentsController] verifyGuestPayment error:', {
+        sessionId,
+        email: body.email,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      // Re-throw to let NestJS exception filters handle it
+      throw error;
+    }
   }
 }

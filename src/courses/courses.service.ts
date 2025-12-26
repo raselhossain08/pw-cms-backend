@@ -50,7 +50,7 @@ export class CoursesService {
     }
 
     // Ensure unique slug
-    let baseSlug = slug;
+    const baseSlug = slug;
     let counter = 1;
     while (await this.courseModel.findOne({ slug })) {
       slug = `${baseSlug}-${counter}`;
@@ -337,7 +337,8 @@ export class CoursesService {
       throw new ForbiddenException(
         'You can only add lessons to your own courses',
       );
-    } let slug = (createLessonDto as any).slug as string | undefined;
+    }
+    let slug = (createLessonDto as any).slug as string | undefined;
     if (!slug) {
       slug = (createLessonDto.title || '')
         .toLowerCase()
@@ -459,11 +460,10 @@ export class CoursesService {
       delete updateData.moduleId;
     }
 
-    const updatedLesson = await this.lessonModel.findByIdAndUpdate(
-      lessonId,
-      updateData,
-      { new: true },
-    ).populate('module').populate('course');
+    const updatedLesson = await this.lessonModel
+      .findByIdAndUpdate(lessonId, updateData, { new: true })
+      .populate('module')
+      .populate('course');
 
     if (!updatedLesson) {
       throw new NotFoundException('Lesson not found');
@@ -1048,5 +1048,188 @@ export class CoursesService {
     }
 
     return { unpublished };
+  }
+
+  async exportCourses(
+    format: 'csv' | 'xlsx' | 'pdf',
+    status?: string,
+    category?: string,
+    user?: any,
+  ): Promise<any> {
+    // Build query based on filters
+    const query: any = {};
+    if (status) {
+      query.status = status;
+    }
+    if (category) {
+      query.categories = { $in: [category] };
+    }
+
+    // If not admin/super_admin, only show their own courses
+    if (user && user.role === UserRole.INSTRUCTOR) {
+      query.instructor = new Types.ObjectId(user.id);
+    }
+
+    const courses = await this.courseModel
+      .find(query)
+      .populate('instructor', 'firstName lastName email')
+      .lean();
+
+    if (format === 'csv') {
+      const headers = [
+        'Title',
+        'Slug',
+        'Instructor',
+        'Level',
+        'Type',
+        'Price',
+        'Status',
+        'Students',
+        'Rating',
+        'Created At',
+      ];
+      const rows = courses.map((c: any) => [
+        c.title,
+        c.slug,
+        c.instructor
+          ? `${c.instructor.firstName || ''} ${c.instructor.lastName || ''}`.trim()
+          : 'N/A',
+        c.level,
+        c.type,
+        c.price,
+        c.status,
+        c.studentCount || 0,
+        c.rating || 0,
+        c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A',
+      ]);
+
+      return {
+        data: [headers, ...rows].map((row) => row.join(',')).join('\n'),
+        contentType: 'text/csv',
+        filename: `courses-${Date.now()}.csv`,
+      };
+    } else if (format === 'xlsx') {
+      // Return structured data for XLSX generation (frontend will handle with libraries like xlsx)
+      return {
+        data: courses.map((c: any) => ({
+          Title: c.title,
+          Slug: c.slug,
+          Instructor: c.instructor
+            ? `${c.instructor.firstName || ''} ${c.instructor.lastName || ''}`.trim()
+            : 'N/A',
+          Level: c.level,
+          Type: c.type,
+          Price: c.price,
+          Status: c.status,
+          Students: c.studentCount || 0,
+          Rating: c.rating || 0,
+          'Created At': c.createdAt
+            ? new Date(c.createdAt).toLocaleDateString()
+            : 'N/A',
+        })),
+        contentType: 'application/json',
+        filename: `courses-${Date.now()}.xlsx`,
+      };
+    } else if (format === 'pdf') {
+      // Return structured data for PDF generation (frontend will handle with libraries like jsPDF)
+      return {
+        data: courses.map((c: any) => ({
+          title: c.title,
+          slug: c.slug,
+          instructor: c.instructor
+            ? `${c.instructor.firstName || ''} ${c.instructor.lastName || ''}`.trim()
+            : 'N/A',
+          level: c.level,
+          type: c.type,
+          price: c.price,
+          status: c.status,
+          students: c.studentCount || 0,
+          rating: c.rating || 0,
+          createdAt: c.createdAt
+            ? new Date(c.createdAt).toLocaleDateString()
+            : 'N/A',
+        })),
+        contentType: 'application/json',
+        filename: `courses-${Date.now()}.pdf`,
+      };
+    }
+
+    throw new BadRequestException('Invalid export format');
+  }
+
+  async getCourseAnalytics(
+    courseId: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<any> {
+    const course = await this.courseModel
+      .findById(courseId)
+      .populate('instructor', 'firstName lastName');
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Check permissions
+    if (
+      userRole !== UserRole.SUPER_ADMIN &&
+      userRole !== UserRole.ADMIN &&
+      course.instructor.toString() !== userId
+    ) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // Get lessons count
+    const lessonsCount = await this.lessonModel.countDocuments({
+      course: new Types.ObjectId(courseId),
+    });
+
+    // Build analytics data
+    return {
+      courseId: course._id,
+      title: course.title,
+      totalStudents: course.studentCount || 0,
+      totalRevenue: (course.price || 0) * (course.studentCount || 0),
+      completionRate: course.completionRate || 0,
+      averageRating: course.rating || 0,
+      totalReviews: course.reviewCount || 0,
+      lessonsCount,
+      enrollmentTrend: [], // Placeholder for time-series data
+      revenueByMonth: [], // Placeholder for revenue trends
+      studentEngagement: {
+        active: 0, // Placeholder
+        completed: 0,
+        dropped: 0,
+      },
+    };
+  }
+
+  async getPreview(courseId: string): Promise<any> {
+    const course = await this.courseModel
+      .findById(courseId)
+      .populate('instructor', 'firstName lastName avatar email')
+      .lean();
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Get free lessons only for preview
+    const freeLessons = await this.lessonModel
+      .find({
+        course: new Types.ObjectId(courseId),
+        isFree: true,
+        status: 'published',
+      })
+      .select('title description duration type position videoUrl thumbnail')
+      .lean();
+
+    return {
+      ...course,
+      previewLessons: freeLessons,
+      totalLessons: await this.lessonModel.countDocuments({
+        course: new Types.ObjectId(courseId),
+      }),
+    };
   }
 }

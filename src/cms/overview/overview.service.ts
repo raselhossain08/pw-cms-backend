@@ -19,19 +19,24 @@ import { Footer } from '../footer/schemas/footer.schema';
 export class OverviewService {
   constructor(
     @InjectModel(Banner.name) private bannerModel: Model<Banner>,
-    @InjectModel(AboutSection.name) private aboutSectionModel: Model<AboutSection>,
+    @InjectModel(AboutSection.name)
+    private aboutSectionModel: Model<AboutSection>,
     @InjectModel(Events.name) private eventsModel: Model<Events>,
-    @InjectModel(Testimonials.name) private testimonialsModel: Model<Testimonials>,
+    @InjectModel(Testimonials.name)
+    private testimonialsModel: Model<Testimonials>,
     @InjectModel(Blog.name) private blogModel: Model<Blog>,
     @InjectModel(AboutUs.name) private aboutUsModel: Model<AboutUs>,
     @InjectModel(Contact.name) private contactModel: Model<Contact>,
     @InjectModel(Faqs.name) private faqModel: Model<Faqs>,
-    @InjectModel(PrivacyPolicy.name) private privacyPolicyModel: Model<PrivacyPolicy>,
-    @InjectModel(RefundPolicy.name) private refundPolicyModel: Model<RefundPolicy>,
-    @InjectModel(TermsConditions.name) private termsConditionsModel: Model<TermsConditions>,
+    @InjectModel(PrivacyPolicy.name)
+    private privacyPolicyModel: Model<PrivacyPolicy>,
+    @InjectModel(RefundPolicy.name)
+    private refundPolicyModel: Model<RefundPolicy>,
+    @InjectModel(TermsConditions.name)
+    private termsConditionsModel: Model<TermsConditions>,
     @InjectModel(TopBar.name) private topBarModel: Model<TopBar>,
     @InjectModel(Footer.name) private footerModel: Model<Footer>,
-  ) { }
+  ) {}
 
   async getStats() {
     const [
@@ -74,19 +79,30 @@ export class OverviewService {
           inactive: banners.filter((b) => !b.isActive).length,
         },
         events: {
-          total: events.length > 0 ? (events[0]?.events?.length || 0) : 0,
+          total: events.length > 0 ? events[0]?.events?.length || 0 : 0,
           active: events.filter((e) => e.isActive).length,
           inactive: events.filter((e) => !e.isActive).length,
         },
         testimonials: {
-          total: testimonials.length > 0 ? (testimonials[0]?.testimonials?.length || 0) : 0,
+          total:
+            testimonials.length > 0
+              ? testimonials[0]?.testimonials?.length || 0
+              : 0,
           active: testimonials.filter((t) => t.isActive).length,
           inactive: testimonials.filter((t) => !t.isActive).length,
         },
         blogPosts: {
-          total: blogs.length > 0 ? (blogs[0]?.blogs?.length || 0) : 0,
-          published: blogs.length > 0 ? (blogs[0]?.blogs?.filter((b: any) => b.status === 'published')?.length || 0) : 0,
-          draft: blogs.length > 0 ? (blogs[0]?.blogs?.filter((b: any) => b.status === 'draft')?.length || 0) : 0,
+          total: blogs.length > 0 ? blogs[0]?.blogs?.length || 0 : 0,
+          published:
+            blogs.length > 0
+              ? blogs[0]?.blogs?.filter((b: any) => b.status === 'published')
+                  ?.length || 0
+              : 0,
+          draft:
+            blogs.length > 0
+              ? blogs[0]?.blogs?.filter((b: any) => b.status === 'draft')
+                  ?.length || 0
+              : 0,
         },
         aboutSection: {
           isActive: aboutSection?.isActive || false,
@@ -160,37 +176,62 @@ export class OverviewService {
         status: aboutSection?.isActive ? 'active' : 'inactive',
         category: 'home',
         hasContent: !!aboutSection,
-        lastUpdated: (aboutSection as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        lastUpdated:
+          (aboutSection as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
       {
         id: 'events',
         label: 'Events',
         href: '/cms/home/events',
         icon: 'Calendar',
-        status: events.length > 0 && events[0]?.isActive ? 'active' : events.length > 0 ? 'inactive' : 'empty',
+        status:
+          events.length > 0 && events[0]?.isActive
+            ? 'active'
+            : events.length > 0
+              ? 'inactive'
+              : 'empty',
         category: 'home',
         hasContent: events.length > 0 && (events[0]?.events?.length || 0) > 0,
-        lastUpdated: (events[0] as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        lastUpdated:
+          (events[0] as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
       {
         id: 'testimonials',
         label: 'Testimonials',
         href: '/cms/home/testimonials',
         icon: 'MessageSquare',
-        status: testimonials.length > 0 && testimonials[0]?.isActive ? 'active' : testimonials.length > 0 ? 'inactive' : 'empty',
+        status:
+          testimonials.length > 0 && testimonials[0]?.isActive
+            ? 'active'
+            : testimonials.length > 0
+              ? 'inactive'
+              : 'empty',
         category: 'home',
-        hasContent: testimonials.length > 0 && (testimonials[0]?.testimonials?.length || 0) > 0,
-        lastUpdated: (testimonials[0] as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        hasContent:
+          testimonials.length > 0 &&
+          (testimonials[0]?.testimonials?.length || 0) > 0,
+        lastUpdated:
+          (testimonials[0] as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
       {
         id: 'blog',
         label: 'Blog',
         href: '/cms/home/blog',
         icon: 'Newspaper',
-        status: blogs.length > 0 && blogs[0]?.isActive ? 'active' : blogs.length > 0 ? 'inactive' : 'empty',
+        status:
+          blogs.length > 0 && blogs[0]?.isActive
+            ? 'active'
+            : blogs.length > 0
+              ? 'inactive'
+              : 'empty',
         category: 'home',
         hasContent: blogs.length > 0 && (blogs[0]?.blogs?.length || 0) > 0,
-        lastUpdated: (blogs[0] as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        lastUpdated:
+          (blogs[0] as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
       {
         id: 'header',
@@ -220,7 +261,9 @@ export class OverviewService {
         status: 'manage',
         category: 'pages',
         hasContent: !!aboutUs,
-        lastUpdated: (aboutUs as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        lastUpdated:
+          (aboutUs as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
       {
         id: 'contact',
@@ -240,7 +283,9 @@ export class OverviewService {
         status: 'manage',
         category: 'pages',
         hasContent: faqs.length > 0,
-        lastUpdated: (faqs[0] as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        lastUpdated:
+          (faqs[0] as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
       {
         id: 'privacy-policy',
@@ -250,7 +295,9 @@ export class OverviewService {
         status: 'manage',
         category: 'policies',
         hasContent: !!privacyPolicy,
-        lastUpdated: (privacyPolicy as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        lastUpdated:
+          (privacyPolicy as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
       {
         id: 'refund-policy',
@@ -260,7 +307,9 @@ export class OverviewService {
         status: 'manage',
         category: 'policies',
         hasContent: !!refundPolicy,
-        lastUpdated: (refundPolicy as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        lastUpdated:
+          (refundPolicy as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
       {
         id: 'terms-conditions',
@@ -270,7 +319,9 @@ export class OverviewService {
         status: 'manage',
         category: 'policies',
         hasContent: !!termsConditions,
-        lastUpdated: (termsConditions as any)?.updatedAt?.toISOString() || new Date().toISOString(),
+        lastUpdated:
+          (termsConditions as any)?.updatedAt?.toISOString() ||
+          new Date().toISOString(),
       },
     ];
 
@@ -297,7 +348,7 @@ export class OverviewService {
       csvRows.push('Section,Status,Category,Has Content,Last Updated');
       sections.data.forEach((section: any) => {
         csvRows.push(
-          `"${section.label}","${section.status}","${section.category}","${section.hasContent}","${section.lastUpdated || 'N/A'}"`
+          `"${section.label}","${section.status}","${section.category}","${section.hasContent}","${section.lastUpdated || 'N/A'}"`,
         );
       });
       return {

@@ -21,4 +21,4 @@ import { Lesson, LessonSchema } from '../courses/entities/lesson.entity';
   providers: [QuizzesService],
   exports: [QuizzesService, MongooseModule],
 })
-export class QuizzesModule { }
+export class QuizzesModule {}

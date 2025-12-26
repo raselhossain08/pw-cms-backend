@@ -21,4 +21,4 @@ import {
   providers: [ProductsService, ProductCategoriesService],
   exports: [ProductsService, ProductCategoriesService],
 })
-export class ProductsModule { }
+export class ProductsModule {}

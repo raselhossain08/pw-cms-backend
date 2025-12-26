@@ -72,7 +72,9 @@ async function bootstrap() {
     activityLogsService = null as any;
   }
 
-  app.useGlobalFilters(new GlobalExceptionFilter(configService, activityLogsService));
+  app.useGlobalFilters(
+    new GlobalExceptionFilter(configService, activityLogsService),
+  );
 
   const interceptors: any[] = [
     new LoggingInterceptor(),

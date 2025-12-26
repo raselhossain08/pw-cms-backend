@@ -20,4 +20,4 @@ import { memoryStorage } from 'multer';
   providers: [UploadsService, CloudinaryProvider, BunnyProvider],
   exports: [UploadsService],
 })
-export class UploadsModule { }
+export class UploadsModule {}

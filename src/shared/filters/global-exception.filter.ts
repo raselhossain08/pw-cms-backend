@@ -19,7 +19,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   constructor(
     private configService: ConfigService,
     private activityLogsService: ActivityLogsService | null,
-  ) { }
+  ) {}
 
   async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
     const ctx = host.switchToHttp();

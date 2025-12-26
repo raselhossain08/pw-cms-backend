@@ -9,7 +9,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Course } from '../entities/course.entity';
 import { Lesson } from '../entities/lesson.entity';
-import { Enrollment, EnrollmentStatus } from '../../enrollments/entities/enrollment.entity';
+import {
+  Enrollment,
+  EnrollmentStatus,
+} from '../../enrollments/entities/enrollment.entity';
 import { UserRole } from '../../users/entities/user.entity';
 
 @Injectable()
@@ -18,7 +21,7 @@ export class CourseAccessGuard implements CanActivate {
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
-  ) { }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();

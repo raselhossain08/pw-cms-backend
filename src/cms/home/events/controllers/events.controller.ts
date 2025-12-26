@@ -23,7 +23,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get Events Section' })
@@ -151,18 +151,27 @@ export class EventsController {
 
   @Get('export')
   @ApiOperation({ summary: 'Export Events' })
-  async export(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async export(
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.eventsService.export(format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="events_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="events_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="events_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="events_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({

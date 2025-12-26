@@ -19,7 +19,7 @@ export class CertificatesService {
     @InjectModel(CertificateTemplate.name)
     private templateModel: Model<CertificateTemplate>,
     private mailService: MailService,
-  ) { }
+  ) {}
 
   async generateCertificate(
     userId: string,
@@ -289,7 +289,7 @@ export class CertificatesService {
     // Find or create a configuration template for this user
     let template = await this.templateModel.findOne({
       createdBy: userId,
-      name: 'Certificate Configuration'
+      name: 'Certificate Configuration',
     });
 
     if (!template) {
@@ -315,7 +315,7 @@ export class CertificatesService {
       success: true,
       message: 'Template configuration saved successfully',
       config,
-      templateId: template._id
+      templateId: template._id,
     };
   }
 
@@ -324,7 +324,7 @@ export class CertificatesService {
     const template = await this.templateModel.findOne({
       createdBy: userId,
       name: 'Certificate Configuration',
-      isActive: true
+      isActive: true,
     });
 
     if (!template || !template.config) {
@@ -335,7 +335,7 @@ export class CertificatesService {
         nameStyle: {
           fontSize: 32,
           color: '#dc2626',
-          fontWeight: '600'
+          fontWeight: '600',
         },
         barcodeStyle: {
           fontSize: 14,
@@ -343,7 +343,7 @@ export class CertificatesService {
           width: 2,
           height: 50,
           displayWidth: 200,
-          displayHeight: 80
+          displayHeight: 80,
         },
       };
     }
@@ -410,9 +410,7 @@ export class CertificatesService {
 
     // Text search
     if (query) {
-      queryBuilder.$or = [
-        { certificateId: { $regex: query, $options: 'i' } },
-      ];
+      queryBuilder.$or = [{ certificateId: { $regex: query, $options: 'i' } }];
     }
 
     // Filter by course

@@ -17,7 +17,7 @@ export class SystemHealthMonitor {
   constructor(
     private activityLogsService: ActivityLogsService,
     @InjectConnection() private connection: Connection,
-  ) { }
+  ) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async checkSystemHealth() {

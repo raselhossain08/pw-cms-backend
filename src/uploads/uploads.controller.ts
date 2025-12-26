@@ -36,7 +36,7 @@ import { FileType } from './entities/file.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class UploadsController {
-  constructor(private readonly uploadsService: UploadsService) { }
+  constructor(private readonly uploadsService: UploadsService) {}
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
@@ -228,7 +228,12 @@ export class UploadsController {
     @Body() updateData: Partial<File>,
     @Req() req,
   ) {
-    return this.uploadsService.updateFile(id, updateData, req.user.id, req.user.role);
+    return this.uploadsService.updateFile(
+      id,
+      updateData,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Delete(':id')
@@ -281,16 +286,20 @@ export class UploadsController {
       type: 'object',
       properties: {
         deleted: { type: 'number', description: 'Number of files deleted' },
-        failed: { type: 'number', description: 'Number of files that failed to delete' },
+        failed: {
+          type: 'number',
+          description: 'Number of files that failed to delete',
+        },
         errors: { type: 'array', items: { type: 'string' } },
       },
     },
   })
-  async bulkDeleteFiles(
-    @Body() body: { fileIds: string[] },
-    @Req() req,
-  ) {
-    return this.uploadsService.bulkDeleteFiles(body.fileIds, req.user.id, req.user.role);
+  async bulkDeleteFiles(@Body() body: { fileIds: string[] }, @Req() req) {
+    return this.uploadsService.bulkDeleteFiles(
+      body.fileIds,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get('search/query')

@@ -25,7 +25,7 @@ export class AboutSectionController {
   constructor(
     private readonly aboutSectionService: AboutSectionService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get About Section' })
@@ -93,14 +93,14 @@ export class AboutSectionController {
     // Parse SEO metadata from FormData
     let seo:
       | {
-        title: string;
-        description: string;
-        keywords: string;
-        ogImage: string;
-        ogTitle: string;
-        ogDescription: string;
-        canonicalUrl: string;
-      }
+          title: string;
+          description: string;
+          keywords: string;
+          ogImage: string;
+          ogTitle: string;
+          ogDescription: string;
+          canonicalUrl: string;
+        }
       | undefined = undefined;
     if (body['seo[title]']) {
       seo = {
@@ -152,18 +152,27 @@ export class AboutSectionController {
 
   @Get('export')
   @ApiOperation({ summary: 'Export About Section' })
-  async export(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async export(
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.aboutSectionService.export(format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="about-section_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="about-section_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="about-section_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="about-section_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({

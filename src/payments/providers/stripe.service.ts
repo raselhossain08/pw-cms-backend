@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SystemConfigService } from '../../system-config/system-config.service';
 import Stripe from 'stripe';
@@ -12,14 +17,15 @@ export class StripeService implements OnModuleInit {
   constructor(
     private configService: ConfigService,
     private systemConfigService: SystemConfigService,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     await this.initializeStripe();
   }
 
   private async initializeStripe() {
-    const secretKey = await this.systemConfigService.getValue('STRIPE_SECRET_KEY') ||
+    const secretKey =
+      (await this.systemConfigService.getValue('STRIPE_SECRET_KEY')) ||
       this.configService.get<string>('STRIPE_SECRET_KEY');
 
     if (!secretKey) {
@@ -191,11 +197,15 @@ export class StripeService implements OnModuleInit {
     }
   }
 
-  async handleWebhook(payload: any, signature: string): Promise<{ event: any; type: string }> {
+  async handleWebhook(
+    payload: any,
+    signature: string,
+  ): Promise<{ event: any; type: string }> {
     this.checkEnabled();
 
     try {
-      const webhookSecret = await this.systemConfigService.getValue('STRIPE_WEBHOOK_SECRET') ||
+      const webhookSecret =
+        (await this.systemConfigService.getValue('STRIPE_WEBHOOK_SECRET')) ||
         this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
       if (!webhookSecret) {
         throw new BadRequestException(

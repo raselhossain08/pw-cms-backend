@@ -6,6 +6,8 @@ export enum EnrollmentStatus {
   COMPLETED = 'completed',
   EXPIRED = 'expired',
   CANCELLED = 'cancelled',
+  PENDING = 'pending',
+  DROPPED = 'dropped',
 }
 
 @Schema({ timestamps: true })

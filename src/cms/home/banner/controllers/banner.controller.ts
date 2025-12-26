@@ -108,17 +108,17 @@ export class BannerController {
         seo:
           body.seo || body['seo[title]']
             ? {
-              title: body['seo[title]'] || body.seo?.title || '',
-              description:
-                body['seo[description]'] || body.seo?.description || '',
-              keywords: body['seo[keywords]'] || body.seo?.keywords || '',
-              ogImage: body['seo[ogImage]'] || body.seo?.ogImage || '',
-              ogTitle: body['seo[ogTitle]'] || body.seo?.ogTitle || '',
-              ogDescription:
-                body['seo[ogDescription]'] || body.seo?.ogDescription || '',
-              canonicalUrl:
-                body['seo[canonicalUrl]'] || body.seo?.canonicalUrl || '',
-            }
+                title: body['seo[title]'] || body.seo?.title || '',
+                description:
+                  body['seo[description]'] || body.seo?.description || '',
+                keywords: body['seo[keywords]'] || body.seo?.keywords || '',
+                ogImage: body['seo[ogImage]'] || body.seo?.ogImage || '',
+                ogTitle: body['seo[ogTitle]'] || body.seo?.ogTitle || '',
+                ogDescription:
+                  body['seo[ogDescription]'] || body.seo?.ogDescription || '',
+                canonicalUrl:
+                  body['seo[canonicalUrl]'] || body.seo?.canonicalUrl || '',
+              }
             : undefined,
       };
 
@@ -280,19 +280,29 @@ export class BannerController {
 
   @Get('export')
   @ApiOperation({ summary: 'Export banners' })
-  async export(@Query('format') format: 'json' | 'pdf' = 'json', @Query('ids') ids: string | string[] | undefined, @Res() res: Response) {
+  async export(
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Query('ids') ids: string | string[] | undefined,
+    @Res() res: Response,
+  ) {
     try {
       const bannerIds = ids ? (Array.isArray(ids) ? ids : [ids]) : undefined;
       const result = await this.bannerService.export(format, bannerIds);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="banners_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="banners_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="banners_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="banners_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({

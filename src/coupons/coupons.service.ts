@@ -15,7 +15,7 @@ import { BulkDeleteDto, BulkToggleDto } from './dto/bulk-operations.dto';
 export class CouponsService {
   private readonly logger = new Logger(CouponsService.name);
 
-  constructor(@InjectModel(Coupon.name) private couponModel: Model<Coupon>) { }
+  constructor(@InjectModel(Coupon.name) private couponModel: Model<Coupon>) {}
 
   async create(data: CreateCouponDto): Promise<Coupon> {
     // Normalize code to uppercase
@@ -26,7 +26,9 @@ export class CouponsService {
       code: normalizedCode,
     });
     if (existingCoupon) {
-      throw new BadRequestException(`Coupon code "${normalizedCode}" already exists`);
+      throw new BadRequestException(
+        `Coupon code "${normalizedCode}" already exists`,
+      );
     }
 
     // Validate value based on type
@@ -53,33 +55,54 @@ export class CouponsService {
   async validate(
     code: string,
     amount: number,
-  ): Promise<{ valid: boolean; discount: number; coupon?: Coupon; message?: string }> {
+  ): Promise<{
+    valid: boolean;
+    discount: number;
+    coupon?: Coupon;
+    message?: string;
+  }> {
     const coupon = await this.couponModel.findOne({
       code: code.toUpperCase(),
       isActive: true,
     });
 
     if (!coupon) {
-      this.logger.warn(`Coupon validation failed: Code "${code}" not found or inactive`);
-      return { valid: false, discount: 0, message: 'Coupon code not found or inactive' };
+      this.logger.warn(
+        `Coupon validation failed: Code "${code}" not found or inactive`,
+      );
+      return {
+        valid: false,
+        discount: 0,
+        message: 'Coupon code not found or inactive',
+      };
     }
 
     if (coupon.expiresAt && coupon.expiresAt < new Date()) {
-      this.logger.warn(`Coupon validation failed: Code "${code}" expired at ${coupon.expiresAt}`);
+      this.logger.warn(
+        `Coupon validation failed: Code "${code}" expired at ${coupon.expiresAt}`,
+      );
       return { valid: false, discount: 0, message: 'Coupon has expired' };
     }
 
     if (coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses) {
-      this.logger.warn(`Coupon validation failed: Code "${code}" usage limit reached (${coupon.usedCount}/${coupon.maxUses})`);
-      return { valid: false, discount: 0, message: 'Coupon usage limit reached' };
-    }
-
-    if (amount < coupon.minPurchaseAmount) {
-      this.logger.warn(`Coupon validation failed: Code "${code}" min purchase ${coupon.minPurchaseAmount} not met (Amount: ${amount})`);
+      this.logger.warn(
+        `Coupon validation failed: Code "${code}" usage limit reached (${coupon.usedCount}/${coupon.maxUses})`,
+      );
       return {
         valid: false,
         discount: 0,
-        message: `Minimum purchase amount of $${coupon.minPurchaseAmount} required`
+        message: 'Coupon usage limit reached',
+      };
+    }
+
+    if (amount < coupon.minPurchaseAmount) {
+      this.logger.warn(
+        `Coupon validation failed: Code "${code}" min purchase ${coupon.minPurchaseAmount} not met (Amount: ${amount})`,
+      );
+      return {
+        valid: false,
+        discount: 0,
+        message: `Minimum purchase amount of $${coupon.minPurchaseAmount} required`,
       };
     }
 
@@ -104,7 +127,11 @@ export class CouponsService {
     await this.couponModel.findByIdAndUpdate(id, { $inc: { usedCount: 1 } });
   }
 
-  async findAll(page: number = 1, limit: number = 10, search?: string): Promise<{
+  async findAll(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+  ): Promise<{
     data: Coupon[];
     total: number;
     page: number;
@@ -161,7 +188,9 @@ export class CouponsService {
         _id: { $ne: id },
       });
       if (existingCoupon) {
-        throw new BadRequestException(`Coupon code "${normalizedCode}" already exists`);
+        throw new BadRequestException(
+          `Coupon code "${normalizedCode}" already exists`,
+        );
       }
       data.code = normalizedCode;
     }
@@ -183,7 +212,7 @@ export class CouponsService {
     const updatedCoupon = await this.couponModel.findByIdAndUpdate(
       id,
       { $set: data },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
     if (!updatedCoupon) {
       throw new NotFoundException(`Coupon with ID ${id} not found`);
@@ -205,7 +234,9 @@ export class CouponsService {
     return { message: 'Coupon deleted successfully' };
   }
 
-  async bulkDelete(ids: string[]): Promise<{ deletedCount: number; message: string }> {
+  async bulkDelete(
+    ids: string[],
+  ): Promise<{ deletedCount: number; message: string }> {
     const result = await this.couponModel.deleteMany({ _id: { $in: ids } });
     return {
       deletedCount: result.deletedCount,
@@ -213,7 +244,9 @@ export class CouponsService {
     };
   }
 
-  async bulkToggleStatus(ids: string[]): Promise<{ updatedCount: number; message: string }> {
+  async bulkToggleStatus(
+    ids: string[],
+  ): Promise<{ updatedCount: number; message: string }> {
     // Get current status of first coupon to determine toggle direction
     const firstCoupon = await this.couponModel.findById(ids[0]);
     if (!firstCoupon) {
@@ -223,7 +256,7 @@ export class CouponsService {
     const newStatus = !firstCoupon.isActive;
     const result = await this.couponModel.updateMany(
       { _id: { $in: ids } },
-      { $set: { isActive: newStatus } }
+      { $set: { isActive: newStatus } },
     );
 
     return {
@@ -244,20 +277,34 @@ export class CouponsService {
     recentCoupons: Coupon[];
   }> {
     const now = new Date();
-    const [total, active, inactive, expired, scheduled, allCoupons] = await Promise.all([
-      this.couponModel.countDocuments(),
-      this.couponModel.countDocuments({ isActive: true, $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: now } }] }),
-      this.couponModel.countDocuments({ isActive: false }),
-      this.couponModel.countDocuments({ expiresAt: { $lt: now } }),
-      this.couponModel.countDocuments({ expiresAt: { $gt: now }, isActive: false }),
-      this.couponModel.find().exec(),
-    ]);
+    const [total, active, inactive, expired, scheduled, allCoupons] =
+      await Promise.all([
+        this.couponModel.countDocuments(),
+        this.couponModel.countDocuments({
+          isActive: true,
+          $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: now } }],
+        }),
+        this.couponModel.countDocuments({ isActive: false }),
+        this.couponModel.countDocuments({ expiresAt: { $lt: now } }),
+        this.couponModel.countDocuments({
+          expiresAt: { $gt: now },
+          isActive: false,
+        }),
+        this.couponModel.find().exec(),
+      ]);
 
-    const totalUses = allCoupons.reduce((sum, coupon) => sum + coupon.usedCount, 0);
+    const totalUses = allCoupons.reduce(
+      (sum, coupon) => sum + coupon.usedCount,
+      0,
+    );
     const totalRevenueSaved = allCoupons.reduce((sum, coupon) => {
       // Estimate: average order value * discount percentage/value
       // This is a simplified calculation - adjust based on your needs
-      return sum + (coupon.usedCount * (coupon.type === CouponType.PERCENTAGE ? 50 : coupon.value));
+      return (
+        sum +
+        coupon.usedCount *
+          (coupon.type === CouponType.PERCENTAGE ? 50 : coupon.value)
+      );
     }, 0);
 
     const mostUsed = await this.couponModel

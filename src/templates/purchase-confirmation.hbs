@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #ffffff;
+        }
+        .header { 
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white; 
+            padding: 30px 20px; 
+            text-align: center; 
+            border-radius: 8px 8px 0 0;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .order-details {
+            background-color: #f8fafc;
+            border-left: 4px solid #1e40af;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .order-details h2 {
+            margin-top: 0;
+            color: #1e40af;
+            font-size: 20px;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        .detail-label {
+            font-weight: bold;
+            color: #64748b;
+        }
+        .detail-value {
+            color: #1e293b;
+        }
+        .total-row {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1e40af;
+            padding-top: 12px;
+            margin-top: 12px;
+            border-top: 2px solid #1e40af;
+        }
+        .courses-list {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .courses-list h3 {
+            margin-top: 0;
+            color: #92400e;
+        }
+        .button { 
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white; 
+            padding: 14px 28px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            display: inline-block; 
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 5px;
+        }
+        .button:hover {
+            opacity: 0.9;
+        }
+        .button-secondary {
+            background: #64748b;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #64748b;
+            font-size: 14px;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 30px;
+        }
+        .checkmark {
+            font-size: 48px;
+            color: #10b981;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✈️ Payment Successful!</h1>
+        </div>
+        
+        <div class="content">
+            <div class="checkmark">✓</div>
+            
+            <p style="font-size: 18px; text-align: center;">Hello <strong>{{name}}</strong>,</p>
+            
+            <p style="text-align: center;">Thank you for your purchase! Your payment has been successfully processed.</p>
+            
+            <div class="order-details">
+                <h2>Order Details</h2>
+                <div class="detail-row">
+                    <span class="detail-label">Order Number:</span>
+                    <span class="detail-value">{{orderNumber}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Payment Method:</span>
+                    <span class="detail-value">{{paymentMethod}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Payment Date:</span>
+                    <span class="detail-value">{{paidAt}}</span>
+                </div>
+            </div>
+            
+            {{#if courses}}
+            <div class="courses-list">
+                <h3>🎓 Your Courses</h3>
+                <p><strong>{{courses}}</strong></p>
+                <p style="margin-bottom: 0; font-size: 14px; color: #92400e;">
+                    These courses are now available in your dashboard.
+                </p>
+            </div>
+            {{/if}}
+            
+            <div class="order-details">
+                <h2>Payment Summary</h2>
+                <div class="detail-row">
+                    <span class="detail-label">Subtotal:</span>
+                    <span class="detail-value">${{subtotal}}</span>
+                </div>
+                {{#if discount}}
+                <div class="detail-row">
+                    <span class="detail-label">Discount:</span>
+                    <span class="detail-value" style="color: #10b981;">-${{discount}}</span>
+                </div>
+                {{/if}}
+                <div class="detail-row total-row">
+                    <span class="detail-label">Total Paid:</span>
+                    <span class="detail-value">${{total}}</span>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{dashboardUrl}}" class="button">Go to Dashboard</a>
+                {{#if invoiceUrl}}
+                <a href="{{invoiceUrl}}" class="button button-secondary">Download Invoice</a>
+                {{/if}}
+            </div>
+            
+            <div style="background-color: #eff6ff; padding: 20px; border-radius: 6px; margin-top: 20px;">
+                <h3 style="margin-top: 0; color: #1e40af;">🚀 Next Steps</h3>
+                <ol style="margin: 10px 0; padding-left: 20px;">
+                    <li>Log in to your dashboard to access your courses</li>
+                    <li>Start learning at your own pace</li>
+                    <li>Track your progress and earn certificates</li>
+                    <li>Connect with instructors and fellow students</li>
+                </ol>
+            </div>
+            
+            <p style="margin-top: 30px; text-align: center; color: #64748b;">
+                Need help? Contact us at <a href="mailto:{{supportEmail}}" style="color: #1e40af;">{{supportEmail}}</a>
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p>Thank you for choosing Personal Wings</p>
+            <p style="font-size: 12px; color: #94a3b8;">
+                This is an automated email. Please do not reply directly to this message.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

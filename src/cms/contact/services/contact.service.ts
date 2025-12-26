@@ -8,7 +8,7 @@ import { CreateContactDto, UpdateContactDto } from '../dto/contact.dto';
 export class ContactService {
   constructor(
     @InjectModel(Contact.name) private contactModel: Model<ContactDocument>,
-  ) { }
+  ) {}
 
   async create(createContactDto: CreateContactDto): Promise<Contact> {
     const contact = new this.contactModel(createContactDto);
@@ -105,7 +105,10 @@ export class ContactService {
 
     if (newActiveState) {
       // Deactivate all others first
-      await this.contactModel.updateMany({ isActive: true }, { isActive: false });
+      await this.contactModel.updateMany(
+        { isActive: true },
+        { isActive: false },
+      );
     }
 
     const updated = await this.contactModel

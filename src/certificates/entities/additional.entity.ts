@@ -165,7 +165,10 @@ export const AssignmentSubmissionSchema =
   SchemaFactory.createForClass(AssignmentSubmission);
 
 // Performance indexes for common queries
-AssignmentSubmissionSchema.index({ assignment: 1, student: 1 }, { unique: true }); // For unique submission check
+AssignmentSubmissionSchema.index(
+  { assignment: 1, student: 1 },
+  { unique: true },
+); // For unique submission check
 AssignmentSubmissionSchema.index({ student: 1, submittedAt: -1 }); // For student submissions
 AssignmentSubmissionSchema.index({ assignment: 1, submittedAt: -1 }); // For assignment submissions
 AssignmentSubmissionSchema.index({ assignment: 1, grade: 1 }); // For grading queries

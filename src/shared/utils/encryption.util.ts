@@ -2,7 +2,8 @@ import * as crypto from 'crypto';
 
 // Ensure key is 32 bytes
 const getEncryptionKey = () => {
-  const key = process.env.ENCRYPTION_KEY || 'default_secret_key_for_dev_mode_only_32B';
+  const key =
+    process.env.ENCRYPTION_KEY || 'default_secret_key_for_dev_mode_only_32B';
   return crypto.scryptSync(key, 'salt', 32);
 };
 
@@ -13,7 +14,11 @@ export const EncryptionUtil = {
     if (!text) return text;
     try {
       const iv = crypto.randomBytes(IV_LENGTH);
-      const cipher = crypto.createCipheriv('aes-256-cbc', getEncryptionKey(), iv);
+      const cipher = crypto.createCipheriv(
+        'aes-256-cbc',
+        getEncryptionKey(),
+        iv,
+      );
       let encrypted = cipher.update(text);
       encrypted = Buffer.concat([encrypted, cipher.final()]);
       return iv.toString('hex') + ':' + encrypted.toString('hex');
@@ -34,7 +39,11 @@ export const EncryptionUtil = {
 
       const iv = Buffer.from(ivHex, 'hex');
       const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-      const decipher = crypto.createDecipheriv('aes-256-cbc', getEncryptionKey(), iv);
+      const decipher = crypto.createDecipheriv(
+        'aes-256-cbc',
+        getEncryptionKey(),
+        iv,
+      );
       let decrypted = decipher.update(encryptedText);
       decrypted = Buffer.concat([decrypted, decipher.final()]);
       return decrypted.toString();
@@ -42,5 +51,5 @@ export const EncryptionUtil = {
       console.error('Decryption failed:', error);
       return text;
     }
-  }
+  },
 };

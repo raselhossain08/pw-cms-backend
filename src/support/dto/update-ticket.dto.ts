@@ -1,5 +1,9 @@
 import { IsString, IsEnum, IsOptional } from 'class-validator';
-import { TicketStatus, TicketPriority, TicketCategory } from '../entities/ticket.entity';
+import {
+  TicketStatus,
+  TicketPriority,
+  TicketCategory,
+} from '../entities/ticket.entity';
 
 export class UpdateTicketDto {
   @IsEnum(TicketStatus)

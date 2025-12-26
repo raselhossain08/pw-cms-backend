@@ -18,8 +18,14 @@ import { SystemConfigModule } from '../system-config/system-config.module';
 import { ProductsModule } from '../products/products.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 
-import { PaymentMethod, PaymentMethodSchema } from './entities/payment-method.entity';
-import { CustomerProfile, CustomerProfileSchema } from './entities/customer-profile.entity';
+import {
+  PaymentMethod,
+  PaymentMethodSchema,
+} from './entities/payment-method.entity';
+import {
+  CustomerProfile,
+  CustomerProfileSchema,
+} from './entities/customer-profile.entity';
 
 @Module({
   imports: [
@@ -44,4 +50,4 @@ import { CustomerProfile, CustomerProfileSchema } from './entities/customer-prof
   providers: [PaymentsService],
   exports: [PaymentsService],
 })
-export class PaymentsModule { }
+export class PaymentsModule {}

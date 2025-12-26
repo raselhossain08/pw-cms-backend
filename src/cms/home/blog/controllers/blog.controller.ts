@@ -20,7 +20,7 @@ import { UpdateBlogDto } from '../dto/blog.dto';
 
 @Controller('cms/home/blog')
 export class BlogController {
-  constructor(private readonly blogService: BlogService) { }
+  constructor(private readonly blogService: BlogService) {}
 
   @Get()
   async getBlog() {
@@ -151,18 +151,27 @@ export class BlogController {
   }
 
   @Get('export')
-  async export(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async export(
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.blogService.export(format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="blog_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="blog_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="blog_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="blog_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({

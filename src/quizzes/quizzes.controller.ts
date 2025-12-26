@@ -31,7 +31,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class QuizzesController {
-  constructor(private readonly quizzesService: QuizzesService) { }
+  constructor(private readonly quizzesService: QuizzesService) {}
 
   @Post()
   @UseGuards(RolesGuard)
@@ -187,7 +187,10 @@ export class QuizzesController {
   @ApiResponse({ status: 200, description: 'Quizzes deleted' })
   async bulkDelete(@Body() body: { ids: string[] }, @Req() req) {
     const result = await this.quizzesService.bulkDelete(body.ids, req.user.id);
-    return { message: `${result.deleted} quiz${result.deleted > 1 ? 'zes' : ''} deleted successfully`, ...result };
+    return {
+      message: `${result.deleted} quiz${result.deleted > 1 ? 'zes' : ''} deleted successfully`,
+      ...result,
+    };
   }
 
   @Post('bulk-toggle-status')
@@ -196,7 +199,13 @@ export class QuizzesController {
   @ApiOperation({ summary: 'Bulk toggle quiz status' })
   @ApiResponse({ status: 200, description: 'Quiz statuses updated' })
   async bulkToggleStatus(@Body() body: { ids: string[] }, @Req() req) {
-    const result = await this.quizzesService.bulkToggleStatus(body.ids, req.user.id);
-    return { message: `${result.updated} quiz${result.updated > 1 ? 'zes' : ''} updated successfully`, ...result };
+    const result = await this.quizzesService.bulkToggleStatus(
+      body.ids,
+      req.user.id,
+    );
+    return {
+      message: `${result.updated} quiz${result.updated > 1 ? 'zes' : ''} updated successfully`,
+      ...result,
+    };
   }
 }

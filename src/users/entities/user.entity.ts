@@ -158,6 +158,27 @@ export class User extends Document {
   @Prop({ default: 0 })
   completedCourses: number;
 
+  @ApiProperty({
+    example: { facebook: 'url', twitter: 'url' },
+    description: 'Social media links',
+    required: false,
+  })
+  @Prop({ type: Object })
+  socialLinks: {
+    facebook?: string;
+    twitter?: string;
+    linkedin?: string;
+    website?: string;
+    github?: string;
+  };
+
+  @ApiProperty({
+    description: 'API Key for external access',
+    required: false,
+  })
+  @Prop({ select: false })
+  apiKey: string;
+
   // Virtuals
   fullName: string;
 }

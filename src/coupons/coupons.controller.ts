@@ -1,5 +1,23 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, UseGuards, Query, ParseIntPipe, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Query,
+  ParseIntPipe,
+  BadRequestException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { CouponsService } from './coupons.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -13,7 +31,7 @@ import { BulkDeleteDto, BulkToggleDto } from './dto/bulk-operations.dto';
 @ApiTags('Coupons')
 @Controller('coupons')
 export class CouponsController {
-  constructor(private readonly couponsService: CouponsService) { }
+  constructor(private readonly couponsService: CouponsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -46,7 +64,8 @@ export class CouponsController {
     return {
       valid: false,
       discount: 0,
-      message: result.message || 'Invalid coupon code or does not meet requirements',
+      message:
+        result.message || 'Invalid coupon code or does not meet requirements',
     };
   }
 
@@ -55,9 +74,24 @@ export class CouponsController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get all coupons with pagination' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by code' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by code',
+  })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -81,9 +115,14 @@ export class CouponsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get multiple coupons by IDs (placeholder - use POST bulk operations)' })
+  @ApiOperation({
+    summary:
+      'Get multiple coupons by IDs (placeholder - use POST bulk operations)',
+  })
   async getBulk() {
-    throw new BadRequestException('Use POST /coupons/bulk/delete or POST /coupons/bulk/toggle-status for bulk operations');
+    throw new BadRequestException(
+      'Use POST /coupons/bulk/delete or POST /coupons/bulk/toggle-status for bulk operations',
+    );
   }
 
   @Get(':id')

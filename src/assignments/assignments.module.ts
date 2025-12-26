@@ -22,4 +22,4 @@ import { Lesson, LessonSchema } from '../courses/entities/lesson.entity';
   providers: [AssignmentsService],
   exports: [AssignmentsService],
 })
-export class AssignmentsModule { }
+export class AssignmentsModule {}

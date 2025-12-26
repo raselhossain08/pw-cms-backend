@@ -19,7 +19,7 @@ export class UploadsService {
     private configService: ConfigService,
     private cloudinaryProvider: CloudinaryProvider,
     private bunnyProvider: BunnyProvider,
-  ) { }
+  ) {}
 
   async uploadFile(
     file: Express.Multer.File,
@@ -57,7 +57,8 @@ export class UploadsService {
           title: file.originalname,
         });
       } else if (
-        fileType !== FileType.VIDEO && this.getGeneralProvider() === 'bunny'
+        fileType !== FileType.VIDEO &&
+        this.getGeneralProvider() === 'bunny'
       ) {
         uploadResult = await this.bunnyProvider.uploadFileToStorage(file, {
           folder: this.getUploadFolder(fileType),
@@ -109,7 +110,8 @@ export class UploadsService {
           title: 'video',
         });
       } else if (
-        fileType !== FileType.VIDEO && this.getGeneralProvider() === 'bunny'
+        fileType !== FileType.VIDEO &&
+        this.getGeneralProvider() === 'bunny'
       ) {
         const resp = await fetch(url);
         if (!resp.ok) throw new BadRequestException('Source fetch failed');
@@ -229,7 +231,11 @@ export class UploadsService {
     return updatedFile;
   }
 
-  async deleteFile(id: string, userId: string, userRole?: string): Promise<void> {
+  async deleteFile(
+    id: string,
+    userId: string,
+    userRole?: string,
+  ): Promise<void> {
     const file = await this.getFileById(id);
 
     // Check if user owns the file or is an admin
@@ -242,7 +248,8 @@ export class UploadsService {
       if (file.type === FileType.VIDEO && this.getVideoProvider() === 'bunny') {
         await this.bunnyProvider.deleteFile(file.fileName);
       } else if (
-        file.type !== FileType.VIDEO && this.getGeneralProvider() === 'bunny'
+        file.type !== FileType.VIDEO &&
+        this.getGeneralProvider() === 'bunny'
       ) {
         await this.bunnyProvider.deleteStorageFile(file.fileName);
       } else {
@@ -618,7 +625,9 @@ export class UploadsService {
 
       const csvContent = [
         headers.join(','),
-        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+        ...rows.map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','),
+        ),
       ].join('\n');
 
       return csvContent;

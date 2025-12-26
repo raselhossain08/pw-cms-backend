@@ -14,7 +14,10 @@ import { Enrollment } from '../enrollments/entities/enrollment.entity';
 import { Quiz } from '../quizzes/entities/quiz.entity';
 import { LiveSession } from '../live-sessions/entities/live-session.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
-import { Transaction, TransactionStatus } from '../payments/entities/transaction.entity';
+import {
+  Transaction,
+  TransactionStatus,
+} from '../payments/entities/transaction.entity';
 import { Invoice } from '../payments/entities/invoice.entity';
 import { SecurityMiddleware } from '../shared/middleware/security.middleware';
 import { IntegrationsService } from '../integrations/integrations.service';
@@ -34,7 +37,7 @@ export class AdminService {
     @InjectModel(Invoice.name) private invoiceModel: Model<Invoice>,
     @Inject(SecurityMiddleware) private securityMiddleware: SecurityMiddleware,
     private integrationsService: IntegrationsService,
-  ) { }
+  ) {}
 
   // ==================== INTEGRATIONS MANAGEMENT ====================
   async getAllIntegrations() {
@@ -520,8 +523,8 @@ export class AdminService {
       completionRate:
         item.enrollmentCount > 0
           ? parseFloat(
-            ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
-          )
+              ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
+            )
           : 0,
     }));
   }
@@ -780,7 +783,7 @@ export class AdminService {
         limit,
         totalPages: Math.ceil(
           (await this.reviewModel.countDocuments({ flagged: true }).exec()) /
-          limit,
+            limit,
         ),
       },
     };
@@ -890,8 +893,8 @@ export class AdminService {
         completionRate:
           activeEnrollments > 0
             ? parseFloat(
-              ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
-            )
+                ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
+              )
             : 0,
       },
     };
@@ -1110,7 +1113,9 @@ export class AdminService {
               $group: {
                 _id: null,
                 totalRevenue: {
-                  $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$amount', 0] },
+                  $sum: {
+                    $cond: [{ $eq: ['$status', 'completed'] }, '$amount', 0],
+                  },
                 },
                 successfulPayments: {
                   $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
@@ -1122,7 +1127,9 @@ export class AdminService {
                   $sum: { $cond: [{ $eq: ['$status', 'refunded'] }, 1, 0] },
                 },
                 refundedAmount: {
-                  $sum: { $cond: [{ $eq: ['$status', 'refunded'] }, '$amount', 0] },
+                  $sum: {
+                    $cond: [{ $eq: ['$status', 'refunded'] }, '$amount', 0],
+                  },
                 },
               },
             },
@@ -1197,9 +1204,13 @@ export class AdminService {
         failedPayments: stats.failedPayments,
         refundedPayments: stats.refundedPayments,
         refundedAmount: stats.refundedAmount,
-        refundRate: stats.successfulPayments > 0
-          ? ((stats.refundedPayments / stats.successfulPayments) * 100).toFixed(2)
-          : '0.00',
+        refundRate:
+          stats.successfulPayments > 0
+            ? (
+                (stats.refundedPayments / stats.successfulPayments) *
+                100
+              ).toFixed(2)
+            : '0.00',
       },
       methodBreakdown: methodBreakdown.map((m) => ({
         method: m._id || 'Unknown',
@@ -1308,7 +1319,9 @@ export class AdminService {
     }
 
     if (transaction.status !== TransactionStatus.COMPLETED) {
-      throw new BadRequestException('Only completed transactions can be refunded');
+      throw new BadRequestException(
+        'Only completed transactions can be refunded',
+      );
     }
 
     const refundAmount = refundData.amount || transaction.amount;
@@ -1407,7 +1420,9 @@ export class AdminService {
   async exportPaymentReport(filters: any) {
     const { format = 'csv', startDate, endDate } = filters;
 
-    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const start = startDate
+      ? new Date(startDate)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const end = endDate ? new Date(endDate) : new Date();
 
     const transactions = await this.transactionModel
@@ -1424,7 +1439,9 @@ export class AdminService {
           const user = t.user as User;
           return [
             t.transactionId,
-            user && typeof user === 'object' ? `${user.firstName} ${user.lastName}` : 'N/A',
+            user && typeof user === 'object'
+              ? `${user.firstName} ${user.lastName}`
+              : 'N/A',
             user && typeof user === 'object' ? user.email : 'N/A',
             t.amount,
             t.currency,

@@ -24,7 +24,7 @@ export class QuizzesService {
     @InjectModel(QuizSubmission.name)
     private submissionModel: Model<QuizSubmission>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) { }
+  ) {}
 
   async create(
     createQuizDto: CreateQuizDto,
@@ -479,7 +479,10 @@ export class QuizzesService {
     return await duplicatedQuiz.save();
   }
 
-  async bulkDelete(ids: string[], instructorId: string): Promise<{ deleted: number }> {
+  async bulkDelete(
+    ids: string[],
+    instructorId: string,
+  ): Promise<{ deleted: number }> {
     const quizzes = await this.quizModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
       instructor: instructorId,
@@ -491,7 +494,7 @@ export class QuizzesService {
 
     await this.quizModel.updateMany(
       { _id: { $in: quizzes.map((q) => q._id) } },
-      { isActive: false }
+      { isActive: false },
     );
 
     return { deleted: quizzes.length };
@@ -512,7 +515,7 @@ export class QuizzesService {
 
     await this.quizModel.updateMany(
       { _id: { $in: quizzes.map((q) => q._id) } },
-      [{ $set: { isActive: { $not: '$isActive' } } }]
+      [{ $set: { isActive: { $not: '$isActive' } } }],
     );
 
     return { updated: quizzes.length };

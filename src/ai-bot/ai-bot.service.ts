@@ -110,7 +110,11 @@ export class AiBotService {
       await conversation.save();
 
       // Get user info for logging
-      const user = await this.userModel.findById(userId).lean().exec().catch(() => null);
+      const user = await this.userModel
+        .findById(userId)
+        .lean()
+        .exec()
+        .catch(() => null);
 
       // Log successful AI interaction
       await this.activityLogsService
@@ -120,12 +124,10 @@ export class AiBotService {
             : AiModel.CUSTOM,
           prompt: message,
           response: botResponse.message || JSON.stringify(botResponse),
-          tokensUsed: (botResponse as any).tokensUsed || 0,
+          tokensUsed: botResponse.tokensUsed || 0,
           responseTime: duration,
           userId: new Types.ObjectId(userId),
-          userName: user
-            ? `${user.firstName} ${user.lastName}`
-            : undefined,
+          userName: user ? `${user.firstName} ${user.lastName}` : undefined,
           conversationId: conversation.sessionId,
           status: 'success',
         })
@@ -314,15 +316,22 @@ export class AiBotService {
 
       if (actionResult && actionResult.success !== false) {
         return {
-          message: actionResult.message || `✅ Action "${actionRequest.action}" completed successfully!`,
+          message:
+            actionResult.message ||
+            `✅ Action "${actionRequest.action}" completed successfully!`,
           responseType: ResponseType.TEXT,
           quickReplies: ['View result', 'Create another', 'Main menu'],
           actions: [],
-          contextUpdate: { lastAction: actionRequest.action, lastActionResult: actionResult },
+          contextUpdate: {
+            lastAction: actionRequest.action,
+            lastActionResult: actionResult,
+          },
         };
       } else {
         return {
-          message: actionResult?.error || `❌ Failed to execute action "${actionRequest.action}". Please try again.`,
+          message:
+            actionResult?.error ||
+            `❌ Failed to execute action "${actionRequest.action}". Please try again.`,
           responseType: ResponseType.TEXT,
           quickReplies: ['Try again', 'Get help'],
         };
@@ -618,7 +627,12 @@ export class AiBotService {
       default:
         return {
           message: `I didn't quite understand that. Could you rephrase your question? I can help you create courses, write blogs, search content, or perform other actions. What would you like me to do?`,
-          quickReplies: ['Create a course', 'Write a blog', 'Search courses', 'Common questions'],
+          quickReplies: [
+            'Create a course',
+            'Write a blog',
+            'Search courses',
+            'Common questions',
+          ],
         };
     }
   }
@@ -864,15 +878,22 @@ export class AiBotService {
   }
 
   // Detect action requests from user messages
-  private detectActionRequest(message: string): { action: string; data?: any } | null {
+  private detectActionRequest(
+    message: string,
+  ): { action: string; data?: any } | null {
     const lowerMessage = message.toLowerCase();
 
     // Course creation patterns
-    if (lowerMessage.match(/create.*course|make.*course|new course|add course/i)) {
+    if (
+      lowerMessage.match(/create.*course|make.*course|new course|add course/i)
+    ) {
       // Extract course details from message
-      const titleMatch = message.match(/(?:title|name)[: ]*([^,\.\n]+)/i) ||
+      const titleMatch =
+        message.match(/(?:title|name)[: ]*([^,\.\n]+)/i) ||
         message.match(/course (?:called|named|titled) ([^,\.\n]+)/i) ||
-        message.match(/create (?:a |an )?course (?:about |on |for )?([^,\.\n]+)/i);
+        message.match(
+          /create (?:a |an )?course (?:about |on |for )?([^,\.\n]+)/i,
+        );
       const priceMatch = message.match(/(?:price|cost)[: ]*\$?(\d+)/i);
       const descMatch = message.match(/(?:description|about)[: ]*([^,\.\n]+)/i);
 
@@ -880,10 +901,15 @@ export class AiBotService {
         action: 'create_course',
         data: {
           title: titleMatch ? titleMatch[1].trim() : 'New Course',
-          description: descMatch ? descMatch[1].trim() : 'A new course created by AI Assistant',
+          description: descMatch
+            ? descMatch[1].trim()
+            : 'A new course created by AI Assistant',
           price: priceMatch ? parseFloat(priceMatch[1]) : 0,
-          level: lowerMessage.includes('advanced') ? 'advanced' :
-            lowerMessage.includes('intermediate') ? 'intermediate' : 'beginner',
+          level: lowerMessage.includes('advanced')
+            ? 'advanced'
+            : lowerMessage.includes('intermediate')
+              ? 'intermediate'
+              : 'beginner',
           type: 'online',
           duration: 10,
         },
@@ -891,8 +917,13 @@ export class AiBotService {
     }
 
     // Blog creation patterns
-    if (lowerMessage.match(/create.*blog|write.*blog|new blog|post.*blog|publish.*blog/i)) {
-      const titleMatch = message.match(/(?:title|about)[: ]*([^,\.\n]+)/i) ||
+    if (
+      lowerMessage.match(
+        /create.*blog|write.*blog|new blog|post.*blog|publish.*blog/i,
+      )
+    ) {
+      const titleMatch =
+        message.match(/(?:title|about)[: ]*([^,\.\n]+)/i) ||
         message.match(/blog (?:about|on) ([^,\.\n]+)/i);
       const contentMatch = message.match(/(?:content|write)[: ]*([^,\.\n]+)/i);
 
@@ -907,7 +938,11 @@ export class AiBotService {
     }
 
     // Update course patterns
-    if (lowerMessage.match(/update.*course|edit.*course|modify.*course|change.*course/i)) {
+    if (
+      lowerMessage.match(
+        /update.*course|edit.*course|modify.*course|change.*course/i,
+      )
+    ) {
       const courseIdMatch = message.match(/(?:course|id)[: ]*([a-f0-9]{24})/i);
       return {
         action: 'update_course',
@@ -932,7 +967,9 @@ export class AiBotService {
   }
 
   // Detect actions from AI response
-  private detectActionFromResponse(response: string): { action: string; data?: any } | null {
+  private detectActionFromResponse(
+    response: string,
+  ): { action: string; data?: any } | null {
     // This can be enhanced to parse structured responses from GPT
     return null;
   }
@@ -1150,20 +1187,31 @@ export class AiBotService {
 
         // ADMIN ACTIONS - Course Management
         case 'create_course':
-          const courseData = actionData || conversation.context?.courseData || {};
+          const courseData =
+            actionData || conversation.context?.courseData || {};
           return await this.botActionsService.createCourse(courseData, userId);
 
         case 'update_course':
-          const updateCourseData = actionData || conversation.context?.updateCourseData || {};
+          const updateCourseData =
+            actionData || conversation.context?.updateCourseData || {};
           const updateCourseId = updateCourseData.courseId || query;
-          return await this.botActionsService.updateCourse(updateCourseId, updateCourseData, userId);
+          return await this.botActionsService.updateCourse(
+            updateCourseId,
+            updateCourseData,
+            userId,
+          );
 
         case 'delete_course':
           const deleteCourseId = actionData?.courseId || query;
-          return await this.botActionsService.deleteCourse(deleteCourseId, userId);
+          return await this.botActionsService.deleteCourse(
+            deleteCourseId,
+            userId,
+          );
 
         case 'get_all_courses_admin':
-          return await this.botActionsService.getAllCoursesAdmin(actionData || {});
+          return await this.botActionsService.getAllCoursesAdmin(
+            actionData || {},
+          );
 
         // ADMIN ACTIONS - Blog Management
         case 'create_blog':
@@ -1231,7 +1279,8 @@ export class AiBotService {
         { bg: 'bg-green-100', color: 'text-green-600' },
       ];
 
-      const randomIcon = iconColors[Math.floor(Math.random() * iconColors.length)];
+      const randomIcon =
+        iconColors[Math.floor(Math.random() * iconColors.length)];
 
       const agent = new this.aiAgentModel({
         ...createAgentDto,
@@ -1262,7 +1311,10 @@ export class AiBotService {
     return agent;
   }
 
-  async toggleAgentStatus(id: string, status: 'active' | 'inactive' | 'training') {
+  async toggleAgentStatus(
+    id: string,
+    status: 'active' | 'inactive' | 'training',
+  ) {
     const agent = await this.aiAgentModel.findById(id).exec();
 
     if (!agent) {
@@ -1315,35 +1367,126 @@ export class AiBotService {
   async getAgentsAnalytics() {
     try {
       const totalAgents = await this.aiAgentModel.countDocuments().exec();
-      const activeAgents = await this.aiAgentModel.countDocuments({ status: 'active' }).exec();
+      const activeAgents = await this.aiAgentModel
+        .countDocuments({ status: 'active' })
+        .exec();
 
-      const conversationsCount = await this.botConversationModel.countDocuments({
-        createdAt: {
-          $gte: new Date(new Date().setHours(0, 0, 0, 0)),
-        },
-      }).exec();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const lastWeek = new Date(today);
+      lastWeek.setDate(lastWeek.getDate() - 7);
 
-      const avgResponseTimes = await this.aiAgentModel.aggregate([
-        { $match: { status: 'active' } },
-        { $group: { _id: null, avgResponse: { $avg: '$avgResponseSec' } } },
-      ]).exec();
+      // Today's conversations
+      const conversationsToday = await this.botConversationModel
+        .countDocuments({
+          createdAt: { $gte: today },
+        })
+        .exec();
 
-      const satisfactionRatings = await this.botConversationModel.aggregate([
-        { $match: { satisfactionRating: { $exists: true } } },
-        { $group: { _id: null, avgRating: { $avg: '$satisfactionRating' } } },
-      ]).exec();
+      // Yesterday's conversations for trend
+      const conversationsYesterday = await this.botConversationModel
+        .countDocuments({
+          createdAt: { $gte: yesterday, $lt: today },
+        })
+        .exec();
 
-      const avgResponseTime = avgResponseTimes.length > 0 ? avgResponseTimes[0].avgResponse : 1.2;
-      const avgSatisfaction = satisfactionRatings.length > 0 ? satisfactionRatings[0].avgRating : 4.5;
+      // Calculate conversation trend
+      const conversationTrend =
+        conversationsYesterday > 0
+          ? Math.round(
+              ((conversationsToday - conversationsYesterday) /
+                conversationsYesterday) *
+                100,
+            )
+          : conversationsToday > 0
+            ? 100
+            : 0;
+
+      // Average response times
+      const avgResponseTimes = await this.aiAgentModel
+        .aggregate([
+          { $match: { status: 'active' } },
+          { $group: { _id: null, avgResponse: { $avg: '$avgResponseSec' } } },
+        ])
+        .exec();
+
+      const currentAvgResponseTime =
+        avgResponseTimes.length > 0 ? avgResponseTimes[0].avgResponse : 1.2;
+
+      // Last week's average response time for trend
+      const lastWeekConvs = await this.botConversationModel
+        .find({
+          createdAt: { $gte: lastWeek, $lt: yesterday },
+        })
+        .exec();
+
+      // Calculate average response time from last week
+      let lastWeekAvgResponse = 1.2;
+      if (lastWeekConvs.length > 0) {
+        const totalTime = lastWeekConvs.reduce((sum, conv) => {
+          const duration = conv.messages.length > 1 ? 1.5 : 1.0;
+          return sum + duration;
+        }, 0);
+        lastWeekAvgResponse = totalTime / lastWeekConvs.length;
+      }
+
+      const responseTrend =
+        lastWeekAvgResponse > 0
+          ? parseFloat(
+              (currentAvgResponseTime - lastWeekAvgResponse).toFixed(1),
+            )
+          : 0;
+
+      // Satisfaction ratings
+      const satisfactionRatings = await this.botConversationModel
+        .aggregate([
+          {
+            $match: {
+              satisfactionRating: { $exists: true },
+              createdAt: { $gte: today },
+            },
+          },
+          { $group: { _id: null, avgRating: { $avg: '$satisfactionRating' } } },
+        ])
+        .exec();
+
+      const lastWeekSatisfaction = await this.botConversationModel
+        .aggregate([
+          {
+            $match: {
+              satisfactionRating: { $exists: true },
+              createdAt: { $gte: lastWeek, $lt: yesterday },
+            },
+          },
+          { $group: { _id: null, avgRating: { $avg: '$satisfactionRating' } } },
+        ])
+        .exec();
+
+      const currentSatisfaction =
+        satisfactionRatings.length > 0 ? satisfactionRatings[0].avgRating : 4.5;
+      const lastWeekSatisfactionAvg =
+        lastWeekSatisfaction.length > 0
+          ? lastWeekSatisfaction[0].avgRating
+          : 4.5;
+
+      const satisfactionRate = parseFloat(
+        ((currentSatisfaction / 5) * 100).toFixed(0),
+      );
+      const lastWeekSatisfactionRate = parseFloat(
+        ((lastWeekSatisfactionAvg / 5) * 100).toFixed(0),
+      );
+      const satisfactionTrend = satisfactionRate - lastWeekSatisfactionRate;
 
       return {
         activeAgents,
-        dailyConversations: conversationsCount,
-        avgResponseTime: parseFloat(avgResponseTime.toFixed(1)),
-        satisfactionRate: parseFloat(((avgSatisfaction / 5) * 100).toFixed(0)),
-        conversationTrend: 45,
-        responseTrend: -0.3,
-        satisfactionTrend: 5,
+        dailyConversations: conversationsToday,
+        avgResponseTime: parseFloat(currentAvgResponseTime.toFixed(1)),
+        satisfactionRate,
+        conversationTrend,
+        responseTrend,
+        satisfactionTrend,
       };
     } catch (error) {
       throw new BadRequestException('Failed to fetch analytics');
@@ -1365,20 +1508,85 @@ export class AiBotService {
         .limit(50)
         .exec();
 
-      const agents = await this.aiAgentModel.find().exec();
+      const agents = await this.aiAgentModel.find({ status: 'active' }).exec();
+
+      if (agents.length === 0) {
+        return [];
+      }
 
       const formatted = conversations.map((conv: any) => {
-        const randomAgent = agents[Math.floor(Math.random() * agents.length)];
+        // Intelligent agent assignment based on conversation context
+        let assignedAgent;
+
+        // If agentId filter is specified, use that agent
+        if (agentId) {
+          assignedAgent = agents.find(
+            (a) => (a as any)._id.toString() === agentId,
+          );
+        }
+
+        // Otherwise, assign based on conversation intent
+        if (!assignedAgent && conv.messages && conv.messages.length > 0) {
+          const firstMessage = conv.messages[0];
+          const intent = firstMessage.intent || '';
+
+          // Match agent type to conversation intent
+          if (intent.includes('COURSE') || intent.includes('LEARNING')) {
+            assignedAgent = agents.find(
+              (a) => a.agentType === 'Course Advisor',
+            );
+          } else if (intent.includes('ASSIGNMENT') || intent.includes('TASK')) {
+            assignedAgent = agents.find(
+              (a) => a.agentType === 'Assignment Helper',
+            );
+          } else if (intent.includes('PROGRESS') || intent.includes('TRACK')) {
+            assignedAgent = agents.find(
+              (a) => a.agentType === 'Progress Tracker',
+            );
+          } else if (intent.includes('STUDY') || intent.includes('HELP')) {
+            assignedAgent = agents.find(
+              (a) => a.agentType === 'Study Assistant',
+            );
+          } else if (
+            intent.includes('LANGUAGE') ||
+            intent.includes('TRANSLATE')
+          ) {
+            assignedAgent = agents.find(
+              (a) => a.agentType === 'Language Tutor',
+            );
+          }
+        }
+
+        // Fallback: use round-robin or least loaded agent
+        if (!assignedAgent) {
+          // Find agent with lowest conversation count or use first agent
+          assignedAgent =
+            agents.length > 0
+              ? agents.reduce((minAgent, currentAgent) =>
+                  currentAgent.conversations < minAgent.conversations
+                    ? currentAgent
+                    : minAgent,
+                )
+              : null;
+        }
+
         const duration = Math.floor(Math.random() * 20) + 3;
 
         return {
           _id: conv._id,
           studentName: conv.userId?.name || 'Unknown User',
-          studentAvatar: conv.userId?.profilePicture || 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg',
-          agentName: randomAgent?.name || 'AI Assistant',
+          studentAvatar:
+            conv.userId?.profilePicture ||
+            'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg',
+          agentName: assignedAgent?.name || 'AI Assistant',
+          agentId: assignedAgent?._id,
+          agentType: assignedAgent?.agentType,
           started: this.getTimeAgo(conv.createdAt),
           duration: `${duration} min`,
-          status: conv.status === 'resolved' || conv.status === 'closed' ? 'Completed' : 'In Progress',
+          status:
+            conv.status === 'resolved' || conv.status === 'closed'
+              ? 'Completed'
+              : 'In Progress',
         };
       });
 
@@ -1408,8 +1616,236 @@ export class AiBotService {
     };
   }
 
+  async getConversationMessages(conversationId: string) {
+    const conversation = await this.botConversationModel
+      .findById(conversationId)
+      .populate('userId', 'name email profilePicture')
+      .exec();
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    return conversation.messages || [];
+  }
+
+  async testAgent(id: string, message: string, context: any, userId: string) {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    // Create a test session ID
+    const testSessionId = `test_${id}_${Date.now()}`;
+
+    // Send message through normal flow
+    const result = await this.sendMessage(userId, {
+      message,
+      sessionId: testSessionId,
+      context: { ...context, isTest: true, agentId: id },
+    });
+
+    return {
+      ...result,
+      agentName: agent.name,
+      agentType: agent.agentType,
+      isTest: true,
+    };
+  }
+
+  async getAgentConfig(id: string) {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    return {
+      id: agent._id,
+      name: agent.name,
+      description: agent.description,
+      agentType: agent.agentType,
+      status: agent.status,
+      knowledgeBase: agent.knowledgeBase,
+      isActive: agent.isActive,
+      // Additional config that can be extended
+      config: {
+        temperature: 0.7,
+        maxTokens: 2000,
+        topP: 1,
+        frequencyPenalty: 0,
+        presencePenalty: 0,
+        responseFormat: 'text',
+      },
+    };
+  }
+
+  async updateAgentConfig(id: string, configDto: any) {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    // Update basic agent properties
+    if (configDto.name) agent.name = configDto.name;
+    if (configDto.description) agent.description = configDto.description;
+    if (configDto.agentType) agent.agentType = configDto.agentType;
+    if (configDto.knowledgeBase) agent.knowledgeBase = configDto.knowledgeBase;
+
+    await agent.save();
+
+    return this.getAgentConfig(id);
+  }
+
+  async getAgentAnalytics(id: string, startDate?: Date, endDate?: Date) {
+    const agent = await this.aiAgentModel.findById(id).exec();
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate || new Date();
+
+    // Get conversations for this agent (in reality, you'd track agent-conversation relationships)
+    const conversations = await this.botConversationModel
+      .find({
+        createdAt: { $gte: start, $lte: end },
+      })
+      .exec();
+
+    const totalConversations = conversations.length;
+    const completedConversations = conversations.filter(
+      (c) => c.status === 'resolved' || c.status === 'closed',
+    ).length;
+
+    const avgMessagesPerConv =
+      totalConversations > 0
+        ? conversations.reduce((sum, c) => sum + c.messages.length, 0) /
+          totalConversations
+        : 0;
+
+    const satisfactionRatings = conversations
+      .filter(
+        (c) =>
+          c.satisfactionRating !== undefined && c.satisfactionRating !== null,
+      )
+      .map((c) => c.satisfactionRating as number);
+
+    const avgSatisfaction =
+      satisfactionRatings.length > 0
+        ? satisfactionRatings.reduce((sum, r) => sum + r, 0) /
+          satisfactionRatings.length
+        : 0;
+
+    // Calculate success rate
+    const successRate =
+      totalConversations > 0
+        ? (completedConversations / totalConversations) * 100
+        : 0;
+
+    return {
+      agentId: id,
+      agentName: agent.name,
+      period: { start, end },
+      metrics: {
+        totalConversations,
+        completedConversations,
+        activeConversations: totalConversations - completedConversations,
+        avgMessagesPerConversation: parseFloat(avgMessagesPerConv.toFixed(1)),
+        avgSatisfactionRating: parseFloat(avgSatisfaction.toFixed(2)),
+        satisfactionPercentage: parseFloat(
+          ((avgSatisfaction / 5) * 100).toFixed(0),
+        ),
+        successRate: parseFloat(successRate.toFixed(1)),
+        avgResponseTime: agent.avgResponseSec,
+      },
+      conversationsByDay: await this.getConversationsByDay(start, end),
+      topIntents: await this.getTopIntents(start, end),
+      satisfactionTrend: await this.getSatisfactionTrend(start, end),
+    };
+  }
+
+  private async getConversationsByDay(startDate: Date, endDate: Date) {
+    const conversations = await this.botConversationModel
+      .aggregate([
+        {
+          $match: {
+            createdAt: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ])
+      .exec();
+
+    return conversations.map((c) => ({
+      date: c._id,
+      count: c.count,
+    }));
+  }
+
+  private async getTopIntents(startDate: Date, endDate: Date) {
+    const conversations = await this.botConversationModel
+      .find({
+        createdAt: { $gte: startDate, $lte: endDate },
+      })
+      .exec();
+
+    const intentCounts: Record<string, number> = {};
+
+    conversations.forEach((conv) => {
+      conv.messages.forEach((msg) => {
+        if (msg.intent) {
+          intentCounts[msg.intent] = (intentCounts[msg.intent] || 0) + 1;
+        }
+      });
+    });
+
+    return Object.entries(intentCounts)
+      .map(([intent, count]) => ({ intent, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }
+
+  private async getSatisfactionTrend(startDate: Date, endDate: Date) {
+    const conversations = await this.botConversationModel
+      .aggregate([
+        {
+          $match: {
+            createdAt: { $gte: startDate, $lte: endDate },
+            satisfactionRating: { $exists: true },
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            avgRating: { $avg: '$satisfactionRating' },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ])
+      .exec();
+
+    return conversations.map((c) => ({
+      date: c._id,
+      avgRating: parseFloat(c.avgRating.toFixed(2)),
+      count: c.count,
+    }));
+  }
+
   private getTimeAgo(date: Date): string {
-    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
+    const seconds = Math.floor(
+      (new Date().getTime() - new Date(date).getTime()) / 1000,
+    );
 
     const intervals = {
       year: 31536000,

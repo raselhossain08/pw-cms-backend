@@ -5,13 +5,13 @@ import { AircraftController } from './aircraft.controller';
 import { Aircraft, AircraftSchema } from './entities/aircraft.entity';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([
-            { name: Aircraft.name, schema: AircraftSchema },
-        ]),
-    ],
-    controllers: [AircraftController],
-    providers: [AircraftService],
-    exports: [AircraftService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Aircraft.name, schema: AircraftSchema },
+    ]),
+  ],
+  controllers: [AircraftController],
+  providers: [AircraftService],
+  exports: [AircraftService],
 })
-export class AircraftModule { }
+export class AircraftModule {}

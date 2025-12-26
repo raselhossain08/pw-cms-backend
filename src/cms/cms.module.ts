@@ -41,4 +41,4 @@ import { CloudinaryService } from './services/cloudinary.service';
     CloudinaryService,
   ],
 })
-export class CmsModule { }
+export class CmsModule {}

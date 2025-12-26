@@ -14,7 +14,7 @@ export class TestimonialsService {
     @InjectModel(Testimonials.name)
     private testimonialsModel: Model<Testimonials>,
     private cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   async create(
     createTestimonialsDto: CreateTestimonialsDto,
@@ -71,7 +71,11 @@ export class TestimonialsService {
       throw new NotFoundException('Testimonials not found');
     }
 
-    if (!testimonials.testimonials || index < 0 || index >= testimonials.testimonials.length) {
+    if (
+      !testimonials.testimonials ||
+      index < 0 ||
+      index >= testimonials.testimonials.length
+    ) {
       throw new NotFoundException('Testimonial not found');
     }
 
@@ -82,7 +86,7 @@ export class TestimonialsService {
       name: `${testimonial.name} (Copy)`,
     };
 
-    testimonials.testimonials.push(duplicatedTestimonial as any);
+    testimonials.testimonials.push(duplicatedTestimonial);
     await testimonials.save();
     return testimonials;
   }

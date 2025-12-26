@@ -30,7 +30,7 @@ import { UserRole } from '../users/entities/user.entity';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
@@ -131,7 +131,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Resend email verification using token or email' })
   @ApiResponse({ status: 200, description: 'Verification email resent' })
   @ApiResponse({ status: 400, description: 'Invalid or expired token/email' })
-  async resendVerificationToken(@Body() body: { token?: string; email?: string }) {
+  async resendVerificationToken(
+    @Body() body: { token?: string; email?: string },
+  ) {
     return this.authService.resendVerification(body.token, body.email);
   }
 

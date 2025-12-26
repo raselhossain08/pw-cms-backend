@@ -25,7 +25,7 @@ export class TermsConditionsController {
   constructor(
     private readonly termsConditionsService: TermsConditionsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Post()
   async create(@Body() createDto: CreateTermsConditionsDto) {
@@ -234,7 +234,8 @@ export class TermsConditionsController {
   @Post(':id/toggle-active')
   async toggleActive(@Param('id') id: string) {
     try {
-      const termsConditions = await this.termsConditionsService.toggleActive(id);
+      const termsConditions =
+        await this.termsConditionsService.toggleActive(id);
       return {
         success: true,
         message: 'Terms & Conditions status toggled successfully',
@@ -268,18 +269,28 @@ export class TermsConditionsController {
   }
 
   @Get(':id/export')
-  async export(@Param('id') id: string, @Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async export(
+    @Param('id') id: string,
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.termsConditionsService.export(id, format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="terms-conditions_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="terms-conditions_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="terms-conditions_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="terms-conditions_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({
@@ -291,18 +302,27 @@ export class TermsConditionsController {
   }
 
   @Get('export')
-  async exportAll(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async exportAll(
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.termsConditionsService.exportAll(format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="terms-conditions-all_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="terms-conditions-all_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="terms-conditions-all_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="terms-conditions-all_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({

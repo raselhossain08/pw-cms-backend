@@ -16,4 +16,4 @@ import { Course, CourseSchema } from '../courses/entities/course.entity';
   providers: [EnrollmentsService],
   exports: [EnrollmentsService, MongooseModule],
 })
-export class EnrollmentsModule { }
+export class EnrollmentsModule {}

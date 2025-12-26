@@ -26,4 +26,4 @@ import { User, UserSchema } from '../users/entities/user.entity';
   providers: [ChatService, ChatGateway],
   exports: [ChatService],
 })
-export class ChatModule { }
+export class ChatModule {}

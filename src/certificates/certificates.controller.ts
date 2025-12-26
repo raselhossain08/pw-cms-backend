@@ -27,7 +27,7 @@ import { CreateTemplateDto, UpdateTemplateDto } from './dto/template.dto';
 @ApiTags('Certificates')
 @Controller('certificates')
 export class CertificatesController {
-  constructor(private readonly certificatesService: CertificatesService) { }
+  constructor(private readonly certificatesService: CertificatesService) {}
 
   @Post('generate/:courseId')
   @UseGuards(JwtAuthGuard)
@@ -282,9 +282,8 @@ export class CertificatesController {
     @Param('certificateId') certificateId: string,
     @Req() req,
   ) {
-    const certificate = await this.certificatesService.getCertificate(
-      certificateId,
-    );
+    const certificate =
+      await this.certificatesService.getCertificate(certificateId);
 
     // Check if user owns this certificate
     if (certificate.student.toString() !== req.user.id) {

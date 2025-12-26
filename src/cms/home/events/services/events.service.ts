@@ -6,7 +6,7 @@ import { CreateEventsDto, UpdateEventsDto } from '../dto/events.dto';
 
 @Injectable()
 export class EventsService {
-  constructor(@InjectModel(Events.name) private eventsModel: Model<Events>) { }
+  constructor(@InjectModel(Events.name) private eventsModel: Model<Events>) {}
 
   /**
    * Get active events section (Public)
@@ -101,7 +101,7 @@ export class EventsService {
       id: Math.max(...events.events.map((e) => e.id || 0), 0) + 1,
     };
 
-    events.events.push(duplicatedEvent as any);
+    events.events.push(duplicatedEvent);
     await events.save();
     return events;
   }

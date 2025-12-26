@@ -302,7 +302,13 @@ export class AnalyticsService {
   }
 
   async getConversionRates() {
-    const [visitData, enrollmentData, purchaseData, addToCartData, checkoutData] = await Promise.all([
+    const [
+      visitData,
+      enrollmentData,
+      purchaseData,
+      addToCartData,
+      checkoutData,
+    ] = await Promise.all([
       this.getPageViews(),
       this.getEnrollmentEvents(),
       this.getPurchaseEvents(),
@@ -524,7 +530,6 @@ export class AnalyticsService {
     return { totalViews, totalCompletions, averageCompletion, lessonsCount };
   }
 
-
   private getTopCountries(distribution: any[]): any[] {
     // Implementation for top countries
     return distribution.slice(0, 10);
@@ -545,9 +550,7 @@ export class AnalyticsService {
   }
 
   private async getAddToCartEvents(): Promise<any[]> {
-    return await this.analyticsModel
-      .find({ eventType: 'add_to_cart' })
-      .exec();
+    return await this.analyticsModel.find({ eventType: 'add_to_cart' }).exec();
   }
 
   private async getCheckoutEvents(): Promise<any[]> {
@@ -624,15 +627,13 @@ export class AnalyticsService {
     page?: number;
     userId?: string;
     userRole?: UserRole;
-  }): Promise<{ reports: Report[]; total: number; page: number; pages: number }> {
-    const {
-      type,
-      status,
-      limit = 20,
-      page = 1,
-      userId,
-      userRole,
-    } = filters;
+  }): Promise<{
+    reports: Report[];
+    total: number;
+    page: number;
+    pages: number;
+  }> {
+    const { type, status, limit = 20, page = 1, userId, userRole } = filters;
 
     const query: any = {};
 
@@ -785,5 +786,63 @@ export class AnalyticsService {
       url: fileUrl,
       format,
     };
+  }
+
+  async scheduleReport(scheduleData: any, userId: string): Promise<any> {
+    // Create a scheduled report
+    const report = new this.reportModel({
+      name: scheduleData.name,
+      type: scheduleData.type,
+      period: scheduleData.period,
+      status: ReportStatus.SCHEDULED,
+      createdBy: new Types.ObjectId(userId),
+      scheduledAt: new Date(
+        `${scheduleData.scheduledDate}T${scheduleData.scheduledTime}`,
+      ),
+      // Store additional schedule configuration
+      scheduleConfig: {
+        frequency: scheduleData.frequency,
+        recipients: scheduleData.recipients || [],
+        autoExport: scheduleData.autoExport,
+        exportFormat: scheduleData.exportFormat,
+      },
+    });
+
+    await report.save();
+
+    // TODO: Set up cron job or scheduled task for automatic generation
+    // This would require a task scheduler like node-cron or Bull queue
+
+    return report;
+  }
+
+  async bulkDeleteReports(ids: string[]): Promise<{ deleted: number }> {
+    const result = await this.reportModel.deleteMany({
+      _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+    });
+
+    return { deleted: result.deletedCount || 0 };
+  }
+
+  async bulkExportReports(
+    ids: string[],
+    format: string,
+  ): Promise<{ files: Array<{ id: string; url: string }> }> {
+    const reports = await this.reportModel.find({
+      _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      status: ReportStatus.GENERATED,
+    });
+
+    const files: Array<{ id: string; url: string }> = [];
+
+    for (const report of reports) {
+      const result = await this.exportReport(String(report._id), format);
+      files.push({
+        id: String(report._id),
+        url: result.url,
+      });
+    }
+
+    return { files };
   }
 }

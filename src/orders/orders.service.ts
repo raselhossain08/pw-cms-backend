@@ -22,7 +22,7 @@ export class OrdersService {
     private usersService: UsersService,
     private notificationsService: NotificationsService,
     private couponsService: CouponsService,
-  ) { }
+  ) {}
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
     // Generate order number explicitly to ensure it's always set
@@ -45,9 +45,12 @@ export class OrdersService {
       subtotal,
       tax,
       total,
-      courses: createOrderDto.courses?.map((id) => new Types.ObjectId(id)) || [],
+      courses:
+        createOrderDto.courses?.map((id) => new Types.ObjectId(id)) || [],
       user: new Types.ObjectId(createOrderDto.user),
-      coupon: createOrderDto.coupon ? new Types.ObjectId(createOrderDto.coupon) : undefined,
+      coupon: createOrderDto.coupon
+        ? new Types.ObjectId(createOrderDto.coupon)
+        : undefined,
     });
 
     return await order.save();
@@ -322,7 +325,9 @@ export class OrdersService {
     const order = await this.findById(orderId);
 
     if (order.status !== OrderStatus.COMPLETED) {
-      throw new BadRequestException('Receipt can only be sent for completed orders');
+      throw new BadRequestException(
+        'Receipt can only be sent for completed orders',
+      );
     }
 
     const user = await this.usersService.findById(order.user.toString());
@@ -348,12 +353,22 @@ export class OrdersService {
 
     if (format === 'csv') {
       const csvRows = [
-        ['Order Number', 'Customer', 'Email', 'Date', 'Status', 'Total', 'Items'].join(','),
+        [
+          'Order Number',
+          'Customer',
+          'Email',
+          'Date',
+          'Status',
+          'Total',
+          'Items',
+        ].join(','),
       ];
 
-      orders.forEach(order => {
+      orders.forEach((order) => {
         const user = order.user as any;
-        const customerName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'N/A';
+        const customerName = user
+          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+          : 'N/A';
         const email = user?.email || 'N/A';
         const row = [
           order.orderNumber,
@@ -373,7 +388,10 @@ export class OrdersService {
     return orders;
   }
 
-  async downloadOrder(orderId: string, userId: string): Promise<{ url: string }> {
+  async downloadOrder(
+    orderId: string,
+    userId: string,
+  ): Promise<{ url: string }> {
     const order = await this.orderModel.findOne({
       _id: orderId,
       user: userId,

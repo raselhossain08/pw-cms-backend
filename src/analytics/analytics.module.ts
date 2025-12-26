@@ -25,4 +25,4 @@ import { OrdersModule } from '../orders/orders.module';
   providers: [AnalyticsService],
   exports: [AnalyticsService],
 })
-export class AnalyticsModule { }
+export class AnalyticsModule {}

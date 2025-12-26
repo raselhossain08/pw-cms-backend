@@ -44,6 +44,28 @@ export class Conversation extends Document {
   @Prop({ default: 0 })
   unreadCount: number;
 
+  @ApiProperty({ example: false, description: 'Archived status' })
+  @Prop({ default: false })
+  archived: boolean;
+
+  @ApiProperty({
+    type: [String],
+    description: 'Users who archived this conversation',
+  })
+  @Prop([{ type: Types.ObjectId, ref: 'User' }])
+  archivedBy: Types.ObjectId[];
+
+  @ApiProperty({ example: false, description: 'Starred status' })
+  @Prop({ default: false })
+  starred: boolean;
+
+  @ApiProperty({
+    type: [String],
+    description: 'Users who starred this conversation',
+  })
+  @Prop([{ type: Types.ObjectId, ref: 'User' }])
+  starredBy: Types.ObjectId[];
+
   @Prop({ type: Object })
   metadata: {
     courseTitle: string;

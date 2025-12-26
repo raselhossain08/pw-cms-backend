@@ -190,4 +190,4 @@ export class CreateAboutUsDto {
   isActive?: boolean;
 }
 
-export class UpdateAboutUsDto extends PartialType(CreateAboutUsDto) { }
+export class UpdateAboutUsDto extends PartialType(CreateAboutUsDto) {}

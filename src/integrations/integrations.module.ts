@@ -8,14 +8,14 @@ import { StripeProvider } from './providers/stripe.provider';
 import { PayPalProvider } from './providers/paypal.provider';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([
-            { name: Integration.name, schema: IntegrationSchema },
-        ]),
-        ConfigModule,
-    ],
-    controllers: [IntegrationsController],
-    providers: [IntegrationsService, StripeProvider, PayPalProvider],
-    exports: [IntegrationsService, StripeProvider, PayPalProvider],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Integration.name, schema: IntegrationSchema },
+    ]),
+    ConfigModule,
+  ],
+  controllers: [IntegrationsController],
+  providers: [IntegrationsService, StripeProvider, PayPalProvider],
+  exports: [IntegrationsService, StripeProvider, PayPalProvider],
 })
-export class IntegrationsModule { }
+export class IntegrationsModule {}

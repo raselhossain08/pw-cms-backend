@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -36,13 +37,17 @@ import { EncryptionUtil } from '../shared/utils/encryption.util';
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     @InjectModel(Invoice.name) private invoiceModel: Model<Invoice>,
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
     @InjectModel(Order.name) private orderModel: Model<Order>,
     @InjectModel(User.name) private userModel: Model<User>,
-    @InjectModel(PaymentMethodEntity.name) private paymentMethodModel: Model<PaymentMethodEntity>,
-    @InjectModel(CustomerProfile.name) private customerProfileModel: Model<CustomerProfile>,
+    @InjectModel(PaymentMethodEntity.name)
+    private paymentMethodModel: Model<PaymentMethodEntity>,
+    @InjectModel(CustomerProfile.name)
+    private customerProfileModel: Model<CustomerProfile>,
     private configService: ConfigService,
     private stripeService: StripeProvider,
     private paypalService: PayPalProvider,
@@ -52,14 +57,20 @@ export class PaymentsService {
     private couponsService: CouponsService,
     private mailService: MailService,
     private enrollmentsService: EnrollmentsService,
-  ) { }
+  ) {}
 
   async createPaymentIntent(
     createPaymentIntentDto: CreatePaymentIntentDto,
     userId: string,
   ) {
-    const { amount, currency, paymentMethod, courseIds, description, couponCode } =
-      createPaymentIntentDto;
+    const {
+      amount,
+      currency,
+      paymentMethod,
+      courseIds,
+      description,
+      couponCode,
+    } = createPaymentIntentDto;
 
     let discount = 0;
     let finalAmount = amount;
@@ -68,7 +79,9 @@ export class PaymentsService {
     if (couponCode) {
       const validation = await this.couponsService.validate(couponCode, amount);
       if (!validation.valid) {
-        throw new BadRequestException(validation.message || 'Invalid coupon code');
+        throw new BadRequestException(
+          validation.message || 'Invalid coupon code',
+        );
       }
       discount = validation.discount;
       finalAmount = Math.max(0, amount - discount);
@@ -116,7 +129,10 @@ export class PaymentsService {
     }
 
     await this.orderModel.findByIdAndUpdate(order.id, {
-      paymentIntentId: paymentResult.paymentIntentId || paymentResult.id || paymentResult.orderId,
+      paymentIntentId:
+        paymentResult.paymentIntentId ||
+        paymentResult.id ||
+        paymentResult.orderId,
     });
 
     // Create transaction record
@@ -129,7 +145,9 @@ export class PaymentsService {
       description: description || 'Course payment',
       gateway: paymentMethod,
       gatewayTransactionId:
-        paymentResult.paymentIntentId || paymentResult.id || paymentResult.orderId,
+        paymentResult.paymentIntentId ||
+        paymentResult.id ||
+        paymentResult.orderId,
       orderId: order.id,
     });
 
@@ -268,7 +286,9 @@ export class PaymentsService {
   }
 
   async getPaymentMethods(userId: string) {
-    const methods = await this.paymentMethodModel.find({ user: userId }).sort({ isDefault: -1, createdAt: -1 });
+    const methods = await this.paymentMethodModel
+      .find({ user: userId })
+      .sort({ isDefault: -1, createdAt: -1 });
     // Decrypt sensitive data if needed, but for listing we mostly need last4/brand
     // We'll keep providerMethodId encrypted in response as it shouldn't be exposed
     return methods;
@@ -280,11 +300,16 @@ export class PaymentsService {
 
     // 1. Get or create customer profile
     let profile = await this.customerProfileModel.findOne({ user: userId });
-    let stripeCustomerId = profile?.stripeCustomerId ? EncryptionUtil.decrypt(profile.stripeCustomerId) : null;
+    let stripeCustomerId = profile?.stripeCustomerId
+      ? EncryptionUtil.decrypt(profile.stripeCustomerId)
+      : null;
 
     if (!profile) {
       // Create Stripe customer
-      const customer = await this.stripeService.createCustomer(user.email, `${user.firstName} ${user.lastName}`);
+      const customer = await this.stripeService.createCustomer(
+        user.email,
+        `${user.firstName} ${user.lastName}`,
+      );
       stripeCustomerId = customer.id;
 
       profile = new this.customerProfileModel({
@@ -293,17 +318,24 @@ export class PaymentsService {
       });
       await profile.save();
     } else if (!stripeCustomerId) {
-      const customer = await this.stripeService.createCustomer(user.email, `${user.firstName} ${user.lastName}`);
+      const customer = await this.stripeService.createCustomer(
+        user.email,
+        `${user.firstName} ${user.lastName}`,
+      );
       stripeCustomerId = customer.id;
       profile.stripeCustomerId = EncryptionUtil.encrypt(customer.id);
       await profile.save();
     }
 
     // 2. Attach payment method to customer
-    await this.stripeService.attachPaymentMethod(stripeCustomerId, paymentMethodId);
+    await this.stripeService.attachPaymentMethod(
+      stripeCustomerId,
+      paymentMethodId,
+    );
 
     // 3. Get payment method details
-    const pm: any = await this.stripeService.retrievePaymentMethod(paymentMethodId);
+    const pm: any =
+      await this.stripeService.retrievePaymentMethod(paymentMethodId);
 
     const method = new this.paymentMethodModel({
       user: userId,
@@ -318,7 +350,9 @@ export class PaymentsService {
     });
 
     // If it's the first method, make it default
-    const count = await this.paymentMethodModel.countDocuments({ user: userId });
+    const count = await this.paymentMethodModel.countDocuments({
+      user: userId,
+    });
     if (count === 0) {
       method.isDefault = true;
     }
@@ -327,7 +361,10 @@ export class PaymentsService {
   }
 
   async deletePaymentMethod(userId: string, methodId: string) {
-    const method = await this.paymentMethodModel.findOne({ _id: methodId, user: userId });
+    const method = await this.paymentMethodModel.findOne({
+      _id: methodId,
+      user: userId,
+    });
     if (!method) {
       throw new NotFoundException('Payment method not found');
     }
@@ -343,10 +380,7 @@ export class PaymentsService {
   }
 
   async handleStripeWebhook(payload: any, signature: string) {
-    const event = await this.stripeService.constructEvent(
-      payload,
-      signature,
-    );
+    const event = await this.stripeService.constructEvent(payload, signature);
     const type = event.type;
 
     switch (type) {
@@ -419,7 +453,10 @@ export class PaymentsService {
     return invoice;
   }
 
-  async downloadInvoice(invoiceId: string, userId: string): Promise<{ url: string }> {
+  async downloadInvoice(
+    invoiceId: string,
+    userId: string,
+  ): Promise<{ url: string }> {
     const invoice = await this.invoiceModel.findOne({
       _id: invoiceId,
       user: userId,
@@ -524,23 +561,23 @@ export class PaymentsService {
       dueDate: new Date(),
       billingInfo: order.billingAddress
         ? {
-          companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
-          address: order.billingAddress.street,
-          city: order.billingAddress.city,
-          state: order.billingAddress.state,
-          zipCode: order.billingAddress.zipCode,
-          country: order.billingAddress.country,
-          taxId: '',
-        }
+            companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
+            address: order.billingAddress.street,
+            city: order.billingAddress.city,
+            state: order.billingAddress.state,
+            zipCode: order.billingAddress.zipCode,
+            country: order.billingAddress.country,
+            taxId: '',
+          }
         : {
-          companyName: 'Personal Wings',
-          address: '123 Aviation Way',
-          city: 'Sky Harbor',
-          state: 'AZ',
-          zipCode: '85034',
-          country: 'US',
-          taxId: 'TAX-123456',
-        },
+            companyName: 'Personal Wings',
+            address: '123 Aviation Way',
+            city: 'Sky Harbor',
+            state: 'AZ',
+            zipCode: '85034',
+            country: 'US',
+            taxId: 'TAX-123456',
+          },
       items: [
         {
           description: 'Course Enrollment',
@@ -699,9 +736,14 @@ export class PaymentsService {
     let couponId: string | undefined;
 
     if (couponCode) {
-      const validation = await this.couponsService.validate(couponCode, subtotal);
+      const validation = await this.couponsService.validate(
+        couponCode,
+        subtotal,
+      );
       if (!validation.valid) {
-        throw new BadRequestException(validation.message || 'Invalid coupon code');
+        throw new BadRequestException(
+          validation.message || 'Invalid coupon code',
+        );
       }
       discount = validation.discount;
       finalTotal = Math.max(0, subtotal - discount);
@@ -747,7 +789,9 @@ export class PaymentsService {
     if (couponCode) {
       const validation = await this.couponsService.validate(couponCode, amount);
       if (!validation.valid) {
-        throw new BadRequestException(validation.message || 'Invalid coupon code');
+        throw new BadRequestException(
+          validation.message || 'Invalid coupon code',
+        );
       }
       discount = validation.discount;
       finalAmount = Math.max(0, amount - discount);
@@ -835,10 +879,10 @@ export class PaymentsService {
    * Helper method to create enrollments for an order
    */
   private async createEnrollmentsForOrder(order: any) {
-    const userId = (order.user as any)._id?.toString() || (order.user as any).toString();
+    const userId = order.user._id?.toString() || order.user.toString();
 
     for (const courseId of order.courses) {
-      const courseIdStr = (courseId as any)._id?.toString() || courseId.toString();
+      const courseIdStr = courseId._id?.toString() || courseId.toString();
 
       try {
         // Check if user is already enrolled
@@ -891,11 +935,16 @@ export class PaymentsService {
 
     // Validate cart items
     if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-      throw new BadRequestException('Cart is empty. Please add items to your cart before checkout.');
+      throw new BadRequestException(
+        'Cart is empty. Please add items to your cart before checkout.',
+      );
     }
 
     // Log cart items for debugging
-    console.log('Processing checkout with cart items:', JSON.stringify(cartItems, null, 2));
+    console.log(
+      'Processing checkout with cart items:',
+      JSON.stringify(cartItems, null, 2),
+    );
 
     // Validate and apply coupon if provided
     let discount = 0;
@@ -910,7 +959,9 @@ export class PaymentsService {
       );
 
       if (!couponValidation.valid) {
-        throw new BadRequestException(couponValidation.message || 'Invalid or expired coupon code');
+        throw new BadRequestException(
+          couponValidation.message || 'Invalid or expired coupon code',
+        );
       }
 
       discount = couponValidation.discount;
@@ -943,27 +994,27 @@ export class PaymentsService {
       coupon: appliedCoupon ? appliedCoupon._id.toString() : undefined,
       billingAddress: billingAddress
         ? {
-          firstName: billingAddress.firstName || firstName || '',
-          lastName: billingAddress.lastName || lastName || '',
-          email: billingAddress.email || email || '',
-          phone: billingAddress.phone || phone || '',
-          street: billingAddress.address || billingAddress.street || '',
-          city: billingAddress.city || '',
-          state: billingAddress.state || '',
-          country: billingAddress.country || '',
-          zipCode: billingAddress.zipCode || '',
-        }
+            firstName: billingAddress.firstName || firstName || '',
+            lastName: billingAddress.lastName || lastName || '',
+            email: billingAddress.email || email || '',
+            phone: billingAddress.phone || phone || '',
+            street: billingAddress.address || billingAddress.street || '',
+            city: billingAddress.city || '',
+            state: billingAddress.state || '',
+            country: billingAddress.country || '',
+            zipCode: billingAddress.zipCode || '',
+          }
         : {
-          firstName: firstName || '',
-          lastName: lastName || '',
-          email: email || '',
-          phone: phone || '',
-          street: '',
-          city: '',
-          state: '',
-          country: '',
-          zipCode: '',
-        },
+            firstName: firstName || '',
+            lastName: lastName || '',
+            email: email || '',
+            phone: phone || '',
+            street: '',
+            city: '',
+            state: '',
+            country: '',
+            zipCode: '',
+          },
     } as any);
 
     // Handle payment based on method and test mode
@@ -1034,7 +1085,9 @@ export class PaymentsService {
         cartItems.map(async (item: any, index: number) => {
           // Validate required fields
           if (!item.price || item.price <= 0) {
-            throw new BadRequestException(`Invalid price for item at index ${index}`);
+            throw new BadRequestException(
+              `Invalid price for item at index ${index}`,
+            );
           }
 
           // Initialize with fallback values
@@ -1060,7 +1113,11 @@ export class PaymentsService {
                 name = course.title.trim();
               }
               if (course?.excerpt || course?.description) {
-                description = (course.excerpt || course.description || '').trim();
+                description = (
+                  course.excerpt ||
+                  course.description ||
+                  ''
+                ).trim();
               }
             } catch (error) {
               console.error(`Failed to fetch course ${item.courseId}:`, error);
@@ -1071,7 +1128,9 @@ export class PaymentsService {
             }
           } else if (item.productId) {
             try {
-              const product = await this.productsService.findById(item.productId);
+              const product = await this.productsService.findById(
+                item.productId,
+              );
               if (product?.title) {
                 name = product.title.trim();
               }
@@ -1079,7 +1138,10 @@ export class PaymentsService {
                 description = product.description.trim();
               }
             } catch (error) {
-              console.error(`Failed to fetch product ${item.productId}:`, error);
+              console.error(
+                `Failed to fetch product ${item.productId}:`,
+                error,
+              );
               // Use fallback: Product + ID
               if (!name || name === 'Item') {
                 name = `Product ${item.productId.substring(0, 8)}`;
@@ -1089,15 +1151,19 @@ export class PaymentsService {
 
           // Final fallback - ensure name is never empty
           if (!name || name.trim() === '') {
-            name = item.courseId ? `Course ${item.courseId.substring(0, 8)}`
-              : item.productId ? `Product ${item.productId.substring(0, 8)}`
+            name = item.courseId
+              ? `Course ${item.courseId.substring(0, 8)}`
+              : item.productId
+                ? `Product ${item.productId.substring(0, 8)}`
                 : `Item ${index + 1}`;
           }
 
           // Final validation - this should never fail now
           const finalName = name.trim();
           if (!finalName || finalName.length === 0) {
-            throw new BadRequestException(`Line item ${index} has empty name after all fallbacks`);
+            throw new BadRequestException(
+              `Line item ${index} has empty name after all fallbacks`,
+            );
           }
 
           const lineItem = {
@@ -1105,7 +1171,9 @@ export class PaymentsService {
               currency: 'usd',
               product_data: {
                 name: finalName,
-                description: (description || 'No description available').substring(0, 500), // Stripe limit
+                description: (
+                  description || 'No description available'
+                ).substring(0, 500), // Stripe limit
               },
               unit_amount: Math.round(item.price * 100),
             },
@@ -1116,7 +1184,7 @@ export class PaymentsService {
           console.log(`Line item ${index}:`, JSON.stringify(lineItem, null, 2));
 
           return lineItem;
-        })
+        }),
       );
 
       // Validate line items before sending to Stripe
@@ -1127,13 +1195,22 @@ export class PaymentsService {
       // Final validation of all line items
       for (let i = 0; i < lineItems.length; i++) {
         const item = lineItems[i];
-        if (!item.price_data?.product_data?.name || item.price_data.product_data.name.trim() === '') {
-          console.error(`Invalid line item at index ${i}:`, JSON.stringify(item, null, 2));
-          throw new BadRequestException(`Line item ${i} is missing required name field`);
+        if (
+          !item.price_data?.product_data?.name ||
+          item.price_data.product_data.name.trim() === ''
+        ) {
+          console.error(
+            `Invalid line item at index ${i}:`,
+            JSON.stringify(item, null, 2),
+          );
+          throw new BadRequestException(
+            `Line item ${i} is missing required name field`,
+          );
         }
       }
 
-      const orderId = (order as any)._id?.toString() || (order as any).id?.toString();
+      const orderId =
+        (order as any)._id?.toString() || (order as any).id?.toString();
       paymentResult = await this.stripeService.createCheckoutSession({
         lineItems,
         successUrl: `${this.configService.get('FRONTEND_URL')}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -1167,7 +1244,9 @@ export class PaymentsService {
 
       // Force URL into paymentResult if not present (although provider should now return it)
       if (!paymentResult.url && paymentResult.links) {
-        const approveLink = paymentResult.links.find((link: any) => link.rel === 'approve');
+        const approveLink = paymentResult.links.find(
+          (link: any) => link.rel === 'approve',
+        );
         if (approveLink) {
           paymentResult.url = approveLink.href;
         }
@@ -1222,7 +1301,9 @@ export class PaymentsService {
       );
 
       if (!couponValidation.valid) {
-        throw new BadRequestException(couponValidation.message || 'Invalid or expired coupon code');
+        throw new BadRequestException(
+          couponValidation.message || 'Invalid or expired coupon code',
+        );
       }
 
       discount = couponValidation.discount;
@@ -1367,7 +1448,11 @@ export class PaymentsService {
                 name = course.title.trim();
               }
               if (course?.excerpt || course?.description) {
-                description = (course.excerpt || course.description || '').trim();
+                description = (
+                  course.excerpt ||
+                  course.description ||
+                  ''
+                ).trim();
               }
             } catch (error) {
               console.error(`Failed to fetch course ${item.courseId}:`, error);
@@ -1378,7 +1463,9 @@ export class PaymentsService {
             }
           } else if (item.productId) {
             try {
-              const product = await this.productsService.findById(item.productId);
+              const product = await this.productsService.findById(
+                item.productId,
+              );
               if (product?.title) {
                 name = product.title.trim();
               }
@@ -1386,7 +1473,10 @@ export class PaymentsService {
                 description = product.description.trim();
               }
             } catch (error) {
-              console.error(`Failed to fetch product ${item.productId}:`, error);
+              console.error(
+                `Failed to fetch product ${item.productId}:`,
+                error,
+              );
               // Use fallback: Product + ID
               if (!name || name === 'Item') {
                 name = `Product ${item.productId.substring(0, 8)}`;
@@ -1396,15 +1486,19 @@ export class PaymentsService {
 
           // Final fallback - ensure name is never empty
           if (!name || name.trim() === '') {
-            name = item.courseId ? `Course ${item.courseId.substring(0, 8)}`
-              : item.productId ? `Product ${item.productId.substring(0, 8)}`
+            name = item.courseId
+              ? `Course ${item.courseId.substring(0, 8)}`
+              : item.productId
+                ? `Product ${item.productId.substring(0, 8)}`
                 : `Item ${index + 1}`;
           }
 
           // Final validation - this should never fail now
           const finalName = name.trim();
           if (!finalName || finalName.length === 0) {
-            throw new BadRequestException(`Line item ${index} has empty name after all fallbacks`);
+            throw new BadRequestException(
+              `Line item ${index} has empty name after all fallbacks`,
+            );
           }
 
           const lineItem = {
@@ -1412,7 +1506,9 @@ export class PaymentsService {
               currency: 'usd',
               product_data: {
                 name: finalName,
-                description: (description || 'No description available').substring(0, 500), // Stripe limit
+                description: (
+                  description || 'No description available'
+                ).substring(0, 500), // Stripe limit
               },
               unit_amount: Math.round(item.price * 100),
             },
@@ -1423,7 +1519,7 @@ export class PaymentsService {
           console.log(`Line item ${index}:`, JSON.stringify(lineItem, null, 2));
 
           return lineItem;
-        })
+        }),
       );
 
       // Validate line items before sending to Stripe
@@ -1434,9 +1530,17 @@ export class PaymentsService {
       // Final validation of all line items
       for (let i = 0; i < lineItems.length; i++) {
         const item = lineItems[i];
-        if (!item.price_data?.product_data?.name || item.price_data.product_data.name.trim() === '') {
-          console.error(`Invalid line item at index ${i}:`, JSON.stringify(item, null, 2));
-          throw new BadRequestException(`Line item ${i} is missing required name field`);
+        if (
+          !item.price_data?.product_data?.name ||
+          item.price_data.product_data.name.trim() === ''
+        ) {
+          console.error(
+            `Invalid line item at index ${i}:`,
+            JSON.stringify(item, null, 2),
+          );
+          throw new BadRequestException(
+            `Line item ${i} is missing required name field`,
+          );
         }
       }
 
@@ -1469,7 +1573,9 @@ export class PaymentsService {
 
       // Force URL into paymentResult if not present
       if (!paymentResult.url && paymentResult.links) {
-        const approveLink = paymentResult.links.find((link: any) => link.rel === 'approve');
+        const approveLink = paymentResult.links.find(
+          (link: any) => link.rel === 'approve',
+        );
         if (approveLink) {
           paymentResult.url = approveLink.href;
         }
@@ -1499,15 +1605,52 @@ export class PaymentsService {
    * Sends appropriate email based on whether user is new or existing
    */
   async verifyGuestPayment(sessionId: string, email: string) {
+    this.logger.log(
+      `[verifyGuestPayment] Starting verification for sessionId: ${sessionId}, email: ${email}`,
+    );
+
+    // Validate session ID format
+    if (!sessionId || sessionId.trim().length === 0) {
+      this.logger.error(
+        `[verifyGuestPayment] Invalid session ID: empty or null`,
+      );
+      throw new BadRequestException('Invalid session ID');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      this.logger.error(`[verifyGuestPayment] Invalid email format: ${email}`);
+      throw new BadRequestException('Invalid email address');
+    }
+
     // Find order by session ID (Stripe) or Payment Intent ID (PayPal)
     const order = await this.orderModel
       .findOne({
         paymentIntentId: sessionId,
       })
-      .populate('user courses products');
+      .populate('user courses');
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      this.logger.error(
+        `[verifyGuestPayment] Order not found for sessionId: ${sessionId}`,
+      );
+      throw new NotFoundException(
+        `Order not found for session ID: ${sessionId}. The payment session may have expired or is invalid.`,
+      );
+    }
+
+    this.logger.log(
+      `[verifyGuestPayment] Order found: ${order.orderNumber}, status: ${order.status}, paymentMethod: ${order.paymentMethod}`,
+    );
+
+    // Verify email matches order
+    const orderUser = await this.userModel.findById(order.user);
+    if (!orderUser || orderUser.email.toLowerCase() !== email.toLowerCase()) {
+      this.logger.error(
+        `[verifyGuestPayment] Email mismatch. Order email: ${orderUser?.email}, provided: ${email}`,
+      );
+      throw new BadRequestException('Email does not match the order');
     }
 
     // Check payment status based on provider
@@ -1515,56 +1658,131 @@ export class PaymentsService {
     let paymentMetadata: any = {};
 
     if (order.paymentMethod === 'paypal') {
+      this.logger.log(
+        `[verifyGuestPayment] Processing PayPal payment verification`,
+      );
       try {
         // For PayPal, we need to capture the order if not already captured
         if (order.status === OrderStatus.COMPLETED) {
           isPaid = true;
+          this.logger.log(
+            `[verifyGuestPayment] PayPal order already completed`,
+          );
         } else {
-          const captureResult = await this.paypalService.confirmPayment(sessionId);
+          const captureResult =
+            await this.paypalService.confirmPayment(sessionId);
           isPaid = captureResult.success;
           paymentMetadata = captureResult.data;
+          this.logger.log(
+            `[verifyGuestPayment] PayPal capture result: ${captureResult.success}`,
+          );
         }
       } catch (error) {
         // If already captured or other error, check status directly if possible
         // But for now, assume failure if capture fails and not already completed
-        console.error('PayPal verification failed:', error);
-        if (order.status === OrderStatus.COMPLETED) isPaid = true;
+        this.logger.error(
+          `[verifyGuestPayment] PayPal verification failed:`,
+          error,
+        );
+        if (order.status === OrderStatus.COMPLETED) {
+          isPaid = true;
+          this.logger.warn(
+            `[verifyGuestPayment] PayPal capture failed but order already completed`,
+          );
+        }
       }
     } else {
       // Stripe
-      const session = await this.stripeService.retrieveCheckoutSession(sessionId);
-      if (session.payment_status === 'paid') {
-        isPaid = true;
-        paymentMetadata = session.metadata;
+      this.logger.log(
+        `[verifyGuestPayment] Processing Stripe payment verification`,
+      );
+      try {
+        const session =
+          await this.stripeService.retrieveCheckoutSession(sessionId);
+
+        if (!session) {
+          this.logger.error(
+            `[verifyGuestPayment] Stripe session not found: ${sessionId}`,
+          );
+          throw new NotFoundException('Payment session not found');
+        }
+
+        this.logger.log(
+          `[verifyGuestPayment] Stripe session status: ${session.payment_status}`,
+        );
+
+        if (session.payment_status === 'paid') {
+          isPaid = true;
+          paymentMetadata = session.metadata || {};
+        } else {
+          this.logger.warn(
+            `[verifyGuestPayment] Stripe payment not completed. Status: ${session.payment_status}`,
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `[verifyGuestPayment] Stripe session retrieval failed:`,
+          error,
+        );
+        throw new BadRequestException(
+          `Failed to verify Stripe payment: ${error.message}`,
+        );
       }
     }
 
     if (!isPaid) {
-      throw new BadRequestException('Payment not completed');
+      this.logger.error(
+        `[verifyGuestPayment] Payment not completed for order: ${order.orderNumber}`,
+      );
+      throw new BadRequestException(
+        'Payment has not been completed. Please try again or contact support.',
+      );
     }
+
+    this.logger.log(`[verifyGuestPayment] Payment verified successfully`);
 
     // Update order status if not already completed
     if (order.status !== OrderStatus.COMPLETED) {
+      this.logger.log(
+        `[verifyGuestPayment] Updating order status to COMPLETED`,
+      );
       order.status = OrderStatus.COMPLETED;
       order.paidAt = new Date();
       await order.save();
 
       // Create invoice
+      this.logger.log(
+        `[verifyGuestPayment] Creating invoice for order: ${order.orderNumber}`,
+      );
       await this.createInvoice(order);
 
       // Create enrollments for purchased courses
+      this.logger.log(
+        `[verifyGuestPayment] Creating enrollments for order: ${order.orderNumber}`,
+      );
       await this.createEnrollmentsForOrder(order);
+    } else {
+      this.logger.log(
+        `[verifyGuestPayment] Order already completed, skipping status update`,
+      );
     }
 
     // Get user details
     const user = await this.userModel.findById(order.user);
+
+    if (!user) {
+      this.logger.error(
+        `[verifyGuestPayment] User not found for order: ${order.orderNumber}`,
+      );
+      throw new NotFoundException('User not found');
+    }
 
     // Check if this was a new user registration (from metadata if available, or order context)
     // For Stripe, it's in session.metadata. For PayPal, we might not have it in capture response unless we stored it.
     // However, we can infer it if the user was created recently or check our own logic.
     // But verifyGuestPayment signature implies we might not have the original context easily.
     // We can rely on the fact that if we are here, and order is completed, we should send emails.
-    // To support `isNewUser` flag correctly across providers, we should store it in the Order model or rely on the fact 
+    // To support `isNewUser` flag correctly across providers, we should store it in the Order model or rely on the fact
     // that the frontend passes it? No, frontend shouldn't be trusted for that.
     // Let's rely on Stripe metadata for Stripe. For PayPal, we might miss it if not stored.
     // Fix: We should check if the user has a password set or if they are "new" by creation date?
@@ -1575,17 +1793,31 @@ export class PaymentsService {
     const isNewUser = paymentMetadata?.isNewUser === 'true';
     const temporaryPassword = paymentMetadata?.temporaryPassword || '';
 
+    this.logger.log(
+      `[verifyGuestPayment] User details - isNewUser: ${isNewUser}, hasPassword: ${!!temporaryPassword}`,
+    );
+
     // Send appropriate email
     // Only send if we haven't sent it yet? Ideally we should track email sent status.
     // For now, send if order was just completed.
 
     if (isNewUser && temporaryPassword) {
       // Send welcome email with credentials
+      this.logger.log(
+        `[verifyGuestPayment] Sending welcome email with credentials to: ${user.email}`,
+      );
       await this.sendWelcomeEmail(user, order, temporaryPassword);
     } else {
       // Send purchase confirmation email only
+      this.logger.log(
+        `[verifyGuestPayment] Sending purchase confirmation email to: ${user.email}`,
+      );
       await this.sendPurchaseConfirmationEmail(user, order);
     }
+
+    this.logger.log(
+      `[verifyGuestPayment] Verification completed successfully for order: ${order.orderNumber}`,
+    );
 
     return {
       success: true,

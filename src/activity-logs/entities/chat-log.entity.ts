@@ -2,62 +2,62 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 export enum ChatType {
-    USER_TO_USER = 'user_to_user',
-    USER_TO_SUPPORT = 'user_to_support',
-    USER_TO_INSTRUCTOR = 'user_to_instructor',
-    GROUP_CHAT = 'group_chat',
-    AI_CHAT = 'ai_chat',
+  USER_TO_USER = 'user_to_user',
+  USER_TO_SUPPORT = 'user_to_support',
+  USER_TO_INSTRUCTOR = 'user_to_instructor',
+  GROUP_CHAT = 'group_chat',
+  AI_CHAT = 'ai_chat',
 }
 
 @Schema({ timestamps: true })
 export class ChatLog extends Document {
-    @Prop({ required: true, enum: ChatType, index: true })
-    chatType: ChatType;
+  @Prop({ required: true, enum: ChatType, index: true })
+  chatType: ChatType;
 
-    @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
-    senderId: Types.ObjectId;
+  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
+  senderId: Types.ObjectId;
 
-    @Prop({ required: true })
-    senderName: string;
+  @Prop({ required: true })
+  senderName: string;
 
-    @Prop({ type: Types.ObjectId, ref: 'User' })
-    receiverId?: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  receiverId?: Types.ObjectId;
 
-    @Prop()
-    receiverName?: string;
+  @Prop()
+  receiverName?: string;
 
-    @Prop({ required: true })
-    conversationId: string;
+  @Prop({ required: true })
+  conversationId: string;
 
-    @Prop({ required: true })
-    message: string;
+  @Prop({ required: true })
+  message: string;
 
-    @Prop({ type: [String], default: [] })
-    attachments: string[];
+  @Prop({ type: [String], default: [] })
+  attachments: string[];
 
-    @Prop({ default: false })
-    isRead: boolean;
+  @Prop({ default: false })
+  isRead: boolean;
 
-    @Prop()
-    readAt?: Date;
+  @Prop()
+  readAt?: Date;
 
-    @Prop({ default: false })
-    isDeleted: boolean;
+  @Prop({ default: false })
+  isDeleted: boolean;
 
-    @Prop()
-    deletedAt?: Date;
+  @Prop()
+  deletedAt?: Date;
 
-    @Prop({ default: false })
-    isFlagged: boolean;
+  @Prop({ default: false })
+  isFlagged: boolean;
 
-    @Prop()
-    flagReason?: string;
+  @Prop()
+  flagReason?: string;
 
-    @Prop()
-    ipAddress?: string;
+  @Prop()
+  ipAddress?: string;
 
-    @Prop({ type: Object })
-    metadata?: Record<string, any>;
+  @Prop({ type: Object })
+  metadata?: Record<string, any>;
 }
 
 export const ChatLogSchema = SchemaFactory.createForClass(ChatLog);

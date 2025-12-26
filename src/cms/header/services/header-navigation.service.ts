@@ -21,7 +21,7 @@ export class HeaderNavigationService {
     @InjectModel(HeaderNavigation.name)
     private headerNavigationModel: Model<HeaderNavigationDocument>,
     private cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   async create(
     createDto: CreateHeaderNavigationDto,

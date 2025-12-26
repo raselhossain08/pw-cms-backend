@@ -28,7 +28,7 @@ import { CreateTopBarDto, UpdateTopBarDto } from '../dto/top-bar.dto';
 @ApiTags('CMS - Top Bar')
 @Controller({ path: 'cms/top-bar', version: VERSION_NEUTRAL })
 export class TopBarController {
-  constructor(private readonly topBarService: TopBarService) { }
+  constructor(private readonly topBarService: TopBarService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create new top bar' })

@@ -14,10 +14,11 @@ import { ChatService } from '../chat.service';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
     credentials: true,
   },
   namespace: '/chat',
+  transports: ['websocket', 'polling'],
 })
 @UseGuards(WsJwtGuard)
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -27,21 +28,46 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ChatGateway.name);
   private connectedUsers = new Map<string, string>(); // userId -> socketId
 
-  constructor(private chatService: ChatService) { }
+  constructor(private chatService: ChatService) {}
 
   async handleConnection(client: Socket) {
     try {
+      this.logger.log(`New connection attempt: ${client.id}`);
       const userId = client.data.userId;
+
+      if (!userId) {
+        this.logger.error('No userId found in client data');
+        client.disconnect();
+        return;
+      }
+
       this.connectedUsers.set(userId, client.id);
       client.data.userId = userId;
 
       this.logger.log(`Chat client connected: ${client.id} (User: ${userId})`);
 
-      // Get user's recent conversations
-      const conversations = await this.chatService.getUserConversations(userId);
-      client.emit('conversations_list', conversations);
+      // Get user's recent conversations with error handling
+      try {
+        const conversations =
+          await this.chatService.getUserConversations(userId);
+
+        if (!conversations || !conversations.conversations) {
+          this.logger.warn(`No conversations found for user ${userId}`);
+          client.emit('conversations_list', { conversations: [], total: 0 });
+        } else {
+          this.logger.log(
+            `Sending ${conversations.conversations.length} conversations to user ${userId}`,
+          );
+          client.emit('conversations_list', conversations);
+        }
+      } catch (convError) {
+        this.logger.error(
+          `Error fetching conversations for user ${userId}: ${convError.message}`,
+        );
+        client.emit('conversations_list', { conversations: [], total: 0 });
+      }
     } catch (error) {
-      this.logger.error(`Chat connection error: ${error.message}`);
+      this.logger.error(`Chat connection error: ${error.message}`, error.stack);
       client.disconnect();
     }
   }
@@ -71,7 +97,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       if (!canAccess) {
-        return { success: false, error: 'Access denied' };
+        return { success: false, error: 'Cannot access this conversation' };
       }
 
       client.join(`conversation_${data.conversationId}`);
@@ -82,7 +108,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userId,
       );
 
-      return { success: true, messages };
+      return { success: true, messages: messages.messages };
     } catch (error) {
       this.logger.error(`Join conversation error: ${error.message}`);
       return { success: false, error: error.message };
@@ -134,24 +160,40 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('create_conversation')
   async handleCreateConversation(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { title: string; participants: string[]; type: string },
+    @MessageBody()
+    data: { title: string; participants: string[]; type: string },
   ) {
     try {
       const userId = client.data.userId;
+
+      // Ensure current user is in participants (if not already)
+      const allParticipants = data.participants.includes(userId)
+        ? data.participants
+        : [...data.participants, userId];
+
       const conversation = await this.chatService.createConversation(
         {
-          participantIds: data.participants,
+          participantIds: allParticipants,
           title: data.title,
         },
         userId,
       );
 
+      const conversationId = (conversation as any)._id.toString();
+
+      const populatedConversation = await this.chatService.getConversation(
+        conversationId,
+        userId,
+      );
+
       // Notify all participants
-      for (const participantId of data.participants) {
-        this.server.to(`user_${participantId}`).emit('new_conversation', conversation);
+      for (const participantId of allParticipants) {
+        this.server
+          .to(`user_${participantId}`)
+          .emit('new_conversation', populatedConversation);
       }
 
-      return { success: true, conversation };
+      return { success: true, conversation: populatedConversation };
     } catch (error) {
       this.logger.error(`Error creating conversation: ${error.message}`);
       return { success: false, error: error.message };

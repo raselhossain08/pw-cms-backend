@@ -25,7 +25,7 @@ export class RefundPolicyController {
   constructor(
     private readonly refundPolicyService: RefundPolicyService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Post()
   async create(@Body() createRefundPolicyDto: CreateRefundPolicyDto) {
@@ -296,18 +296,28 @@ export class RefundPolicyController {
   }
 
   @Get(':id/export')
-  async export(@Param('id') id: string, @Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async export(
+    @Param('id') id: string,
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.refundPolicyService.export(id, format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="refund-policy_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="refund-policy_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="refund-policy_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="refund-policy_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({
@@ -319,18 +329,27 @@ export class RefundPolicyController {
   }
 
   @Get('export')
-  async exportAll(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async exportAll(
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.refundPolicyService.exportAll(format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="refund-policy-all_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="refund-policy-all_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="refund-policy-all_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="refund-policy-all_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({

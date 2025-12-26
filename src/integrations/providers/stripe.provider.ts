@@ -1,4 +1,9 @@
-import { Injectable, Logger, BadRequestException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { IntegrationsService } from '../integrations.service';
@@ -15,7 +20,7 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
   constructor(
     private readonly integrationsService: IntegrationsService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     await this.initialize();
@@ -34,8 +39,12 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
         // Ignore if not found
       }
 
-      const secretKey = integration?.credentials?.secretKey || this.configService.get('STRIPE_SECRET_KEY');
-      this.webhookSecret = integration?.credentials?.webhookSecret || this.configService.get('STRIPE_WEBHOOK_SECRET');
+      const secretKey =
+        integration?.credentials?.secretKey ||
+        this.configService.get('STRIPE_SECRET_KEY');
+      this.webhookSecret =
+        integration?.credentials?.webhookSecret ||
+        this.configService.get('STRIPE_WEBHOOK_SECRET');
 
       if (!secretKey) {
         throw new BadRequestException('Stripe Secret Key is missing');
@@ -61,7 +70,11 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
     return await this.getClient();
   }
 
-  async createPaymentIntent(amount: number, currency: string, metadata: any = {}) {
+  async createPaymentIntent(
+    amount: number,
+    currency: string,
+    metadata: any = {},
+  ) {
     const stripe = await this.checkInitialized();
     try {
       const paymentIntent = await stripe.paymentIntents.create({
@@ -124,7 +137,9 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       });
       return subscription;
     } catch (error: any) {
-      throw new BadRequestException(`Create subscription failed: ${error.message}`);
+      throw new BadRequestException(
+        `Create subscription failed: ${error.message}`,
+      );
     }
   }
 
@@ -134,7 +149,9 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       const subscription = await stripe.subscriptions.cancel(subscriptionId);
       return subscription;
     } catch (error: any) {
-      throw new BadRequestException(`Cancel subscription failed: ${error.message}`);
+      throw new BadRequestException(
+        `Cancel subscription failed: ${error.message}`,
+      );
     }
   }
 
@@ -157,7 +174,9 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       });
       return { id: session.id, url: session.url };
     } catch (error: any) {
-      throw new BadRequestException(`Checkout session failed: ${error.message}`);
+      throw new BadRequestException(
+        `Checkout session failed: ${error.message}`,
+      );
     }
   }
 
@@ -166,7 +185,9 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
     try {
       return await stripe.checkout.sessions.retrieve(sessionId);
     } catch (error: any) {
-      throw new BadRequestException(`Session retrieval failed: ${error.message}`);
+      throw new BadRequestException(
+        `Session retrieval failed: ${error.message}`,
+      );
     }
   }
 
@@ -191,7 +212,9 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       });
       return true;
     } catch (error: any) {
-      throw new BadRequestException(`Attach payment method failed: ${error.message}`);
+      throw new BadRequestException(
+        `Attach payment method failed: ${error.message}`,
+      );
     }
   }
 
@@ -201,7 +224,9 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       await stripe.paymentMethods.detach(paymentMethodId);
       return true;
     } catch (error: any) {
-      throw new BadRequestException(`Detach payment method failed: ${error.message}`);
+      throw new BadRequestException(
+        `Detach payment method failed: ${error.message}`,
+      );
     }
   }
 
@@ -210,11 +235,16 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
     try {
       return await stripe.paymentMethods.retrieve(paymentMethodId);
     } catch (error: any) {
-      throw new BadRequestException(`Retrieve payment method failed: ${error.message}`);
+      throw new BadRequestException(
+        `Retrieve payment method failed: ${error.message}`,
+      );
     }
   }
 
-  async verifyWebhookSignature(payload: any, signature: string): Promise<boolean> {
+  async verifyWebhookSignature(
+    payload: any,
+    signature: string,
+  ): Promise<boolean> {
     const stripe = await this.checkInitialized();
     if (!this.webhookSecret) {
       throw new BadRequestException('Stripe Webhook Secret not configured');
@@ -233,9 +263,15 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       throw new BadRequestException('Stripe Webhook Secret not configured');
     }
     try {
-      return stripe.webhooks.constructEvent(payload, signature, this.webhookSecret);
+      return stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        this.webhookSecret,
+      );
     } catch (error: any) {
-      throw new BadRequestException(`Webhook signature verification failed: ${error.message}`);
+      throw new BadRequestException(
+        `Webhook signature verification failed: ${error.message}`,
+      );
     }
   }
 

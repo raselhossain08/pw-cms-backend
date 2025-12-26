@@ -21,7 +21,7 @@ export class ChatService {
     @InjectModel(Message.name) private messageModel: Model<Message>,
     @InjectModel(User.name) private userModel: Model<User>, // Add this for user lookup
     private activityLogsService: ActivityLogsService, // Add this
-  ) { }
+  ) {}
 
   async createConversation(
     createConversationDto: CreateConversationDto,
@@ -41,19 +41,68 @@ export class ChatService {
   ): Promise<{ conversations: Conversation[]; total: number }> {
     const skip = (page - 1) * limit;
 
-    const [conversations, total] = await Promise.all([
-      this.conversationModel
-        .find({ participants: userId })
-        .populate('participants', 'firstName lastName avatar')
-        .populate('lastMessage')
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      this.conversationModel.countDocuments({ participants: userId }),
-    ]);
+    try {
+      // Validate userId is a valid ObjectId
+      if (!Types.ObjectId.isValid(userId)) {
+        console.error(`Invalid userId format: ${userId}`);
+        return { conversations: [], total: 0 };
+      }
 
-    return { conversations, total };
+      const userObjectId = new Types.ObjectId(userId);
+
+      const [conversations, total] = await Promise.all([
+        this.conversationModel
+          .find({ participants: userObjectId })
+          .populate('participants', 'firstName lastName avatar')
+          .populate('lastMessage')
+          .sort({ updatedAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec(),
+        this.conversationModel.countDocuments({ participants: userObjectId }),
+      ]);
+
+      // Filter out conversations with invalid/missing data
+      const validConversations = conversations.filter((conv) => {
+        // Ensure participants array exists and is not empty
+        if (
+          !conv.participants ||
+          !Array.isArray(conv.participants) ||
+          conv.participants.length === 0
+        ) {
+          console.log(
+            `Removing conversation ${conv._id} - invalid participants array`,
+          );
+          return false;
+        }
+
+        // Ensure user is actually in the participants array (double-check)
+        const participantIds = conv.participants.map((p: any) =>
+          typeof p === 'object' && p._id ? p._id.toString() : p.toString(),
+        );
+
+        if (!participantIds.includes(userId)) {
+          console.log(
+            `Removing conversation ${conv._id} - user not in participants`,
+          );
+          return false;
+        }
+
+        return true;
+      });
+
+      return {
+        conversations: validConversations as any[],
+        total: validConversations.length,
+      };
+    } catch (error) {
+      console.error(
+        `Error fetching user conversations: ${error.message}`,
+        error,
+      );
+      return { conversations: [], total: 0 };
+    }
   }
 
   async getConversation(
@@ -135,9 +184,9 @@ export class ChatService {
         senderId: new Types.ObjectId(userId),
         senderName: senderName,
         receiverId: conversation
-          ? (conversation.participants as any[])
-            ?.find((p: any) => p._id.toString() !== userId)
-            ?._id
+          ? (conversation.participants as any[])?.find(
+              (p: any) => p._id.toString() !== userId,
+            )?._id
           : undefined,
         receiverName: receiverName,
         conversationId: conversationId,
@@ -220,22 +269,98 @@ export class ChatService {
       throw new NotFoundException('Conversation not found');
     }
 
-    await Promise.all([
-      this.conversationModel.findByIdAndDelete(conversationId),
-      this.messageModel.deleteMany({ conversation: conversationId }),
-    ]);
+    // If there are only 2 participants, delete the entire conversation
+    if (conversation.participants.length === 2) {
+      await Promise.all([
+        this.conversationModel.findByIdAndDelete(conversationId),
+        this.messageModel.deleteMany({ conversation: conversationId }),
+      ]);
+    } else {
+      // Otherwise, just remove the user from participants
+      await this.conversationModel.findByIdAndUpdate(conversationId, {
+        $pull: { participants: userId },
+      });
+    }
+  }
+
+  async leaveConversation(
+    conversationId: string,
+    userId: string,
+  ): Promise<void> {
+    const conversation = await this.conversationModel.findOne({
+      _id: conversationId,
+      participants: userId,
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    await this.conversationModel.findByIdAndUpdate(conversationId, {
+      $pull: { participants: userId },
+    });
   }
 
   async canUserAccessConversation(
     conversationId: string,
     userId: string,
   ): Promise<boolean> {
-    const conversation = await this.conversationModel.findOne({
-      _id: conversationId,
-      participants: userId,
-    });
+    try {
+      // Validate input parameters
+      if (!conversationId || !userId) {
+        console.log('Invalid parameters: conversationId or userId is missing');
+        return false;
+      }
 
-    return !!conversation;
+      // Validate ObjectId formats
+      if (!Types.ObjectId.isValid(conversationId)) {
+        console.log(`Invalid conversationId format: ${conversationId}`);
+        return false;
+      }
+
+      if (!Types.ObjectId.isValid(userId)) {
+        console.log(`Invalid userId format: ${userId}`);
+        return false;
+      }
+
+      const userObjectId = new Types.ObjectId(userId);
+      const conversationObjectId = new Types.ObjectId(conversationId);
+
+      const conversation = await this.conversationModel
+        .findOne({
+          _id: conversationObjectId,
+          participants: userObjectId,
+        })
+        .lean()
+        .exec();
+
+      if (!conversation) {
+        console.log(
+          `Access denied: User ${userId} tried to access conversation ${conversationId}`,
+        );
+        return false;
+      }
+
+      // Additional validation: ensure conversation has valid participants
+      if (
+        !conversation.participants ||
+        !Array.isArray(conversation.participants) ||
+        conversation.participants.length === 0
+      ) {
+        console.log(
+          `Invalid conversation ${conversationId}: no valid participants`,
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error(
+        `Error checking conversation access for conversation ${conversationId}, user ${userId}: ${error.message}`,
+        error,
+      );
+      return false;
+    }
   }
 
   async createMessage(
@@ -349,5 +474,145 @@ export class ChatService {
     });
 
     return unreadCount;
+  }
+
+  /**
+   * Cleanup utility: Remove invalid conversations and orphaned messages
+   * Call this periodically or when access issues are detected
+   */
+  async cleanupInvalidConversations(): Promise<{
+    deletedConversations: number;
+    deletedMessages: number;
+  }> {
+    try {
+      // Find conversations with empty or invalid participants
+      const invalidConversations = await this.conversationModel
+        .find({
+          $or: [
+            { participants: { $exists: false } },
+            { participants: { $size: 0 } },
+            { participants: null },
+          ],
+        })
+        .lean()
+        .exec();
+
+      const invalidConvIds = invalidConversations.map((c) => c._id);
+
+      // Delete messages from invalid conversations
+      const deletedMessages = await this.messageModel.deleteMany({
+        conversation: { $in: invalidConvIds },
+      });
+
+      // Delete invalid conversations
+      const deletedConversations = await this.conversationModel.deleteMany({
+        _id: { $in: invalidConvIds },
+      });
+
+      console.log(
+        `Cleanup completed: ${deletedConversations.deletedCount} conversations and ${deletedMessages.deletedCount} messages removed`,
+      );
+
+      return {
+        deletedConversations: deletedConversations.deletedCount || 0,
+        deletedMessages: deletedMessages.deletedCount || 0,
+      };
+    } catch (error) {
+      console.error(`Cleanup error: ${error.message}`, error);
+      return { deletedConversations: 0, deletedMessages: 0 };
+    }
+  }
+
+  /**
+   * Archive or unarchive a conversation for a specific user
+   */
+  async archiveConversation(
+    conversationId: string,
+    userId: string,
+    archived: boolean,
+  ): Promise<Conversation> {
+    const conversation = await this.conversationModel.findOne({
+      _id: conversationId,
+      participants: userId,
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    const userObjectId = new Types.ObjectId(userId);
+
+    if (archived) {
+      // Add user to archivedBy array if not already present
+      if (!conversation.archivedBy) {
+        conversation.archivedBy = [];
+      }
+      const isAlreadyArchived = conversation.archivedBy.some(
+        (id) => id.toString() === userId,
+      );
+      if (!isAlreadyArchived) {
+        conversation.archivedBy.push(userObjectId);
+      }
+    } else {
+      // Remove user from archivedBy array
+      if (conversation.archivedBy) {
+        conversation.archivedBy = conversation.archivedBy.filter(
+          (id) => id.toString() !== userId,
+        );
+      }
+    }
+
+    // Update global archived status if all participants archived
+    conversation.archived =
+      conversation.archivedBy &&
+      conversation.archivedBy.length === conversation.participants.length;
+
+    return await conversation.save();
+  }
+
+  /**
+   * Star or unstar a conversation for a specific user
+   */
+  async starConversation(
+    conversationId: string,
+    userId: string,
+    starred: boolean,
+  ): Promise<Conversation> {
+    const conversation = await this.conversationModel.findOne({
+      _id: conversationId,
+      participants: userId,
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    const userObjectId = new Types.ObjectId(userId);
+
+    if (starred) {
+      // Add user to starredBy array if not already present
+      if (!conversation.starredBy) {
+        conversation.starredBy = [];
+      }
+      const isAlreadyStarred = conversation.starredBy.some(
+        (id) => id.toString() === userId,
+      );
+      if (!isAlreadyStarred) {
+        conversation.starredBy.push(userObjectId);
+      }
+    } else {
+      // Remove user from starredBy array
+      if (conversation.starredBy) {
+        conversation.starredBy = conversation.starredBy.filter(
+          (id) => id.toString() !== userId,
+        );
+      }
+    }
+
+    // Update global starred status if any participant starred
+    conversation.starred =
+      conversation.starredBy && conversation.starredBy.length > 0;
+
+    return await conversation.save();
   }
 }

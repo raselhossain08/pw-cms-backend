@@ -184,11 +184,7 @@ export class AnalyticsController {
     @Body() updateReportDto: UpdateReportDto,
     @Req() req,
   ) {
-    return this.analyticsService.updateReport(
-      id,
-      updateReportDto,
-      req.user.id,
-    );
+    return this.analyticsService.updateReport(id, updateReportDto, req.user.id);
   }
 
   @Delete('reports/:id')
@@ -225,5 +221,29 @@ export class AnalyticsController {
     @Query('format') format: string = 'pdf',
   ) {
     return this.analyticsService.exportReport(id, format);
+  }
+
+  @Post('reports/schedule')
+  @ApiOperation({ summary: 'Schedule a report for automatic generation' })
+  @ApiResponse({ status: 201, description: 'Report scheduled successfully' })
+  async scheduleReport(@Body() scheduleData: any, @Req() req) {
+    return this.analyticsService.scheduleReport(scheduleData, req.user.id);
+  }
+
+  @Post('reports/bulk-delete')
+  @ApiOperation({ summary: 'Bulk delete reports' })
+  @ApiResponse({ status: 200, description: 'Reports deleted successfully' })
+  async bulkDeleteReports(@Body('ids') ids: string[]) {
+    return this.analyticsService.bulkDeleteReports(ids);
+  }
+
+  @Post('reports/bulk-export')
+  @ApiOperation({ summary: 'Bulk export reports' })
+  @ApiResponse({ status: 200, description: 'Bulk export completed' })
+  async bulkExportReports(
+    @Body('ids') ids: string[],
+    @Body('format') format: string = 'pdf',
+  ) {
+    return this.analyticsService.bulkExportReports(ids, format);
   }
 }

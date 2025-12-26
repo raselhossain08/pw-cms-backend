@@ -8,7 +8,7 @@ import { CreateFooterDto, UpdateFooterDto } from '../dto/footer.dto';
 export class FooterService {
   constructor(
     @InjectModel(Footer.name) private footerModel: Model<FooterDocument>,
-  ) { }
+  ) {}
 
   async findAll(): Promise<Footer[]> {
     return this.footerModel.find().lean();
@@ -82,7 +82,10 @@ export class FooterService {
 
     if (newActiveState) {
       // Deactivate all others first
-      await this.footerModel.updateMany({ isActive: true }, { isActive: false });
+      await this.footerModel.updateMany(
+        { isActive: true },
+        { isActive: false },
+      );
     }
 
     await this.footerModel.findByIdAndUpdate(id, { isActive: newActiveState });

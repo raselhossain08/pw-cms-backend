@@ -31,7 +31,7 @@ import { UserRole } from '../users/entities/user.entity';
 @ApiTags('Course Categories')
 @Controller('course-categories')
 export class CourseCategoriesController {
-  constructor(private readonly service: CourseCategoriesService) { }
+  constructor(private readonly service: CourseCategoriesService) {}
 
   @Get('names')
   @Public()
@@ -142,7 +142,11 @@ export class CourseCategoriesController {
   @ApiResponse({ status: 200, description: 'Category status toggled' })
   async toggleStatus(@Param('slug') slug: string) {
     const data = await this.service.toggleStatus(slug);
-    return { success: true, data, message: 'Category status toggled successfully' };
+    return {
+      success: true,
+      data,
+      message: 'Category status toggled successfully',
+    };
   }
 
   @Post(':slug/duplicate')

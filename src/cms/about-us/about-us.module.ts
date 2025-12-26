@@ -8,12 +8,10 @@ import { AboutUsSeeder } from './seeds/about-us.seed';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: AboutUs.name, schema: AboutUsSchema },
-    ]),
+    MongooseModule.forFeature([{ name: AboutUs.name, schema: AboutUsSchema }]),
   ],
   controllers: [AboutUsController],
   providers: [AboutUsService, CloudinaryService, AboutUsSeeder],
   exports: [AboutUsService, AboutUsSeeder],
 })
-export class AboutUsModule { }
+export class AboutUsModule {}

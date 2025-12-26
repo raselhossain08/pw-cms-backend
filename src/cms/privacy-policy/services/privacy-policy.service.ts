@@ -12,7 +12,7 @@ export class PrivacyPolicyService {
   constructor(
     @InjectModel(PrivacyPolicy.name)
     private privacyPolicyModel: Model<PrivacyPolicy>,
-  ) { }
+  ) {}
 
   async create(
     createPrivacyPolicyDto: CreatePrivacyPolicyDto,

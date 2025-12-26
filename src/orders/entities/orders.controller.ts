@@ -32,7 +32,7 @@ import { OrderStatus } from './order.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) { }
+  constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new order' })
@@ -137,7 +137,11 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() body: { reason?: string },
   ) {
-    return this.ordersService.updateStatus(id, OrderStatus.CANCELLED, body.reason);
+    return this.ordersService.updateStatus(
+      id,
+      OrderStatus.CANCELLED,
+      body.reason,
+    );
   }
 
   @Post(':id/resend-receipt')
@@ -154,7 +158,9 @@ export class OrdersController {
   @ApiQuery({ name: 'format', required: false, enum: ['csv', 'excel'] })
   @ApiResponse({ status: 200, description: 'Orders exported' })
   async exportOrders(@Query('format') format: string = 'csv') {
-    const data = await this.ordersService.exportOrders(format as 'csv' | 'excel');
+    const data = await this.ordersService.exportOrders(
+      format as 'csv' | 'excel',
+    );
     return { data, format };
   }
 

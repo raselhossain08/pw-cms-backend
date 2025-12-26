@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { CourseModule, CourseModuleStatus } from './entities/course-module.entity';
+import {
+  CourseModule,
+  CourseModuleStatus,
+} from './entities/course-module.entity';
 import { CreateCourseModuleDto } from './dto/create-course-module.dto';
 import { UpdateCourseModuleDto } from './dto/update-course-module.dto';
 import { Course } from '../courses/entities/course.entity';
@@ -19,7 +22,7 @@ export class CourseModulesService {
     @InjectModel(CourseModule.name) private moduleModel: Model<CourseModule>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) { }
+  ) {}
 
   async create(
     dto: CreateCourseModuleDto,
@@ -121,16 +124,19 @@ export class CourseModulesService {
 
       // Add to courses array if not already present
       const existingCourses = module.courses || [];
-      if (!existingCourses.some(c => c.toString() === dto.courseId)) {
+      if (!existingCourses.some((c) => c.toString() === dto.courseId)) {
         updateData.courses = [...existingCourses, courseIdObj];
       }
 
       delete updateData.courseId;
     }
 
-    const updated = await this.moduleModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-    }).populate('course', 'title instructor').populate('courses', 'title instructor');
+    const updated = await this.moduleModel
+      .findByIdAndUpdate(id, updateData, {
+        new: true,
+      })
+      .populate('course', 'title instructor')
+      .populate('courses', 'title instructor');
     if (!updated) throw new NotFoundException('Module not found');
     return updated;
   }
@@ -202,7 +208,11 @@ export class CourseModulesService {
     return this.lessonModel.find(query).sort({ order: 1 }).lean().exec();
   }
 
-  async toggleStatus(id: string, userId: string, userRole: UserRole): Promise<CourseModule> {
+  async toggleStatus(
+    id: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<CourseModule> {
     const module = await this.moduleModel.findById(id).populate('course');
     if (!module) throw new NotFoundException('Module not found');
     const course: any = module.course;
@@ -221,8 +231,14 @@ export class CourseModulesService {
     return await module.save();
   }
 
-  async duplicate(id: string, userId: string, userRole: UserRole): Promise<CourseModule> {
-    const originalModule = await this.moduleModel.findById(id).populate('course');
+  async duplicate(
+    id: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<CourseModule> {
+    const originalModule = await this.moduleModel
+      .findById(id)
+      .populate('course');
     if (!originalModule) throw new NotFoundException('Module not found');
     const course: any = originalModule.course;
     if (
@@ -249,7 +265,11 @@ export class CourseModulesService {
     return await duplicatedModule.save();
   }
 
-  async bulkDelete(ids: string[], userId: string, userRole: UserRole): Promise<{ deleted: number }> {
+  async bulkDelete(
+    ids: string[],
+    userId: string,
+    userRole: UserRole,
+  ): Promise<{ deleted: number }> {
     const modules = await this.moduleModel
       .find({ _id: { $in: ids.map((id) => new Types.ObjectId(id)) } })
       .populate('course');
@@ -323,7 +343,9 @@ export class CourseModulesService {
     const module = await this.moduleModel.findById(moduleId).populate('course');
     if (!module) throw new NotFoundException('Module not found');
 
-    const lessonCount = await this.lessonModel.countDocuments({ module: moduleId });
+    const lessonCount = await this.lessonModel.countDocuments({
+      module: moduleId,
+    });
     const publishedLessons = await this.lessonModel.countDocuments({
       module: moduleId,
       status: 'published',
@@ -331,7 +353,9 @@ export class CourseModulesService {
 
     // Get course enrollment count
     const course: any = module.course;
-    const { Enrollment } = await import('../enrollments/entities/enrollment.entity');
+    const { Enrollment } = await import(
+      '../enrollments/entities/enrollment.entity'
+    );
     const enrollmentModel = this.moduleModel.db.model('Enrollment');
     const enrolledStudents = await enrollmentModel.countDocuments({
       course: course._id,
@@ -342,7 +366,10 @@ export class CourseModulesService {
       totalModules: 1,
       totalLessons: lessonCount,
       publishedLessons,
-      averageCompletion: publishedLessons > 0 ? Math.round((publishedLessons / lessonCount) * 100) : 0,
+      averageCompletion:
+        publishedLessons > 0
+          ? Math.round((publishedLessons / lessonCount) * 100)
+          : 0,
       totalStudents: enrolledStudents,
       publishedModules: module.status === 'published' ? 1 : 0,
       draftModules: module.status === 'draft' ? 1 : 0,

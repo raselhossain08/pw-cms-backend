@@ -4,7 +4,10 @@ import { CoursesService } from './courses.service';
 import { CoursesController } from './courses.controller';
 import { Course, CourseSchema } from './entities/course.entity';
 import { Lesson, LessonSchema } from './entities/lesson.entity';
-import { Enrollment, EnrollmentSchema } from '../enrollments/entities/enrollment.entity';
+import {
+  Enrollment,
+  EnrollmentSchema,
+} from '../enrollments/entities/enrollment.entity';
 import { CourseAccessGuard } from './guards/course-access.guard';
 import { EnrollmentsModule } from '../enrollments/enrollments.module';
 
@@ -20,4 +23,4 @@ import { EnrollmentsModule } from '../enrollments/enrollments.module';
   providers: [CoursesService, CourseAccessGuard],
   exports: [CoursesService, CourseAccessGuard],
 })
-export class CoursesModule { }
+export class CoursesModule {}

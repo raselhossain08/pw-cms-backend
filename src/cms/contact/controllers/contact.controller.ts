@@ -26,7 +26,7 @@ export class ContactController {
   constructor(
     private readonly contactService: ContactService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -132,14 +132,14 @@ export class ContactController {
     // Parse SEO metadata from FormData
     let seo:
       | {
-        title?: string;
-        description?: string;
-        keywords?: string;
-        ogImage?: string;
-        ogTitle?: string;
-        ogDescription?: string;
-        canonicalUrl?: string;
-      }
+          title?: string;
+          description?: string;
+          keywords?: string;
+          ogImage?: string;
+          ogTitle?: string;
+          ogDescription?: string;
+          canonicalUrl?: string;
+        }
       | undefined;
 
     if (

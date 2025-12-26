@@ -59,4 +59,4 @@ import { Blog, BlogSchema } from '../cms/home/blog/schemas/blog.schema';
   providers: [AiBotService, AiBotGateway, ChatGPTService, BotActionsService],
   exports: [AiBotService, AiBotGateway],
 })
-export class AiBotModule { }
+export class AiBotModule {}

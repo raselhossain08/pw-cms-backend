@@ -8,7 +8,7 @@ import { CreateBannerDto, UpdateBannerDto } from '../dto/banner.dto';
 export class BannerService {
   constructor(
     @InjectModel(Banner.name) private bannerModel: Model<BannerDocument>,
-  ) { }
+  ) {}
 
   async create(createBannerDto: CreateBannerDto): Promise<Banner> {
     const banner = new this.bannerModel(createBannerDto);
@@ -80,7 +80,10 @@ export class BannerService {
 
   async export(format: 'json' | 'pdf' = 'json', ids?: string[]): Promise<any> {
     const query = ids && ids.length > 0 ? { _id: { $in: ids } } : {};
-    const banners = await this.bannerModel.find(query).sort({ order: 1 }).exec();
+    const banners = await this.bannerModel
+      .find(query)
+      .sort({ order: 1 })
+      .exec();
 
     if (format === 'pdf') {
       // For PDF, return the data structure that can be converted to PDF

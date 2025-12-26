@@ -12,7 +12,7 @@ export class TermsConditionsService {
   constructor(
     @InjectModel(TermsConditions.name)
     private termsConditionsModel: Model<TermsConditions>,
-  ) { }
+  ) {}
 
   async create(createDto: CreateTermsConditionsDto): Promise<TermsConditions> {
     // Deactivate all existing terms

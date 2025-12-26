@@ -21,7 +21,7 @@ export class WishlistService {
     private coursesService: CoursesService,
     private productsService: ProductsService,
     private couponsService: CouponsService,
-  ) { }
+  ) {}
 
   async addToWishlist(userId: string, courseId: string): Promise<Wishlist> {
     let wishlist = await this.wishlistModel.findOne({ user: userId });
@@ -62,15 +62,20 @@ export class WishlistService {
     // 1. Calculate Subtotal
     const subtotal = cart.items.reduce(
       (sum, item) => sum + item.price * item.quantity,
-      0
+      0,
     );
 
     // 2. Handle Coupon
     if (cart.appliedCoupon) {
       try {
-        const coupon = await this.couponsService.findOne(cart.appliedCoupon.toString());
+        const coupon = await this.couponsService.findOne(
+          cart.appliedCoupon.toString(),
+        );
         if (coupon) {
-          const validation = await this.couponsService.validate(coupon.code, subtotal);
+          const validation = await this.couponsService.validate(
+            coupon.code,
+            subtotal,
+          );
           if (validation.valid) {
             cart.discount = validation.discount;
           } else {
@@ -241,9 +246,7 @@ export class WishlistService {
       throw new NotFoundException('Cart not found');
     }
 
-    const item = cart.items.find(
-      (item) => item.itemId.toString() === itemId,
-    );
+    const item = cart.items.find((item) => item.itemId.toString() === itemId);
     if (!item) {
       throw new NotFoundException('Item not found in cart');
     }
@@ -270,16 +273,23 @@ export class WishlistService {
       throw new NotFoundException('Cart not found');
     }
 
-    const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const subtotal = cart.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
     const validation = await this.couponsService.validate(code, subtotal);
 
     if (!validation.valid) {
-      this.logger.warn(`User ${userId} failed to apply coupon "${code}": ${validation.message}`);
+      this.logger.warn(
+        `User ${userId} failed to apply coupon "${code}": ${validation.message}`,
+      );
       throw new BadRequestException(validation.message);
     }
 
     if (!validation.coupon) {
-      this.logger.error(`User ${userId} passed validation for coupon "${code}" but no coupon object returned`);
+      this.logger.error(
+        `User ${userId} passed validation for coupon "${code}" but no coupon object returned`,
+      );
       throw new BadRequestException('Invalid coupon data');
     }
 

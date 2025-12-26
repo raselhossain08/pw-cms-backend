@@ -7,7 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Enrollment, EnrollmentStatus } from './entities/enrollment.entity';
-import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+import { CreateEnrollmentDto, CreateEnrollmentAdminDto } from './dto/create-enrollment.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 import { Course } from '../courses/entities/course.entity';
 
@@ -33,7 +33,9 @@ export class EnrollmentsService {
     }
 
     // Check if course exists and if it's free
-    const course = await this.courseModel.findById(createEnrollmentDto.courseId);
+    const course = await this.courseModel.findById(
+      createEnrollmentDto.courseId,
+    );
     if (!course) {
       throw new NotFoundException('Course not found');
     }
@@ -259,7 +261,16 @@ export class EnrollmentsService {
     sortBy: string;
     sortOrder: 'asc' | 'desc';
   }): Promise<{ enrollments: Enrollment[]; total: number }> {
-    const { page, limit, search, courseId, status, instructorId, sortBy, sortOrder } = params;
+    const {
+      page,
+      limit,
+      search,
+      courseId,
+      status,
+      instructorId,
+      sortBy,
+      sortOrder,
+    } = params;
     const skip = (page - 1) * limit;
 
     const filter: any = {};
@@ -285,15 +296,18 @@ export class EnrollmentsService {
     if (search) {
       const searchRegex = new RegExp(search, 'i');
       const [enrollments, total] = await Promise.all([
-        query.exec().then((results) =>
-          results.filter((e: any) =>
-            e.student?.email?.match(searchRegex) ||
-            e.student?.firstName?.match(searchRegex) ||
-            e.student?.lastName?.match(searchRegex) ||
-            e.student?.name?.match(searchRegex) ||
-            e.course?.title?.match(searchRegex)
-          )
-        ),
+        query
+          .exec()
+          .then((results) =>
+            results.filter(
+              (e: any) =>
+                e.student?.email?.match(searchRegex) ||
+                e.student?.firstName?.match(searchRegex) ||
+                e.student?.lastName?.match(searchRegex) ||
+                e.student?.name?.match(searchRegex) ||
+                e.course?.title?.match(searchRegex),
+            ),
+          ),
         query.countDocuments(),
       ]);
       return {
@@ -326,7 +340,9 @@ export class EnrollmentsService {
     ] = await Promise.all([
       this.enrollmentModel.countDocuments(),
       this.enrollmentModel.countDocuments({ status: EnrollmentStatus.ACTIVE }),
-      this.enrollmentModel.countDocuments({ status: EnrollmentStatus.COMPLETED }),
+      this.enrollmentModel.countDocuments({
+        status: EnrollmentStatus.COMPLETED,
+      }),
       this.enrollmentModel.countDocuments({ status: 'pending' }),
       this.enrollmentModel.countDocuments({ status: 'dropped' }),
       this.enrollmentModel.aggregate([
@@ -340,9 +356,10 @@ export class EnrollmentsService {
       ]),
     ]);
 
-    const completionRate = totalEnrollments > 0
-      ? Math.round((completedEnrollments / totalEnrollments) * 100)
-      : 0;
+    const completionRate =
+      totalEnrollments > 0
+        ? Math.round((completedEnrollments / totalEnrollments) * 100)
+        : 0;
 
     return {
       totalEnrollments,
@@ -387,12 +404,106 @@ export class EnrollmentsService {
       },
     ]);
 
-    const total = distribution.reduce((sum, item) => sum + item.enrollmentCount, 0);
+    const total = distribution.reduce(
+      (sum, item) => sum + item.enrollmentCount,
+      0,
+    );
 
     return distribution.map((item) => ({
       ...item,
-      percentage: total > 0 ? Math.round((item.enrollmentCount / total) * 100) : 0,
+      percentage:
+        total > 0 ? Math.round((item.enrollmentCount / total) * 100) : 0,
     }));
+  }
+
+  async getAdminTrends(
+    range: '7d' | '30d' | '90d' | 'year' = '30d',
+  ): Promise<
+    { date: string; enrollments: number; completions: number; cancellations: number }[]
+  > {
+    const now = new Date();
+    let startDate = new Date();
+
+    if (range === '7d') {
+      startDate.setDate(now.getDate() - 6);
+    } else if (range === '30d') {
+      startDate.setDate(now.getDate() - 29);
+    } else if (range === '90d') {
+      startDate.setDate(now.getDate() - 89);
+    } else if (range === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1);
+    }
+
+    const raw = await this.enrollmentModel.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: now,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+          },
+          enrollments: { $sum: 1 },
+          completions: {
+            $sum: {
+              $cond: [{ $eq: ['$status', EnrollmentStatus.COMPLETED] }, 1, 0],
+            },
+          },
+          cancellations: {
+            $sum: {
+              $cond: [{ $eq: ['$status', EnrollmentStatus.CANCELLED] }, 1, 0],
+            },
+          },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const dataMap = new Map<
+      string,
+      { enrollments: number; completions: number; cancellations: number }
+    >();
+
+    raw.forEach((item: any) => {
+      dataMap.set(item._id, {
+        enrollments: item.enrollments || 0,
+        completions: item.completions || 0,
+        cancellations: item.cancellations || 0,
+      });
+    });
+
+    const result: {
+      date: string;
+      enrollments: number;
+      completions: number;
+      cancellations: number;
+    }[] = [];
+
+    const cursor = new Date(startDate);
+    while (cursor <= now) {
+      const dateKey = cursor.toISOString().split('T')[0];
+      const existing = dataMap.get(dateKey) || {
+        enrollments: 0,
+        completions: 0,
+        cancellations: 0,
+      };
+
+      result.push({
+        date: dateKey,
+        enrollments: existing.enrollments,
+        completions: existing.completions,
+        cancellations: existing.cancellations,
+      });
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return result;
   }
 
   async getEnrollmentById(id: string): Promise<Enrollment> {
@@ -417,9 +528,7 @@ export class EnrollmentsService {
     return enrollment;
   }
 
-  async createEnrollmentAdmin(
-    createEnrollmentDto: any,
-  ): Promise<Enrollment> {
+  async createEnrollmentAdmin(createEnrollmentDto: CreateEnrollmentAdminDto): Promise<Enrollment> {
     const { studentId, courseId, orderId, status } = createEnrollmentDto;
 
     // Check if already enrolled
@@ -488,7 +597,10 @@ export class EnrollmentsService {
     return await enrollment.save();
   }
 
-  async cancelEnrollmentAdmin(id: string, reason?: string): Promise<Enrollment> {
+  async cancelEnrollmentAdmin(
+    id: string,
+    reason?: string,
+  ): Promise<Enrollment> {
     const enrollment = await this.enrollmentModel.findById(id);
 
     if (!enrollment) {

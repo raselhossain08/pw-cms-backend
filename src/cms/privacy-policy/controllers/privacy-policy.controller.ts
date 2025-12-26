@@ -25,7 +25,7 @@ export class PrivacyPolicyController {
   constructor(
     private readonly privacyPolicyService: PrivacyPolicyService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Post()
   async create(@Body() createPrivacyPolicyDto: CreatePrivacyPolicyDto) {
@@ -303,18 +303,28 @@ export class PrivacyPolicyController {
   }
 
   @Get(':id/export')
-  async export(@Param('id') id: string, @Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async export(
+    @Param('id') id: string,
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.privacyPolicyService.export(id, format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="privacy-policy_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="privacy-policy_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="privacy-policy_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="privacy-policy_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({
@@ -326,18 +336,27 @@ export class PrivacyPolicyController {
   }
 
   @Get('export')
-  async exportAll(@Query('format') format: 'json' | 'pdf' = 'json', @Res() res: Response) {
+  async exportAll(
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
     try {
       const result = await this.privacyPolicyService.exportAll(format);
 
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="privacy-policy-all_${new Date().toISOString().split('T')[0]}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="privacy-policy-all_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
         return res.send(result);
       }
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="privacy-policy-all_${new Date().toISOString().split('T')[0]}.json"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="privacy-policy-all_${new Date().toISOString().split('T')[0]}.json"`,
+      );
       return res.json(result);
     } catch (error) {
       return res.status(500).json({

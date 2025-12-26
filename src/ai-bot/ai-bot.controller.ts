@@ -31,7 +31,7 @@ import { UserRole } from '../users/entities/user.entity';
 
 @Controller('ai-bot')
 export class AiBotController {
-  constructor(private readonly aiBotService: AiBotService) { }
+  constructor(private readonly aiBotService: AiBotService) {}
 
   // Customer endpoints
   @Post('chat')
@@ -253,5 +253,57 @@ export class AiBotController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   getAgentLogs(@Param('id') id: string) {
     return this.aiBotService.getAgentLogs(id);
+  }
+
+  @Get('conversations/:id/messages')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  getConversationMessages(@Param('id') id: string) {
+    return this.aiBotService.getConversationMessages(id);
+  }
+
+  @Post('agents/:id/test')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  testAgent(
+    @Param('id') id: string,
+    @Body() testDto: { message: string; context?: any },
+    @Request() req,
+  ) {
+    return this.aiBotService.testAgent(
+      id,
+      testDto.message,
+      testDto.context,
+      req.user.id,
+    );
+  }
+
+  @Get('agents/:id/config')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  getAgentConfig(@Param('id') id: string) {
+    return this.aiBotService.getAgentConfig(id);
+  }
+
+  @Put('agents/:id/config')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  updateAgentConfig(@Param('id') id: string, @Body() configDto: any) {
+    return this.aiBotService.updateAgentConfig(id, configDto);
+  }
+
+  @Get('agents/:id/analytics')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  getAgentAnalytics(
+    @Param('id') id: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.aiBotService.getAgentAnalytics(
+      id,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
   }
 }

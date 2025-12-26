@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
+import { AdminPaymentsController } from './admin-payments.controller';
+import { AdminPaymentsService } from './admin-payments.service';
+import { AdminInstructorsController } from './admin-instructors.controller';
+import { AdminInstructorsService } from './admin-instructors.service';
 import { User, UserSchema } from '../users/entities/user.entity';
 import { Course, CourseSchema } from '../courses/entities/course.entity';
 import { Order, OrderSchema } from '../orders/entities/order.entity';
@@ -16,8 +20,12 @@ import {
   LiveSessionSchema,
 } from '../live-sessions/entities/live-session.entity';
 import { Coupon, CouponSchema } from '../coupons/entities/coupon.entity';
-import { Transaction, TransactionSchema } from '../payments/entities/transaction.entity';
+import {
+  Transaction,
+  TransactionSchema,
+} from '../payments/entities/transaction.entity';
 import { Invoice, InvoiceSchema } from '../payments/entities/invoice.entity';
+import { Payout, PayoutSchema } from '../payments/entities/payout.entity';
 import { SecurityMiddleware } from '../shared/middleware/security.middleware';
 import { IntegrationsModule } from '../integrations/integrations.module';
 
@@ -35,10 +43,11 @@ import { IntegrationsModule } from '../integrations/integrations.module';
       { name: Coupon.name, schema: CouponSchema },
       { name: Transaction.name, schema: TransactionSchema },
       { name: Invoice.name, schema: InvoiceSchema },
+      { name: Payout.name, schema: PayoutSchema },
     ]),
   ],
-  controllers: [AdminController],
-  providers: [AdminService, SecurityMiddleware],
-  exports: [AdminService],
+  controllers: [AdminController, AdminPaymentsController, AdminInstructorsController],
+  providers: [AdminService, AdminPaymentsService, AdminInstructorsService, SecurityMiddleware],
+  exports: [AdminService, AdminPaymentsService, AdminInstructorsService],
 })
 export class AdminModule { }

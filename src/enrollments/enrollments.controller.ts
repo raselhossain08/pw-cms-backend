@@ -18,7 +18,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { EnrollmentsService } from './enrollments.service';
-import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+import { CreateEnrollmentDto, CreateEnrollmentAdminDto } from './dto/create-enrollment.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -42,12 +42,12 @@ export class EnrollmentsController {
 
   @Post('free/:courseId')
   @ApiOperation({ summary: 'Enroll in a free course' })
-  @ApiResponse({ status: 201, description: 'Successfully enrolled in free course' })
+  @ApiResponse({
+    status: 201,
+    description: 'Successfully enrolled in free course',
+  })
   async enrollInFreeCourse(@Param('courseId') courseId: string, @Req() req) {
-    return this.enrollmentsService.enroll(
-      { courseId },
-      req.user.id,
-    );
+    return this.enrollmentsService.enroll({ courseId }, req.user.id);
   }
 
   @Get('my-enrollments')
@@ -195,6 +195,22 @@ export class EnrollmentsController {
     return this.enrollmentsService.getCourseDistribution();
   }
 
+  @Get('admin/trends')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get enrollment trends (admin)' })
+  @ApiQuery({
+    name: 'range',
+    required: false,
+    enum: ['7d', '30d', '90d', 'year'],
+  })
+  @ApiResponse({ status: 200, description: 'Enrollment trends data' })
+  async getAdminTrends(
+    @Query('range') range: '7d' | '30d' | '90d' | 'year' = '30d',
+  ) {
+    return this.enrollmentsService.getAdminTrends(range);
+  }
+
   @Get('admin/:id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
@@ -209,7 +225,9 @@ export class EnrollmentsController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create enrollment (admin)' })
   @ApiResponse({ status: 201, description: 'Enrollment created' })
-  async createEnrollmentAdmin(@Body() createEnrollmentDto: CreateEnrollmentDto) {
+  async createEnrollmentAdmin(
+    @Body() createEnrollmentDto: CreateEnrollmentAdminDto,
+  ) {
     return this.enrollmentsService.createEnrollmentAdmin(createEnrollmentDto);
   }
 

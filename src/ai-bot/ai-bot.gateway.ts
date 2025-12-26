@@ -125,12 +125,12 @@ export class AiBotGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server
       .to(`bot-session-${data.sessionId}`)
       .emit('bot-typing', { isTyping: false });
-    
+
     // Notify that generation was stopped
     this.server
       .to(`bot-session-${data.sessionId}`)
       .emit('generation-stopped', { sessionId: data.sessionId });
-    
+
     return { event: 'generation-stopped', data: { sessionId: data.sessionId } };
   }
 

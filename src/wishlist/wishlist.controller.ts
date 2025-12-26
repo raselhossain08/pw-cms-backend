@@ -24,7 +24,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class WishlistController {
-  constructor(private readonly wishlistService: WishlistService) { }
+  constructor(private readonly wishlistService: WishlistService) {}
 
   @Get('wishlist')
   @ApiOperation({ summary: 'Get user wishlist' })
@@ -93,10 +93,7 @@ export class WishlistController {
   @Post('cart/coupon')
   @ApiOperation({ summary: 'Apply coupon to cart' })
   @ApiResponse({ status: 200, description: 'Coupon applied successfully' })
-  async applyCoupon(
-    @Body() body: { code: string },
-    @Req() req,
-  ) {
+  async applyCoupon(@Body() body: { code: string }, @Req() req) {
     if (!body.code) {
       throw new BadRequestException('Coupon code is required');
     }

@@ -44,7 +44,7 @@ export class CourseCategoriesService {
   constructor(
     @InjectModel(CourseCategory.name)
     private categoryModel: Model<CourseCategory>,
-  ) { }
+  ) {}
 
   async listActiveNames(): Promise<string[]> {
     const rows = await this.categoryModel
@@ -226,7 +226,10 @@ export class CourseCategoriesService {
     let deleted = 0;
     for (const slug of slugs) {
       try {
-        const res = await this.categoryModel.findOneAndDelete({ slug }).lean().exec();
+        const res = await this.categoryModel
+          .findOneAndDelete({ slug })
+          .lean()
+          .exec();
         if (res) deleted++;
       } catch (error) {
         console.error(`Failed to delete category ${slug}:`, error);
@@ -239,7 +242,10 @@ export class CourseCategoriesService {
     let updated = 0;
     for (const slug of slugs) {
       try {
-        const category = await this.categoryModel.findOne({ slug }).lean().exec();
+        const category = await this.categoryModel
+          .findOne({ slug })
+          .lean()
+          .exec();
         if (category) {
           await this.categoryModel.findOneAndUpdate(
             { slug },
@@ -255,11 +261,12 @@ export class CourseCategoriesService {
   }
 
   async getStats() {
-    const [totalCategories, activeCategories, categoriesWithCount] = await Promise.all([
-      this.categoryModel.countDocuments().exec(),
-      this.categoryModel.countDocuments({ isActive: true }).exec(),
-      this.categoryModel.find().lean().exec(),
-    ]);
+    const [totalCategories, activeCategories, categoriesWithCount] =
+      await Promise.all([
+        this.categoryModel.countDocuments().exec(),
+        this.categoryModel.countDocuments({ isActive: true }).exec(),
+        this.categoryModel.find().lean().exec(),
+      ]);
 
     const inactiveCategories = totalCategories - activeCategories;
 
@@ -274,7 +281,8 @@ export class CourseCategoriesService {
       activeCategories,
       inactiveCategories,
       totalCourses,
-      averageCoursesPerCategory: Math.round(averageCoursesPerCategory * 10) / 10,
+      averageCoursesPerCategory:
+        Math.round(averageCoursesPerCategory * 10) / 10,
     };
   }
 }

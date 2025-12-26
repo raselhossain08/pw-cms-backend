@@ -16,7 +16,7 @@ export class SupportService {
   constructor(
     @InjectModel(Ticket.name) private ticketModel: Model<Ticket>,
     @InjectModel(TicketReply.name) private ticketReplyModel: Model<TicketReply>,
-  ) { }
+  ) {}
 
   async createTicket(
     createTicketDto: CreateTicketDto,
@@ -62,8 +62,39 @@ export class SupportService {
       .limit(limit)
       .exec();
 
+    // Manually convert to plain objects with proper date serialization
+    const ticketsData = tickets.map((ticket) => {
+      const obj: any = ticket.toObject();
+      // Ensure dates are properly converted to ISO strings
+      if (obj.createdAt) {
+        obj.createdAt =
+          obj.createdAt instanceof Date
+            ? obj.createdAt.toISOString()
+            : new Date(obj.createdAt).toISOString();
+      }
+      if (obj.updatedAt) {
+        obj.updatedAt =
+          obj.updatedAt instanceof Date
+            ? obj.updatedAt.toISOString()
+            : new Date(obj.updatedAt).toISOString();
+      }
+      if (obj.resolvedAt) {
+        obj.resolvedAt =
+          obj.resolvedAt instanceof Date
+            ? obj.resolvedAt.toISOString()
+            : new Date(obj.resolvedAt).toISOString();
+      }
+      if (obj.closedAt) {
+        obj.closedAt =
+          obj.closedAt instanceof Date
+            ? obj.closedAt.toISOString()
+            : new Date(obj.closedAt).toISOString();
+      }
+      return obj;
+    });
+
     return {
-      tickets,
+      tickets: ticketsData,
       pagination: {
         total,
         page,
@@ -74,7 +105,7 @@ export class SupportService {
   }
 
   async findOne(id: string): Promise<any> {
-    const ticket = await this.ticketModel
+    const ticketDoc = await this.ticketModel
       .findById(id)
       .populate('userId', 'firstName lastName email')
       .populate('assignedTo', 'firstName lastName email')
@@ -82,15 +113,60 @@ export class SupportService {
       .populate('relatedOrder')
       .exec();
 
-    if (!ticket) {
+    if (!ticketDoc) {
       throw new NotFoundException('Ticket not found');
     }
 
-    const replies = await this.ticketReplyModel
+    // Convert to plain object with proper date serialization
+    const ticket: any = ticketDoc.toObject();
+    if (ticket.createdAt) {
+      ticket.createdAt =
+        ticket.createdAt instanceof Date
+          ? ticket.createdAt.toISOString()
+          : new Date(ticket.createdAt).toISOString();
+    }
+    if (ticket.updatedAt) {
+      ticket.updatedAt =
+        ticket.updatedAt instanceof Date
+          ? ticket.updatedAt.toISOString()
+          : new Date(ticket.updatedAt).toISOString();
+    }
+    if (ticket.resolvedAt) {
+      ticket.resolvedAt =
+        ticket.resolvedAt instanceof Date
+          ? ticket.resolvedAt.toISOString()
+          : new Date(ticket.resolvedAt).toISOString();
+    }
+    if (ticket.closedAt) {
+      ticket.closedAt =
+        ticket.closedAt instanceof Date
+          ? ticket.closedAt.toISOString()
+          : new Date(ticket.closedAt).toISOString();
+    }
+
+    const replyDocs = await this.ticketReplyModel
       .find({ ticketId: id })
       .populate('userId', 'firstName lastName email')
       .sort({ createdAt: 1 })
       .exec();
+
+    // Convert replies to plain objects with proper date serialization
+    const replies = replyDocs.map((reply) => {
+      const obj: any = reply.toObject();
+      if (obj.createdAt) {
+        obj.createdAt =
+          obj.createdAt instanceof Date
+            ? obj.createdAt.toISOString()
+            : new Date(obj.createdAt).toISOString();
+      }
+      if (obj.updatedAt) {
+        obj.updatedAt =
+          obj.updatedAt instanceof Date
+            ? obj.updatedAt.toISOString()
+            : new Date(obj.updatedAt).toISOString();
+      }
+      return obj;
+    });
 
     return { ticket, replies };
   }
@@ -228,19 +304,27 @@ export class SupportService {
   }
 
   async getTicketStats(): Promise<any> {
-    const [total, open, inProgress, pending, resolved, closed, escalated] = await Promise.all([
-      this.ticketModel.countDocuments().exec(),
-      this.ticketModel.countDocuments({ status: TicketStatus.OPEN }).exec(),
-      this.ticketModel
-        .countDocuments({ status: TicketStatus.IN_PROGRESS })
-        .exec(),
-      this.ticketModel
-        .countDocuments({ status: TicketStatus.WAITING_FOR_CUSTOMER })
-        .exec(),
-      this.ticketModel.countDocuments({ status: TicketStatus.RESOLVED }).exec(),
-      this.ticketModel.countDocuments({ status: TicketStatus.CLOSED }).exec(),
-      this.ticketModel.countDocuments({ priority: 'urgent', status: { $ne: TicketStatus.CLOSED } }).exec(),
-    ]);
+    const [total, open, inProgress, pending, resolved, closed, escalated] =
+      await Promise.all([
+        this.ticketModel.countDocuments().exec(),
+        this.ticketModel.countDocuments({ status: TicketStatus.OPEN }).exec(),
+        this.ticketModel
+          .countDocuments({ status: TicketStatus.IN_PROGRESS })
+          .exec(),
+        this.ticketModel
+          .countDocuments({ status: TicketStatus.WAITING_FOR_CUSTOMER })
+          .exec(),
+        this.ticketModel
+          .countDocuments({ status: TicketStatus.RESOLVED })
+          .exec(),
+        this.ticketModel.countDocuments({ status: TicketStatus.CLOSED }).exec(),
+        this.ticketModel
+          .countDocuments({
+            priority: 'urgent',
+            status: { $ne: TicketStatus.CLOSED },
+          })
+          .exec(),
+      ]);
 
     // Calculate average response time (time to first reply)
     const avgResponseTimeResult = await this.ticketReplyModel
@@ -323,7 +407,8 @@ export class SupportService {
 
     const avgResponseTimeHours = avgResponseTimeResult[0]?.avgTime || 0;
     const avgRating = satisfactionRating[0]?.avgRating || 0;
-    const satisfactionRate = avgRating > 0 ? Math.round((avgRating / 5) * 100) : 0;
+    const satisfactionRate =
+      avgRating > 0 ? Math.round((avgRating / 5) * 100) : 0;
 
     // Format response time
     let avgResponseTimeFormatted = '0h';

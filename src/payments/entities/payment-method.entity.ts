@@ -17,7 +17,10 @@ export class PaymentMethod extends Document {
   @Prop({ required: true })
   type: string;
 
-  @ApiProperty({ example: 'pm_123456', description: 'Provider Payment Method ID' })
+  @ApiProperty({
+    example: 'pm_123456',
+    description: 'Provider Payment Method ID',
+  })
   @Prop({ required: true })
   providerMethodId: string;
 

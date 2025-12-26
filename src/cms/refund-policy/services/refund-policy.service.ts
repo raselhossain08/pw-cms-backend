@@ -12,7 +12,7 @@ export class RefundPolicyService {
   constructor(
     @InjectModel(RefundPolicy.name)
     private refundPolicyModel: Model<RefundPolicy>,
-  ) { }
+  ) {}
 
   async create(
     createRefundPolicyDto: CreateRefundPolicyDto,

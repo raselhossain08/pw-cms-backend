@@ -19,7 +19,7 @@ export class AssignmentsService {
     @InjectModel(AssignmentSubmission.name)
     private submissionModel: Model<AssignmentSubmission>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) { }
+  ) {}
 
   async create(
     courseId: string,
@@ -353,7 +353,7 @@ export class AssignmentsService {
     const averageGrade =
       submissions.length > 0
         ? submissions.reduce((sum, s) => sum + (s.grade || 0), 0) /
-        submissions.length
+          submissions.length
         : 0;
 
     return {
@@ -395,7 +395,9 @@ export class AssignmentsService {
     }
 
     if (original.instructor.toString() !== instructorId) {
-      throw new ForbiddenException('You can only duplicate your own assignments');
+      throw new ForbiddenException(
+        'You can only duplicate your own assignments',
+      );
     }
 
     // Create duplicate with modified title and new due date (7 days from now)

@@ -16,7 +16,7 @@ export class SystemConfigService implements OnModuleInit {
   constructor(
     @InjectModel(SystemConfig.name) private configModel: Model<SystemConfig>,
     private nestConfigService: NestConfigService,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     // Initialize default configs on startup
@@ -167,6 +167,12 @@ export class SystemConfigService implements OnModuleInit {
       // Update cache
       this.configCache.set(key, updateConfigDto.value);
 
+      if (key === 'stripe_config') {
+        await this.applyStripeConfig(updateConfigDto.value);
+      } else if (key === 'paypal_config') {
+        await this.applyPaypalConfig(updateConfigDto.value);
+      }
+
       // Refresh payment services if payment configs are updated
       if (key.startsWith('STRIPE_') || key.startsWith('PAYPAL_')) {
         // This will be handled by the payment services listening to config changes
@@ -199,6 +205,70 @@ export class SystemConfigService implements OnModuleInit {
     return { updated, failed };
   }
 
+  private async applyStripeConfig(value: string): Promise<void> {
+    try {
+      const config = JSON.parse(value || '{}');
+      const updates: BulkUpdateConfigDto[] = [];
+
+      if (config.secretKey !== undefined) {
+        updates.push({
+          key: 'STRIPE_SECRET_KEY',
+          value: String(config.secretKey),
+        });
+      }
+
+      if (config.publishableKey !== undefined) {
+        updates.push({
+          key: 'STRIPE_PUBLISHABLE_KEY',
+          value: String(config.publishableKey),
+        });
+      }
+
+      if (config.webhookSecret !== undefined) {
+        updates.push({
+          key: 'STRIPE_WEBHOOK_SECRET',
+          value: String(config.webhookSecret),
+        });
+      }
+
+      if (updates.length > 0) {
+        await this.bulkUpdate(updates);
+      }
+    } catch {}
+  }
+
+  private async applyPaypalConfig(value: string): Promise<void> {
+    try {
+      const config = JSON.parse(value || '{}');
+      const updates: BulkUpdateConfigDto[] = [];
+
+      if (config.clientId !== undefined) {
+        updates.push({
+          key: 'PAYPAL_CLIENT_ID',
+          value: String(config.clientId),
+        });
+      }
+
+      if (config.clientSecret !== undefined) {
+        updates.push({
+          key: 'PAYPAL_CLIENT_SECRET',
+          value: String(config.clientSecret),
+        });
+      }
+
+      if (config.mode !== undefined) {
+        updates.push({
+          key: 'PAYPAL_MODE',
+          value: String(config.mode),
+        });
+      }
+
+      if (updates.length > 0) {
+        await this.bulkUpdate(updates);
+      }
+    } catch {}
+  }
+
   async delete(key: string): Promise<void> {
     await this.configModel.findOneAndDelete({ key }).exec();
     this.configCache.delete(key);
@@ -226,6 +296,48 @@ export class SystemConfigService implements OnModuleInit {
   async testConnection(
     key: string,
   ): Promise<{ success: boolean; message: string }> {
+    if (key === 'stripe_config') {
+      const config = await this.findByKey('stripe_config');
+      if (!config) {
+        return { success: false, message: 'Configuration not found' };
+      }
+
+      try {
+        const parsed = JSON.parse(config.value || '{}');
+        if (!parsed.secretKey) {
+          return { success: false, message: 'Stripe secret key is missing' };
+        }
+
+        return this.testStripeConnection(String(parsed.secretKey));
+      } catch {
+        return {
+          success: false,
+          message: 'Invalid Stripe configuration format',
+        };
+      }
+    }
+
+    if (key === 'paypal_config') {
+      const config = await this.findByKey('paypal_config');
+      if (!config) {
+        return { success: false, message: 'Configuration not found' };
+      }
+
+      try {
+        const parsed = JSON.parse(config.value || '{}');
+        if (!parsed.clientId) {
+          return { success: false, message: 'PayPal Client ID is missing' };
+        }
+
+        return this.testPayPalConnection(String(parsed.clientId));
+      } catch {
+        return {
+          success: false,
+          message: 'Invalid PayPal configuration format',
+        };
+      }
+    }
+
     const config = await this.findByKey(key);
     if (!config) {
       return { success: false, message: 'Configuration not found' };
@@ -375,6 +487,36 @@ export class SystemConfigService implements OnModuleInit {
         isRequired: false,
         placeholder: 'sandbox',
         metadata: { provider: 'PayPal', options: ['sandbox', 'live'] },
+      },
+      {
+        key: 'stripe_config',
+        value: JSON.stringify({
+          publishableKey: '',
+          secretKey: '',
+          webhookSecret: '',
+        }),
+        category: ConfigCategory.PAYMENT,
+        label: 'Stripe Configuration',
+        description: 'Stripe API configuration used by the admin dashboard',
+        isSecret: false,
+        isRequired: false,
+        placeholder: '{"publishableKey":"","secretKey":"","webhookSecret":""}',
+        metadata: { provider: 'Stripe', icon: 'stripe' },
+      },
+      {
+        key: 'paypal_config',
+        value: JSON.stringify({
+          clientId: '',
+          clientSecret: '',
+          mode: 'sandbox',
+        }),
+        category: ConfigCategory.PAYMENT,
+        label: 'PayPal Configuration',
+        description: 'PayPal API configuration used by the admin dashboard',
+        isSecret: false,
+        isRequired: false,
+        placeholder: '{"clientId":"","clientSecret":"","mode":"sandbox"}',
+        metadata: { provider: 'PayPal', icon: 'paypal' },
       },
 
       // AI - OpenAI

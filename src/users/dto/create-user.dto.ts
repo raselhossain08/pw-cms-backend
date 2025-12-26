@@ -123,4 +123,18 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber()
   flightHours?: number;
+
+  @ApiProperty({
+    example: { facebook: 'https://facebook.com/user' },
+    description: 'Social media links',
+    required: false,
+  })
+  @IsOptional()
+  socialLinks?: {
+    facebook?: string;
+    twitter?: string;
+    linkedin?: string;
+    website?: string;
+    github?: string;
+  };
 }

@@ -22,4 +22,5 @@ export class CustomerProfile extends Document {
   metadata: any;
 }
 
-export const CustomerProfileSchema = SchemaFactory.createForClass(CustomerProfile);
+export const CustomerProfileSchema =
+  SchemaFactory.createForClass(CustomerProfile);

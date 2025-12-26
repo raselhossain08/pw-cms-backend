@@ -21,14 +21,18 @@ async function seedTermsConditions() {
     const existingTerms = await termsConditionsService.findActive();
 
     if (existingTerms) {
-      console.log('✅ Active Terms & Conditions already exists. Skipping seed.');
+      console.log(
+        '✅ Active Terms & Conditions already exists. Skipping seed.',
+      );
       console.log(`   Terms ID: ${(existingTerms as any)._id}`);
       console.log(`   Last Updated: ${existingTerms.lastUpdated}`);
       console.log(`   Active: ${existingTerms.isActive}`);
 
       // Check if it has acceptanceSection, if not, update it
       if (!existingTerms.acceptanceSection) {
-        console.log('⚠️  Existing terms missing acceptanceSection. Updating...');
+        console.log(
+          '⚠️  Existing terms missing acceptanceSection. Updating...',
+        );
         await termsConditionsService.update((existingTerms as any)._id, {
           acceptanceSection: {
             title: 'Acceptance of Terms',
@@ -53,7 +57,9 @@ async function seedTermsConditions() {
     console.log(`   Last Updated: ${termsConditions.lastUpdated}`);
     console.log(`   Active: ${termsConditions.isActive}`);
     console.log(`   Sections: ${termsConditions.sections?.length || 0}`);
-    console.log(`   Has Acceptance Section: ${!!termsConditions.acceptanceSection}`);
+    console.log(
+      `   Has Acceptance Section: ${!!termsConditions.acceptanceSection}`,
+    );
     console.log('\n📋 Next steps:');
     console.log('   1. Start your backend: npm run start:dev');
     console.log(

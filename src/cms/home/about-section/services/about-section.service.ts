@@ -12,7 +12,7 @@ export class AboutSectionService {
   constructor(
     @InjectModel(AboutSection.name)
     private aboutSectionModel: Model<AboutSection>,
-  ) { }
+  ) {}
 
   /**
    * Get the About Section (single document with id 'about')
@@ -99,7 +99,9 @@ export class AboutSectionService {
    * Duplicate the About Section
    */
   async duplicate(): Promise<AboutSection> {
-    const existing = await this.aboutSectionModel.findOne({ id: 'about' }).exec();
+    const existing = await this.aboutSectionModel
+      .findOne({ id: 'about' })
+      .exec();
 
     if (!existing) {
       throw new NotFoundException('About Section not found');
@@ -120,7 +122,9 @@ export class AboutSectionService {
    * Export the About Section
    */
   async export(format: 'json' | 'pdf' = 'json'): Promise<any> {
-    const aboutSection = await this.aboutSectionModel.findOne({ id: 'about' }).exec();
+    const aboutSection = await this.aboutSectionModel
+      .findOne({ id: 'about' })
+      .exec();
 
     if (!aboutSection) {
       throw new NotFoundException('About Section not found');

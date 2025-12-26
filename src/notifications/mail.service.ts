@@ -8,7 +8,7 @@ export class MailService {
   constructor(
     private mailerService: MailerService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async sendVerificationEmail(
     email: string,

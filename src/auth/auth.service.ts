@@ -28,7 +28,7 @@ export class AuthService {
     private sessionService: SessionService,
     @InjectModel(EmailVerification.name)
     private emailVerificationModel: Model<EmailVerification>,
-  ) { }
+  ) {}
 
   async register(registerDto: RegisterDto) {
     // Check if user already exists
@@ -242,7 +242,8 @@ export class AuthService {
       }
 
       if (!user) throw new BadRequestException('Invalid request');
-      if (user.emailVerified) throw new BadRequestException('Email already verified');
+      if (user.emailVerified)
+        throw new BadRequestException('Email already verified');
 
       // Generate new verification token
       const verificationToken = this.jwtService.sign(
@@ -262,12 +263,16 @@ export class AuthService {
         type: 'otp',
       });
 
-      // We should also update the link token? 
+      // We should also update the link token?
       // The original implementation didn't update the link token in the emailVerificationModel for 'signup' type,
       // but sent a token in the email.
       // We will send the new token in the email.
 
-      await this.mailService.sendVerificationEmail(user.email, verificationToken, code);
+      await this.mailService.sendVerificationEmail(
+        user.email,
+        verificationToken,
+        code,
+      );
       return { message: 'Verification email resent' };
     } catch (e) {
       throw new BadRequestException('Invalid or expired token/email');
@@ -325,15 +330,22 @@ export class AuthService {
         browser: session.browser || 'Unknown',
         ip: session.ipAddress || 'Unknown',
         location: session.location || 'Unknown',
-        lastActive: session.lastActivity?.toISOString() || (session as any).createdAt?.toISOString() || new Date().toISOString(),
-        isCurrent: session.status === 'active' && new Date(session.expiresAt) > new Date(),
+        lastActive:
+          session.lastActivity?.toISOString() ||
+          session.createdAt?.toISOString() ||
+          new Date().toISOString(),
+        isCurrent:
+          session.status === 'active' &&
+          new Date(session.expiresAt) > new Date(),
       })),
     };
   }
 
   async deleteSession(userId: string, sessionId: string) {
     const sessions = await this.sessionService.getUserSessions(userId);
-    const targetSession = sessions.find((s: any) => String(s._id || s.id) === sessionId);
+    const targetSession = sessions.find(
+      (s: any) => String(s._id || s.id) === sessionId,
+    );
     if (!targetSession) {
       throw new BadRequestException('Session not found');
     }
@@ -345,7 +357,10 @@ export class AuthService {
   }
 
   async deleteAllSessions(userId: string) {
-    await this.sessionService.revokeAllUserSessions(userId, 'User logged out all sessions');
+    await this.sessionService.revokeAllUserSessions(
+      userId,
+      'User logged out all sessions',
+    );
     await this.usersService.updateRefreshToken(userId, null);
     return { message: 'All sessions deleted' };
   }

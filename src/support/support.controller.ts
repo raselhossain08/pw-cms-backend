@@ -23,7 +23,7 @@ import { UserRole } from '../users/entities/user.entity';
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class SupportController {
-  constructor(private readonly supportService: SupportService) { }
+  constructor(private readonly supportService: SupportService) {}
 
   @Post()
   create(@Body() createTicketDto: CreateTicketDto, @Request() req) {

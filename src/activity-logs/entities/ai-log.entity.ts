@@ -2,57 +2,58 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 export enum AiModel {
-    GPT4 = 'gpt-4',
-    GPT35 = 'gpt-3.5-turbo',
-    CLAUDE = 'claude-3',
-    GEMINI = 'gemini-pro',
-    CUSTOM = 'custom',
+  GPT4 = 'gpt-4',
+  GPT35 = 'gpt-3.5-turbo',
+  CLAUDE = 'claude-3',
+  GEMINI = 'gemini-pro',
+  CUSTOM = 'custom',
 }
 
 @Schema({ timestamps: true })
 export class AiLog extends Document {
-    @Prop({ required: true, enum: AiModel, index: true })
-    aiModel: AiModel; @Prop({ required: true })
-    prompt: string;
+  @Prop({ required: true, enum: AiModel, index: true })
+  aiModel: AiModel;
+  @Prop({ required: true })
+  prompt: string;
 
-    @Prop({ required: true })
-    response: string;
+  @Prop({ required: true })
+  response: string;
 
-    @Prop({ required: true })
-    tokensUsed: number;
+  @Prop({ required: true })
+  tokensUsed: number;
 
-    @Prop({ required: true })
-    responseTime: number; // milliseconds
+  @Prop({ required: true })
+  responseTime: number; // milliseconds
 
-    @Prop({ type: Types.ObjectId, ref: 'User' })
-    userId?: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  userId?: Types.ObjectId;
 
-    @Prop()
-    userName?: string;
+  @Prop()
+  userName?: string;
 
-    @Prop()
-    conversationId?: string;
+  @Prop()
+  conversationId?: string;
 
-    @Prop()
-    intentType?: string; // e.g., 'course_recommendation', 'question_answer', 'support'
+  @Prop()
+  intentType?: string; // e.g., 'course_recommendation', 'question_answer', 'support'
 
-    @Prop({ default: false })
-    wasHelpful?: boolean;
+  @Prop({ default: false })
+  wasHelpful?: boolean;
 
-    @Prop()
-    userFeedback?: string;
+  @Prop()
+  userFeedback?: string;
 
-    @Prop()
-    cost?: number; // cost in cents
+  @Prop()
+  cost?: number; // cost in cents
 
-    @Prop({ default: 'success' })
-    status: string; // success, error, timeout
+  @Prop({ default: 'success' })
+  status: string; // success, error, timeout
 
-    @Prop()
-    errorMessage?: string;
+  @Prop()
+  errorMessage?: string;
 
-    @Prop({ type: Object })
-    metadata?: Record<string, any>;
+  @Prop({ type: Object })
+  metadata?: Record<string, any>;
 }
 
 export const AiLogSchema = SchemaFactory.createForClass(AiLog);

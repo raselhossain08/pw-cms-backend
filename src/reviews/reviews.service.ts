@@ -12,7 +12,7 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 
 @Injectable()
 export class ReviewsService {
-  constructor(@InjectModel(Review.name) private reviewModel: Model<Review>) {}
+  constructor(@InjectModel(Review.name) private reviewModel: Model<Review>) { }
 
   async create(
     createReviewDto: CreateReviewDto,
@@ -204,6 +204,7 @@ export class ReviewsService {
     const [reviews, total] = await Promise.all([
       this.reviewModel
         .find({ user: userId })
+        .populate('itemId', 'title slug thumbnail')
         .populate('instructorReply', 'firstName lastName')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -212,6 +213,15 @@ export class ReviewsService {
       this.reviewModel.countDocuments({ user: userId }),
     ]);
 
-    return { reviews, total };
+    // Transform to include course field for backward compatibility
+    const transformedReviews = reviews.map(review => {
+      const reviewObj = review.toObject();
+      return {
+        ...reviewObj,
+        course: reviewObj.itemId, // Add course field as alias for itemId
+      };
+    });
+
+    return { reviews: transformedReviews as any, total };
   }
 }

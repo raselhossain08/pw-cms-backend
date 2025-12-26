@@ -11,10 +11,7 @@ import {
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AboutUsService } from '../services/about-us.service';
-import {
-  CreateAboutUsDto,
-  UpdateAboutUsDto,
-} from '../dto/about-us.dto';
+import { CreateAboutUsDto, UpdateAboutUsDto } from '../dto/about-us.dto';
 import { CloudinaryService } from '../../services/cloudinary.service';
 
 @Controller('cms/about-us')
@@ -22,7 +19,7 @@ export class AboutUsController {
   constructor(
     private readonly aboutUsService: AboutUsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Post()
   async create(@Body() createAboutUsDto: CreateAboutUsDto) {

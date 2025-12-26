@@ -21,7 +21,7 @@ export class ProductCategoriesService {
     @InjectModel(ProductCategory.name)
     private categoryModel: Model<ProductCategory>,
     @InjectModel(Product.name) private productModel: Model<Product>,
-  ) { }
+  ) {}
 
   /**
    * Generate slug from name
@@ -38,9 +38,7 @@ export class ProductCategoriesService {
   /**
    * Get all categories with pagination and filters
    */
-  async findAll(
-    params: GetProductCategoriesDto,
-  ): Promise<{
+  async findAll(params: GetProductCategoriesDto): Promise<{
     categories: ProductCategory[];
     total: number;
     page: number;
@@ -160,9 +158,7 @@ export class ProductCategoriesService {
   /**
    * Create a new category
    */
-  async create(
-    createDto: CreateProductCategoryDto,
-  ): Promise<ProductCategory> {
+  async create(createDto: CreateProductCategoryDto): Promise<ProductCategory> {
     // Generate slug if not provided
     const slug = this.generateSlug(createDto.name);
 
@@ -236,9 +232,7 @@ export class ProductCategoriesService {
     if (updateDto.parentCategory !== undefined) {
       if (updateDto.parentCategory) {
         if (updateDto.parentCategory === id) {
-          throw new BadRequestException(
-            'Category cannot be its own parent',
-          );
+          throw new BadRequestException('Category cannot be its own parent');
         }
         const parent = await this.categoryModel.findById(
           updateDto.parentCategory,
@@ -359,7 +353,9 @@ export class ProductCategoriesService {
   /**
    * Bulk delete categories
    */
-  async bulkDelete(ids: string[]): Promise<{ deleted: number; errors: string[] }> {
+  async bulkDelete(
+    ids: string[],
+  ): Promise<{ deleted: number; errors: string[] }> {
     const errors: string[] = [];
     let deleted = 0;
 

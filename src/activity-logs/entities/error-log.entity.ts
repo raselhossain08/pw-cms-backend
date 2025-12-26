@@ -2,70 +2,70 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 export enum ErrorSeverity {
-    LOW = 'low',
-    MEDIUM = 'medium',
-    HIGH = 'high',
-    CRITICAL = 'critical',
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+  CRITICAL = 'critical',
 }
 
 @Schema({ timestamps: true })
 export class ErrorLog extends Document {
-    @Prop({ required: true, enum: ErrorSeverity, index: true })
-    severity: ErrorSeverity;
+  @Prop({ required: true, enum: ErrorSeverity, index: true })
+  severity: ErrorSeverity;
 
-    @Prop({ required: true })
-    errorType: string;
+  @Prop({ required: true })
+  errorType: string;
 
-    @Prop({ required: true })
-    message: string;
+  @Prop({ required: true })
+  message: string;
 
-    @Prop({ type: Object })
-    stack?: any;
+  @Prop({ type: Object })
+  stack?: any;
 
-    @Prop()
-    endpoint?: string;
+  @Prop()
+  endpoint?: string;
 
-    @Prop()
-    method?: string;
+  @Prop()
+  method?: string;
 
-    @Prop()
-    statusCode?: number;
+  @Prop()
+  statusCode?: number;
 
-    @Prop()
-    userId?: string;
+  @Prop()
+  userId?: string;
 
-    @Prop()
-    ipAddress?: string;
+  @Prop()
+  ipAddress?: string;
 
-    @Prop()
-    userAgent?: string;
+  @Prop()
+  userAgent?: string;
 
-    @Prop({ type: Object })
-    requestBody?: any;
+  @Prop({ type: Object })
+  requestBody?: any;
 
-    @Prop({ type: Object })
-    queryParams?: any;
+  @Prop({ type: Object })
+  queryParams?: any;
 
-    @Prop()
-    errorCode?: string;
+  @Prop()
+  errorCode?: string;
 
-    @Prop({ default: false, index: true })
-    isResolved: boolean;
+  @Prop({ default: false, index: true })
+  isResolved: boolean;
 
-    @Prop()
-    resolvedBy?: string;
+  @Prop()
+  resolvedBy?: string;
 
-    @Prop()
-    resolvedAt?: Date;
+  @Prop()
+  resolvedAt?: Date;
 
-    @Prop()
-    solution?: string;
+  @Prop()
+  solution?: string;
 
-    @Prop({ default: 1 })
-    occurrences: number;
+  @Prop({ default: 1 })
+  occurrences: number;
 
-    @Prop()
-    lastOccurrence?: Date;
+  @Prop()
+  lastOccurrence?: Date;
 }
 
 export const ErrorLogSchema = SchemaFactory.createForClass(ErrorLog);

@@ -28,7 +28,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class AssignmentsController {
-  constructor(private readonly assignmentsService: AssignmentsService) { }
+  constructor(private readonly assignmentsService: AssignmentsService) {}
 
   @Post('course/:courseId')
   @UseGuards(RolesGuard)
@@ -180,7 +180,10 @@ export class AssignmentsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Duplicate an assignment' })
-  @ApiResponse({ status: 201, description: 'Assignment duplicated successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Assignment duplicated successfully',
+  })
   async duplicate(@Param('id') id: string, @Req() req) {
     return this.assignmentsService.duplicate(id, req.user.id);
   }

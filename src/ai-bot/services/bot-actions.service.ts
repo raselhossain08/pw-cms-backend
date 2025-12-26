@@ -7,7 +7,11 @@ import { Order } from '../../orders/entities/order.entity';
 import { User } from '../../users/entities/user.entity';
 import { CreateCourseDto } from '../../courses/dto/create-course.dto';
 import { CreateBlogDto } from '../../cms/home/blog/dto/blog.dto';
-import { CourseStatus, CourseLevel, CourseType } from '../../courses/entities/course.entity';
+import {
+  CourseStatus,
+  CourseLevel,
+  CourseType,
+} from '../../courses/entities/course.entity';
 import { Blog, BlogDocument } from '../../cms/home/blog/schemas/blog.schema';
 
 @Injectable()
@@ -324,11 +328,15 @@ export class BotActionsService {
   // ADMIN ACTIONS - Course Creation
   async createCourse(courseData: any, userId: string): Promise<any> {
     try {
-      const cleanTitle = (courseData.title || 'Untitled Course').toLowerCase().trim();
-      let slug = courseData.slug || this.generateSlug(courseData.title || 'untitled-course');
-      
+      const cleanTitle = (courseData.title || 'Untitled Course')
+        .toLowerCase()
+        .trim();
+      let slug =
+        courseData.slug ||
+        this.generateSlug(courseData.title || 'untitled-course');
+
       // Ensure unique slug
-      let baseSlug = slug;
+      const baseSlug = slug;
       let counter = 1;
       while (await this.courseModel.findOne({ slug })) {
         slug = `${baseSlug}-${counter}`;
@@ -427,7 +435,11 @@ export class BotActionsService {
   }
 
   // ADMIN ACTIONS - Update Course
-  async updateCourse(courseId: string, updateData: any, userId: string): Promise<any> {
+  async updateCourse(
+    courseId: string,
+    updateData: any,
+    userId: string,
+  ): Promise<any> {
     try {
       const course = await this.courseModel.findById(courseId).exec();
       if (!course) {
@@ -436,7 +448,12 @@ export class BotActionsService {
 
       // Check if user has permission (instructor or admin)
       const user = await this.userModel.findById(userId).exec();
-      if (!user || (user.role !== 'admin' && user.role !== 'super_admin' && course.instructor.toString() !== userId)) {
+      if (
+        !user ||
+        (user.role !== 'admin' &&
+          user.role !== 'super_admin' &&
+          course.instructor.toString() !== userId)
+      ) {
         return { success: false, error: 'Permission denied' };
       }
 
@@ -469,7 +486,12 @@ export class BotActionsService {
 
       // Check permission
       const user = await this.userModel.findById(userId).exec();
-      if (!user || (user.role !== 'admin' && user.role !== 'super_admin' && course.instructor.toString() !== userId)) {
+      if (
+        !user ||
+        (user.role !== 'admin' &&
+          user.role !== 'super_admin' &&
+          course.instructor.toString() !== userId)
+      ) {
         return { success: false, error: 'Permission denied' };
       }
 

@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SystemConfigService } from '../../system-config/system-config.service';
 import * as paypal from '@paypal/checkout-server-sdk';
@@ -12,18 +17,21 @@ export class PayPalService implements OnModuleInit {
   constructor(
     private configService: ConfigService,
     private systemConfigService: SystemConfigService,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     await this.initializePayPal();
   }
 
   private async initializePayPal() {
-    const clientId = await this.systemConfigService.getValue('PAYPAL_CLIENT_ID') ||
+    const clientId =
+      (await this.systemConfigService.getValue('PAYPAL_CLIENT_ID')) ||
       this.configService.get('PAYPAL_CLIENT_ID');
-    const clientSecret = await this.systemConfigService.getValue('PAYPAL_CLIENT_SECRET') ||
+    const clientSecret =
+      (await this.systemConfigService.getValue('PAYPAL_CLIENT_SECRET')) ||
       this.configService.get('PAYPAL_CLIENT_SECRET');
-    const mode = await this.systemConfigService.getValue('PAYPAL_MODE') ||
+    const mode =
+      (await this.systemConfigService.getValue('PAYPAL_MODE')) ||
       this.configService.get('PAYPAL_MODE', 'sandbox');
 
     if (!clientId || !clientSecret) {
@@ -37,9 +45,10 @@ export class PayPalService implements OnModuleInit {
     this.enabled = true;
 
     // Use appropriate environment based on mode
-    const environment = mode === 'live'
-      ? new paypal.core.LiveEnvironment(clientId, clientSecret)
-      : new paypal.core.SandboxEnvironment(clientId, clientSecret);
+    const environment =
+      mode === 'live'
+        ? new paypal.core.LiveEnvironment(clientId, clientSecret)
+        : new paypal.core.SandboxEnvironment(clientId, clientSecret);
 
     this.client = new paypal.core.PayPalHttpClient(environment);
     this.logger.log(`PayPal service initialized successfully (${mode} mode)`);

@@ -191,7 +191,10 @@ export class UsersController {
   @ApiOperation({ summary: 'Update user notification preferences' })
   @ApiResponse({ status: 200, description: 'Preferences updated' })
   async updateNotificationPreferences(@Req() req, @Body() preferences: any) {
-    return this.usersService.updateNotificationPreferences(req.user.id, preferences);
+    return this.usersService.updateNotificationPreferences(
+      req.user.id,
+      preferences,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -230,5 +233,119 @@ export class UsersController {
     @Body() body: { status: string },
   ) {
     return this.usersService.update(id, { status: body.status as any });
+  }
+
+  @Patch(':id/activate')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Activate user' })
+  @ApiResponse({ status: 200, description: 'User activated successfully' })
+  async activateUser(@Param('id') id: string) {
+    return this.usersService.activateUser(id);
+  }
+
+  @Patch(':id/deactivate')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Deactivate user' })
+  @ApiResponse({ status: 200, description: 'User deactivated successfully' })
+  async deactivateUser(@Param('id') id: string) {
+    return this.usersService.deactivateUser(id);
+  }
+
+  @Post('bulk/delete')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bulk delete users' })
+  @ApiResponse({ status: 200, description: 'Users deleted successfully' })
+  async bulkDeleteUsers(@Body() body: { userIds: string[] }) {
+    return this.usersService.bulkDeleteUsers(body.userIds);
+  }
+
+  @Put('bulk/update')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bulk update users' })
+  @ApiResponse({ status: 200, description: 'Users updated successfully' })
+  async bulkUpdateUsers(
+    @Body() body: { userIds: string[]; status?: string; isActive?: boolean },
+  ) {
+    return this.usersService.bulkUpdateUsers(
+      body.userIds,
+      body.status as any,
+      body.isActive,
+    );
+  }
+
+  @Post(':id/send-verification-email')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Send verification email to user' })
+  @ApiResponse({ status: 200, description: 'Verification email sent' })
+  async sendVerificationEmail(@Param('id') id: string) {
+    return this.usersService.sendVerificationEmail(id);
+  }
+
+  @Post('api-key')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Generate new API key' })
+  @ApiResponse({ status: 201, description: 'API key generated' })
+  async generateApiKey(@Req() req) {
+    const userId = req.user?.id || req.user?.userId;
+    const apiKey = await this.usersService.generateApiKey(userId);
+    return { apiKey };
+  }
+
+  // ==================== STUDENT-SPECIFIC ENDPOINTS ====================
+
+  @Get('students/:id/progress')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get detailed student progress with enrollments and quiz scores' })
+  @ApiResponse({ status: 200, description: 'Student progress data' })
+  async getStudentProgress(@Param('id') id: string) {
+    return this.usersService.getStudentProgress(id);
+  }
+
+  @Post('students/import')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Import students from CSV/Excel file' })
+  @ApiResponse({ status: 201, description: 'Students imported successfully' })
+  async importStudents(@Body() body: { students: any[]; sendWelcomeEmail?: boolean }) {
+    return this.usersService.importStudents(body.students, body.sendWelcomeEmail);
+  }
+
+  @Post('students/broadcast')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Send broadcast email to students' })
+  @ApiResponse({ status: 200, description: 'Broadcast email sent successfully' })
+  async sendBroadcastToStudents(
+    @Body() body: {
+      subject: string;
+      message: string;
+      studentIds?: string[];
+      courseId?: string;
+    },
+  ) {
+    return this.usersService.sendBroadcastEmail(
+      body.subject,
+      body.message,
+      body.studentIds,
+      body.courseId,
+    );
+  }
+
+  @Post('students/:id/message')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Send individual message to student' })
+  @ApiResponse({ status: 200, description: 'Message sent successfully' })
+  async sendMessageToStudent(
+    @Param('id') id: string,
+    @Body() body: { subject: string; message: string; type?: 'email' | 'notification' | 'both' },
+  ) {
+    return this.usersService.sendMessageToStudent(id, body.subject, body.message, body.type);
   }
 }

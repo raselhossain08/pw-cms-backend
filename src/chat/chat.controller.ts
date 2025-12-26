@@ -27,7 +27,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) { }
+  constructor(private readonly chatService: ChatService) {}
 
   @Post('conversations')
   @ApiOperation({ summary: 'Create a new conversation' })
@@ -136,5 +136,40 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Unread count' })
   async getUnreadCount(@Req() req) {
     return this.chatService.getUnreadCount(req.user.id);
+  }
+
+  @Post('cleanup')
+  @ApiOperation({ summary: 'Cleanup invalid conversations and messages' })
+  @ApiResponse({ status: 200, description: 'Cleanup completed' })
+  async cleanupConversations() {
+    return this.chatService.cleanupInvalidConversations();
+  }
+
+  @Patch('conversations/:id/archive')
+  @ApiOperation({ summary: 'Archive or unarchive a conversation' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversation archived status updated',
+  })
+  async archiveConversation(
+    @Param('id') id: string,
+    @Body() body: { archived: boolean },
+    @Req() req,
+  ) {
+    return this.chatService.archiveConversation(id, req.user.id, body.archived);
+  }
+
+  @Patch('conversations/:id/star')
+  @ApiOperation({ summary: 'Star or unstar a conversation' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversation starred status updated',
+  })
+  async starConversation(
+    @Param('id') id: string,
+    @Body() body: { starred: boolean },
+    @Req() req,
+  ) {
+    return this.chatService.starConversation(id, req.user.id, body.starred);
   }
 }

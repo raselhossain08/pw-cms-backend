@@ -19,7 +19,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   // ==================== INTEGRATIONS MANAGEMENT ====================
   @Get('integrations')
@@ -144,7 +144,11 @@ export class AdminController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    return this.adminService.getPaymentAnalytics({ period, startDate, endDate });
+    return this.adminService.getPaymentAnalytics({
+      period,
+      startDate,
+      endDate,
+    });
   }
 
   @Get('payments/invoices')
@@ -203,7 +207,11 @@ export class AdminController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    return this.adminService.exportPaymentReport({ format, startDate, endDate });
+    return this.adminService.exportPaymentReport({
+      format,
+      startDate,
+      endDate,
+    });
   }
 
   // ==================== ORDER MANAGEMENT ====================

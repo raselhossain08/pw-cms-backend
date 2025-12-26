@@ -33,7 +33,7 @@ export class FooterController {
   constructor(
     private footerService: FooterService,
     private cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Get('active')
   @ApiOperation({ summary: 'Get active footer configuration (Public)' })

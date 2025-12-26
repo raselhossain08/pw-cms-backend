@@ -218,7 +218,12 @@ User message: ${message}`,
       return {
         message:
           "I'm currently using fallback responses. I can still help you with course management, blog creation, and other tasks. What would you like me to do?",
-        quickReplies: ['Create a course', 'Write a blog post', 'Search courses', 'Try again'],
+        quickReplies: [
+          'Create a course',
+          'Write a blog post',
+          'Search courses',
+          'Try again',
+        ],
       };
     }
 
@@ -268,7 +273,12 @@ User message: ${message}`,
         return {
           message:
             'I encountered a temporary issue with my AI model, but I can still help you! I can create courses, write blog posts, search content, and perform many other actions. What would you like me to help with?',
-          quickReplies: ['Create a course', 'Write a blog', 'Search courses', 'Try again'],
+          quickReplies: [
+            'Create a course',
+            'Write a blog',
+            'Search courses',
+            'Try again',
+          ],
         };
       }
 
@@ -284,8 +294,13 @@ User message: ${message}`,
       console.error('ChatGPT response generation error:', error);
       return {
         message:
-          'I encountered an error, but I can still assist you with actions like creating courses, writing blogs, or searching content. Please try rephrasing your request or tell me what action you\'d like me to perform.',
-        quickReplies: ['Create a course', 'Write a blog', 'Search courses', 'Try again'],
+          "I encountered an error, but I can still assist you with actions like creating courses, writing blogs, or searching content. Please try rephrasing your request or tell me what action you'd like me to perform.",
+        quickReplies: [
+          'Create a course',
+          'Write a blog',
+          'Search courses',
+          'Try again',
+        ],
       };
     }
   }

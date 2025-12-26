@@ -79,6 +79,10 @@ export class Ticket extends Document {
 
   @Prop({ type: Object, default: {} })
   metadata: Record<string, any>;
+
+  // Timestamps (automatically managed by Mongoose)
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);
@@ -86,10 +90,19 @@ export const TicketSchema = SchemaFactory.createForClass(Ticket);
 // Transform toJSON to ensure proper date serialization
 TicketSchema.set('toJSON', {
   transform: function (doc: any, ret: any) {
-    if (ret.createdAt) ret.createdAt = ret.createdAt.toISOString();
-    if (ret.updatedAt) ret.updatedAt = ret.updatedAt.toISOString();
-    if (ret.resolvedAt) ret.resolvedAt = ret.resolvedAt.toISOString();
-    if (ret.closedAt) ret.closedAt = ret.closedAt.toISOString();
+    // Convert date fields to ISO strings if they exist
+    if (ret.createdAt && ret.createdAt instanceof Date) {
+      ret.createdAt = ret.createdAt.toISOString();
+    }
+    if (ret.updatedAt && ret.updatedAt instanceof Date) {
+      ret.updatedAt = ret.updatedAt.toISOString();
+    }
+    if (ret.resolvedAt && ret.resolvedAt instanceof Date) {
+      ret.resolvedAt = ret.resolvedAt.toISOString();
+    }
+    if (ret.closedAt && ret.closedAt instanceof Date) {
+      ret.closedAt = ret.closedAt.toISOString();
+    }
     return ret;
   },
 });
@@ -120,6 +133,10 @@ export class TicketReply extends Document {
 
   @Prop({ type: Boolean, default: false })
   isInternal: boolean; // Internal notes not visible to customer
+
+  // Timestamps (automatically managed by Mongoose)
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export const TicketReplySchema = SchemaFactory.createForClass(TicketReply);
@@ -127,8 +144,12 @@ export const TicketReplySchema = SchemaFactory.createForClass(TicketReply);
 // Transform toJSON to ensure proper date serialization
 TicketReplySchema.set('toJSON', {
   transform: function (doc: any, ret: any) {
-    if (ret.createdAt) ret.createdAt = ret.createdAt.toISOString();
-    if (ret.updatedAt) ret.updatedAt = ret.updatedAt.toISOString();
+    if (ret.createdAt && ret.createdAt instanceof Date) {
+      ret.createdAt = ret.createdAt.toISOString();
+    }
+    if (ret.updatedAt && ret.updatedAt instanceof Date) {
+      ret.updatedAt = ret.updatedAt.toISOString();
+    }
     return ret;
   },
 });

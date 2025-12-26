@@ -11,7 +11,7 @@ export class TopBarService {
     @InjectModel(TopBar.name)
     private topBarModel: Model<TopBarDocument>,
     private cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   async create(createDto: CreateTopBarDto): Promise<TopBar> {
     const created = new this.topBarModel(createDto);

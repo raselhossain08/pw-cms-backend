@@ -363,10 +363,7 @@ export class CoursesController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Toggle lesson status (published/draft)' })
   @ApiResponse({ status: 200, description: 'Lesson status toggled' })
-  async toggleLessonStatus(
-    @Param('lessonId') lessonId: string,
-    @Req() req,
-  ) {
+  async toggleLessonStatus(@Param('lessonId') lessonId: string, @Req() req) {
     return this.coursesService.toggleLessonStatus(
       lessonId,
       req.user.id,
@@ -408,5 +405,41 @@ export class CoursesController {
       message: `${result.updated} lesson${result.updated > 1 ? 's' : ''} updated successfully`,
       ...result,
     };
+  }
+
+  @Get('export')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Export courses to CSV/XLSX/PDF' })
+  @ApiQuery({ name: 'format', required: true, enum: ['csv', 'xlsx', 'pdf'] })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Export file' })
+  async exportCourses(
+    @Query('format') format: 'csv' | 'xlsx' | 'pdf',
+    @Query('status') status?: string,
+    @Query('category') category?: string,
+    @Req() req?,
+  ) {
+    return this.coursesService.exportCourses(format, status, category, req.user);
+  }
+
+  @Get(':id/analytics')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get course analytics' })
+  @ApiResponse({ status: 200, description: 'Course analytics data' })
+  async getCourseAnalytics(@Param('id') id: string, @Req() req) {
+    return this.coursesService.getCourseAnalytics(id, req.user.id, req.user.role);
+  }
+
+  @Get(':id/preview')
+  @Public()
+  @ApiOperation({ summary: 'Preview course without authentication' })
+  @ApiResponse({ status: 200, description: 'Course preview data' })
+  async previewCourse(@Param('id') id: string) {
+    return this.coursesService.getPreview(id);
   }
 }

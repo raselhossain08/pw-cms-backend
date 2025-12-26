@@ -10,7 +10,7 @@ export class BlogService {
   constructor(
     @InjectModel(Blog.name) private blogModel: Model<BlogDocument>,
     private cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   async create(createBlogDto: CreateBlogDto): Promise<Blog> {
     const blog = new this.blogModel(createBlogDto);
@@ -22,11 +22,13 @@ export class BlogService {
 
     if (blog && blog.blogs) {
       // Explicitly convert dates to strings to ensure they survive JSON serialization
-      blog.blogs = blog.blogs.map(post => {
+      blog.blogs = blog.blogs.map((post) => {
         const p = post as any;
         return {
           ...p,
-          publishedAt: p.publishedAt ? new Date(p.publishedAt).toISOString() : new Date().toISOString(),
+          publishedAt: p.publishedAt
+            ? new Date(p.publishedAt).toISOString()
+            : new Date().toISOString(),
         };
       });
     }
@@ -287,10 +289,7 @@ export class BlogService {
     }
 
     (blogPost as any).comments.splice(commentIndex, 1);
-    blogPost.commentsCount = Math.max(
-      0,
-      (blogPost.commentsCount || 0) - 1,
-    );
+    blogPost.commentsCount = Math.max(0, (blogPost.commentsCount || 0) - 1);
     await blog.save();
   }
 
@@ -317,7 +316,7 @@ export class BlogService {
       commentsCount: 0,
     };
 
-    blog.blogs.push(duplicatedPost as any);
+    blog.blogs.push(duplicatedPost);
     return blog.save();
   }
 

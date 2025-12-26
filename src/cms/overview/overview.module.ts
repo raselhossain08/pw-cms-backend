@@ -3,16 +3,31 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { OverviewController } from './overview.controller';
 import { OverviewService } from './overview.service';
 import { Banner, BannerSchema } from '../home/banner/schemas/banner.schema';
-import { AboutSection, AboutSectionSchema } from '../home/about-section/schemas/about-section.schema';
+import {
+  AboutSection,
+  AboutSectionSchema,
+} from '../home/about-section/schemas/about-section.schema';
 import { Events, EventsSchema } from '../home/events/schemas/events.schema';
-import { Testimonials, TestimonialsSchema } from '../home/testimonials/schemas/testimonials.schema';
+import {
+  Testimonials,
+  TestimonialsSchema,
+} from '../home/testimonials/schemas/testimonials.schema';
 import { Blog, BlogSchema } from '../home/blog/schemas/blog.schema';
 import { AboutUs, AboutUsSchema } from '../about-us/schemas/about-us.schema';
 import { Contact, ContactSchema } from '../contact/schemas/contact.schema';
 import { Faqs, FaqsSchema } from '../faqs/schemas/faqs.schema';
-import { PrivacyPolicy, PrivacyPolicySchema } from '../privacy-policy/schemas/privacy-policy.schema';
-import { RefundPolicy, RefundPolicySchema } from '../refund-policy/schemas/refund-policy.schema';
-import { TermsConditions, TermsConditionsSchema } from '../terms-conditions/schemas/terms-conditions.schema';
+import {
+  PrivacyPolicy,
+  PrivacyPolicySchema,
+} from '../privacy-policy/schemas/privacy-policy.schema';
+import {
+  RefundPolicy,
+  RefundPolicySchema,
+} from '../refund-policy/schemas/refund-policy.schema';
+import {
+  TermsConditions,
+  TermsConditionsSchema,
+} from '../terms-conditions/schemas/terms-conditions.schema';
 import { TopBar, TopBarSchema } from '../header/schemas/top-bar.schema';
 import { Footer, FooterSchema } from '../footer/schemas/footer.schema';
 
@@ -38,4 +53,4 @@ import { Footer, FooterSchema } from '../footer/schemas/footer.schema';
   providers: [OverviewService],
   exports: [OverviewService],
 })
-export class OverviewModule { }
+export class OverviewModule {}

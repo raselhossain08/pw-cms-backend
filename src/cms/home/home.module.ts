@@ -24,4 +24,4 @@ import { HomeSEOModule } from './seo/home-seo.module';
     HomeSEOModule,
   ],
 })
-export class HomeModule { }
+export class HomeModule {}

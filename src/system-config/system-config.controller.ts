@@ -23,7 +23,7 @@ import { ConfigCategory } from './entities/system-config.entity';
 
 @Controller('system-config')
 export class SystemConfigController {
-  constructor(private readonly systemConfigService: SystemConfigService) { }
+  constructor(private readonly systemConfigService: SystemConfigService) {}
 
   @Get('public/payment-config')
   getPublicPaymentConfig() {

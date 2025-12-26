@@ -26,7 +26,7 @@ export class FaqsController {
   constructor(
     private readonly faqsService: FaqsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -145,8 +145,8 @@ export class FaqsController {
     while (body[`faqs[${faqIndex}][question]`]) {
       const tags = body[`faqs[${faqIndex}][tags]`]
         ? body[`faqs[${faqIndex}][tags]`]
-          .split(',')
-          .map((t: string) => t.trim())
+            .split(',')
+            .map((t: string) => t.trim())
         : [];
 
       faqs.push({
@@ -163,14 +163,14 @@ export class FaqsController {
     // Parse SEO metadata from FormData
     let seo:
       | {
-        title?: string;
-        description?: string;
-        keywords?: string;
-        ogImage?: string;
-        ogTitle?: string;
-        ogDescription?: string;
-        canonicalUrl?: string;
-      }
+          title?: string;
+          description?: string;
+          keywords?: string;
+          ogImage?: string;
+          ogTitle?: string;
+          ogDescription?: string;
+          canonicalUrl?: string;
+        }
       | undefined;
 
     if (

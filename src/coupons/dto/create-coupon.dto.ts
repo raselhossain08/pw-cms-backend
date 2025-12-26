@@ -24,7 +24,8 @@ export class CreateCouponDto {
   @MinLength(3)
   @MaxLength(50)
   @Matches(/^[A-Z0-9_-]+$/, {
-    message: 'Coupon code must be uppercase alphanumeric with hyphens or underscores only',
+    message:
+      'Coupon code must be uppercase alphanumeric with hyphens or underscores only',
   })
   code: string;
 

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class BunnyProvider {
-  constructor(private readonly configService: ConfigService) { }
+  constructor(private readonly configService: ConfigService) {}
 
   private getLibraryId(): string {
     const id = this.configService.get<string>('BUNNY_STREAM_LIBRARY_ID');
@@ -112,9 +112,7 @@ export class BunnyProvider {
     }
 
     const pullHost = this.getPullHost();
-    const secureUrl = pullHost
-      ? `https://${pullHost}/${path}`
-      : url;
+    const secureUrl = pullHost ? `https://${pullHost}/${path}` : url;
 
     return {
       public_id: path,

@@ -28,7 +28,7 @@ import { UserRole } from '../users/entities/user.entity';
 @ApiTags('Course Modules')
 @Controller('course-modules')
 export class CourseModulesController {
-  constructor(private readonly modulesService: CourseModulesService) { }
+  constructor(private readonly modulesService: CourseModulesService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -146,8 +146,15 @@ export class CourseModulesController {
   @ApiOperation({ summary: 'Bulk delete modules' })
   @ApiResponse({ status: 200, description: 'Modules deleted' })
   async bulkDelete(@Body() body: { ids: string[] }, @Req() req) {
-    const result = await this.modulesService.bulkDelete(body.ids, req.user.id, req.user.role);
-    return { message: `${result.deleted} module${result.deleted > 1 ? 's' : ''} deleted successfully`, ...result };
+    const result = await this.modulesService.bulkDelete(
+      body.ids,
+      req.user.id,
+      req.user.role,
+    );
+    return {
+      message: `${result.deleted} module${result.deleted > 1 ? 's' : ''} deleted successfully`,
+      ...result,
+    };
   }
 
   @Post('bulk-toggle-status')
@@ -157,8 +164,15 @@ export class CourseModulesController {
   @ApiOperation({ summary: 'Bulk toggle module status' })
   @ApiResponse({ status: 200, description: 'Module statuses updated' })
   async bulkToggleStatus(@Body() body: { ids: string[] }, @Req() req) {
-    const result = await this.modulesService.bulkToggleStatus(body.ids, req.user.id, req.user.role);
-    return { message: `${result.updated} module${result.updated > 1 ? 's' : ''} updated successfully`, ...result };
+    const result = await this.modulesService.bulkToggleStatus(
+      body.ids,
+      req.user.id,
+      req.user.role,
+    );
+    return {
+      message: `${result.updated} module${result.updated > 1 ? 's' : ''} updated successfully`,
+      ...result,
+    };
   }
 
   @Get(':id/stats')
