@@ -68,6 +68,10 @@ export class AnalyticsEvent extends Document {
   @Prop({ type: Object })
   properties: Record<string, any>;
 
+  @ApiProperty({ type: Object, description: 'Metadata' })
+  @Prop({ type: Object })
+  metadata?: Record<string, any>;
+
   @ApiProperty({ example: 'session_123', description: 'Session ID' })
   @Prop()
   sessionId: string;

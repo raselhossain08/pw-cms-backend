@@ -46,8 +46,17 @@ import { IntegrationsModule } from '../integrations/integrations.module';
       { name: Payout.name, schema: PayoutSchema },
     ]),
   ],
-  controllers: [AdminController, AdminPaymentsController, AdminInstructorsController],
-  providers: [AdminService, AdminPaymentsService, AdminInstructorsService, SecurityMiddleware],
+  controllers: [
+    AdminController,
+    AdminPaymentsController,
+    AdminInstructorsController,
+  ],
+  providers: [
+    AdminService,
+    AdminPaymentsService,
+    AdminInstructorsService,
+    SecurityMiddleware,
+  ],
   exports: [AdminService, AdminPaymentsService, AdminInstructorsService],
 })
-export class AdminModule { }
+export class AdminModule {}

@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) { }
+  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Check if user already exists
@@ -167,8 +167,8 @@ export class UsersService {
     });
   }
 
-  async count(): Promise<number> {
-    return await this.userModel.countDocuments();
+  async count(filter: any = {}): Promise<number> {
+    return await this.userModel.countDocuments(filter);
   }
 
   async getStats(): Promise<any> {
@@ -268,7 +268,7 @@ export class UsersService {
     const avgRating =
       courses.length > 0
         ? courses.reduce((sum, course) => sum + (course.rating || 0), 0) /
-        courses.length
+          courses.length
         : 0;
 
     // Format lessons as duration string
@@ -590,16 +590,18 @@ export class UsersService {
     const overallProgress =
       totalEnrollments > 0
         ? Math.round(
-          enrollments.reduce((sum: number, e: any) => sum + (e.progress || 0), 0) /
-          totalEnrollments,
-        )
+            enrollments.reduce(
+              (sum: number, e: any) => sum + (e.progress || 0),
+              0,
+            ) / totalEnrollments,
+          )
         : 0;
     const avgQuizScore =
       quizScores.length > 0
         ? Math.round(
-          quizScores.reduce((sum, q: any) => sum + q.avgScore, 0) /
-          quizScores.length,
-        )
+            quizScores.reduce((sum, q: any) => sum + q.avgScore, 0) /
+              quizScores.length,
+          )
         : 0;
     const totalTimeSpent = enrollments.reduce(
       (sum: number, e: any) => sum + (e.totalTimeSpent || 0),
@@ -629,9 +631,9 @@ export class UsersService {
         timeSpent: e.totalTimeSpent || 0,
         certificate: e.certificate
           ? {
-            certificateNumber: e.certificate.certificateNumber,
-            issuedAt: e.certificate.issuedAt,
-          }
+              certificateNumber: e.certificate.certificateNumber,
+              issuedAt: e.certificate.issuedAt,
+            }
           : null,
       })),
       quizzes: quizScores.map((q: any) => ({
@@ -718,7 +720,8 @@ export class UsersService {
         }
 
         // Generate random password if not provided
-        const password = studentData.password || Math.random().toString(36).slice(-8);
+        const password =
+          studentData.password || Math.random().toString(36).slice(-8);
 
         // Create student
         const user = new this.userModel({

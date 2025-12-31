@@ -1,13 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from '../../../src/users/entities/user.entity';
 
 @Schema({ timestamps: true })
 export class Conversation extends Document {
   @ApiProperty({ type: [String], description: 'Participant user IDs' })
-  @Prop([{ type: Types.ObjectId, ref: 'User' }])
-  participants: Types.ObjectId[] | User[];
+  @Prop([{ type: MongooseSchema.Types.Mixed }])
+  participants: (Types.ObjectId | string)[];
 
   @ApiProperty({
     example: 'Course Discussion',
@@ -72,6 +72,34 @@ export class Conversation extends Document {
     instructorName: string;
     studentName: string;
   };
+
+  @ApiProperty({ example: false, description: 'Support conversation flag' })
+  @Prop({ default: false })
+  isSupport: boolean;
+
+  @ApiProperty({
+    example: 'john.doe@example.com',
+    description: 'User email for support conversations',
+    required: false,
+  })
+  @Prop()
+  userEmail: string;
+
+  @ApiProperty({
+    example: 'John Doe',
+    description: 'User name for support conversations',
+    required: false,
+  })
+  @Prop()
+  userName: string;
+
+  @ApiProperty({
+    example: 'technical',
+    description: 'Support category',
+    required: false,
+  })
+  @Prop()
+  supportCategory: string;
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

@@ -147,7 +147,6 @@ export class UserSession extends Document {
 export const UserSessionSchema = SchemaFactory.createForClass(UserSession);
 
 // Indexes
-UserSessionSchema.index({ sessionId: 1 });
 UserSessionSchema.index({ userId: 1, startTime: -1 });
 UserSessionSchema.index({ startTime: 1 });
 UserSessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 15552000 }); // 6 months TTL

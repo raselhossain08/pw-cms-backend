@@ -24,5 +24,3 @@ export class CourseCategory extends Document {
 
 export const CourseCategorySchema =
   SchemaFactory.createForClass(CourseCategory);
-CourseCategorySchema.index({ name: 1 }, { unique: true });
-CourseCategorySchema.index({ slug: 1 }, { unique: true });

@@ -57,6 +57,6 @@ import { Blog, BlogSchema } from '../cms/home/blog/schemas/blog.schema';
   ],
   controllers: [AiBotController],
   providers: [AiBotService, AiBotGateway, ChatGPTService, BotActionsService],
-  exports: [AiBotService, AiBotGateway],
+  exports: [AiBotService, AiBotGateway, ChatGPTService],
 })
 export class AiBotModule {}

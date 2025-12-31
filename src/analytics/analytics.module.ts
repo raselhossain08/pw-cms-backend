@@ -10,6 +10,7 @@ import { Report, ReportSchema } from './entities/report.entity';
 import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';
 import { OrdersModule } from '../orders/orders.module';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { OrdersModule } from '../orders/orders.module';
     CoursesModule,
     UsersModule,
     forwardRef(() => OrdersModule),
+    ChatModule,
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],

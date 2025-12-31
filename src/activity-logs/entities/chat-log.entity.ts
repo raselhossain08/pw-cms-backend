@@ -14,14 +14,14 @@ export class ChatLog extends Document {
   @Prop({ required: true, enum: ChatType, index: true })
   chatType: ChatType;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
-  senderId: Types.ObjectId;
+  @Prop({ required: true, type: String, ref: 'User' })
+  senderId: string;
 
   @Prop({ required: true })
   senderName: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'User' })
-  receiverId?: Types.ObjectId;
+  @Prop({ type: String, ref: 'User' })
+  receiverId?: string;
 
   @Prop()
   receiverName?: string;

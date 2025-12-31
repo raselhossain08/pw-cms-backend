@@ -12,13 +12,13 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
 import { LoggingInterceptor } from './shared/interceptors/logging.interceptor';
 import { ActivityLoggingInterceptor } from './shared/interceptors/activity-logging.interceptor';
 import { ActivityLogsService } from './activity-logs/activity-logs.service';
-// Security middleware imports removed - no longer used
-// import { SecurityMiddleware } from './shared/middleware/security.middleware';
-// import { HelmetMiddleware } from './shared/middleware/helmet.middleware';
+import { SecurityMiddleware } from './common/middleware/security.middleware';
+import { RateLimitInterceptor } from './common/interceptors/rate-limit.interceptor';
+import { SecurityConfigService } from './config/security.config';
 import { SystemConfigService } from './system-config/system-config.service';
 import { SystemConfigModule } from './system-config/system-config.module';
 const compression = require('compression');
-// const hpp = require('hpp'); // Not used
+const hpp = require('hpp');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -32,35 +32,19 @@ async function bootstrap() {
   app.use(express.json({ limit: '200mb' }));
   app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
-  // ============ SECURITY LAYER (PERMANENTLY DISABLED) ============
-  console.log('⚠️  Security middleware PERMANENTLY DISABLED - No IP blocking');
+  // ============ SECURITY LAYER ============
+  console.log('🔒 Security features ENABLED');
 
-  // Only enable compression (no security middleware)
+  // 1. Security Middleware (Custom)
+  const securityConfigService = app.get(SecurityConfigService);
+  const securityMiddleware = new SecurityMiddleware(securityConfigService);
+  app.use((req, res, next) => securityMiddleware.use(req, res, next));
+
+  // 2. HTTP Parameter Pollution Prevention
+  app.use(hpp());
+
+  // 3. Response Compression
   app.use(compression());
-
-  // SECURITY MIDDLEWARE COMPLETELY DISABLED
-  // const securityEnabled =
-  //   configService.get('SECURITY_ENABLED', 'false') === 'true';
-
-  // if (securityEnabled) {
-  //   console.log('🔒 Security features ENABLED');
-
-  //   // 1. Helmet Security Headers
-  //   const helmetMiddleware = new HelmetMiddleware();
-  //   app.use((req, res, next) => helmetMiddleware.use(req, res, next));
-
-  //   // 2. Security Middleware (Custom)
-  //   const securityMiddleware = new SecurityMiddleware();
-  //   app.use((req, res, next) => securityMiddleware.use(req, res, next));
-
-  //   // 3. HTTP Parameter Pollution Prevention
-  //   app.use(hpp());
-
-  //   // 4. Response Compression
-  //   app.use(compression());
-  // } else {
-  //   console.log('⚠️  Security features DISABLED - Enable from admin panel');
-  // }
 
   // Global filters and interceptors
   // Get ActivityLogsService for filter and interceptor
@@ -79,6 +63,7 @@ async function bootstrap() {
   const interceptors: any[] = [
     new LoggingInterceptor(),
     new ResponseInterceptor(),
+    new RateLimitInterceptor(securityConfigService),
   ];
 
   // Add activity logging interceptor if service is available
@@ -118,8 +103,17 @@ async function bootstrap() {
       'Authorization',
       'X-Requested-With',
       'X-CSRF-Token',
+      'Cache-Control',
+      'Last-Event-ID',
     ],
-    exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'],
+    exposedHeaders: [
+      'X-Total-Count', 
+      'X-Page', 
+      'X-Limit',
+      'Content-Type',
+      'Cache-Control',
+      'Connection'
+    ],
     maxAge: 86400, // 24 hours
   });
 

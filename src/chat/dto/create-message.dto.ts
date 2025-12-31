@@ -5,8 +5,8 @@ import { MessageType } from '../entities/message.entity';
 export class CreateMessageDto {
   @ApiProperty({ example: 'conv_123', description: 'Conversation ID' })
   @IsString()
-  @IsNotEmpty()
-  conversation: string;
+  @IsOptional()
+  conversation?: string;
 
   @ApiProperty({ example: 'Hello there!', description: 'Message content' })
   @IsString()
@@ -48,4 +48,34 @@ export class CreateMessageDto {
   @IsString()
   @IsOptional()
   imageUrl?: string;
+
+  @ApiProperty({
+    example: {
+      enabled: true,
+      provider: 'chatgpt',
+      responseDelay: 1500,
+      tone: 'friendly',
+      autoRespondWhen: 'offline',
+      confidenceThreshold: 0.7,
+    },
+    description: 'AI response configuration',
+    required: false,
+  })
+  @IsOptional()
+  aiConfig?: {
+    enabled?: boolean;
+    provider?: 'chatgpt' | 'gemini' | 'custom';
+    responseDelay?: number;
+    tone?: 'professional' | 'friendly' | 'casual' | 'formal';
+    autoRespondWhen?: 'always' | 'offline' | 'busy' | 'afterHours';
+    confidenceThreshold?: number;
+  };
+
+  @ApiProperty({
+    example: { isAI: true, confidence: 0.95 },
+    description: 'Message metadata',
+    required: false,
+  })
+  @IsOptional()
+  metadata?: Record<string, any>;
 }

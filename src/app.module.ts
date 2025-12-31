@@ -49,6 +49,7 @@ import { CmsModule } from './cms/cms.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { AircraftModule } from './aircraft/aircraft.module';
+import { FeedbackModule } from './feedback/feedback.module';
 
 // Security Module
 import { SecurityModule } from './shared/security.module';
@@ -68,7 +69,6 @@ import { SystemHealthMonitor } from './shared/services/system-health-monitor.ser
 
 // Gateways
 import { NotificationsGateway } from './notifications/gateways/notifications.gateway';
-import { ChatGateway } from './chat/gateways/chat.gateway';
 import { AiBotGateway } from './ai-bot/ai-bot.gateway';
 
 @Module({
@@ -192,6 +192,7 @@ import { AiBotGateway } from './ai-bot/ai-bot.gateway';
     SupportModule,
     AiBotModule,
     SystemConfigModule,
+    FeedbackModule,
 
     // CMS Module (Header, Footer, etc.)
     CmsModule,
@@ -215,8 +216,8 @@ import { AiBotGateway } from './ai-bot/ai-bot.gateway';
 
     // WebSocket gateways
     NotificationsGateway,
-    ChatGateway,
     AiBotGateway,
+    // ChatGateway is provided in ChatModule, not here
   ],
 })
 export class AppModule { }

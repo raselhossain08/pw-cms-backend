@@ -30,7 +30,7 @@ import { UserRole } from './entities/user.entity';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   // Public endpoint - no auth required
   @Get('instructor/:slug')
@@ -298,7 +298,9 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get detailed student progress with enrollments and quiz scores' })
+  @ApiOperation({
+    summary: 'Get detailed student progress with enrollments and quiz scores',
+  })
   @ApiResponse({ status: 200, description: 'Student progress data' })
   async getStudentProgress(@Param('id') id: string) {
     return this.usersService.getStudentProgress(id);
@@ -310,8 +312,13 @@ export class UsersController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Import students from CSV/Excel file' })
   @ApiResponse({ status: 201, description: 'Students imported successfully' })
-  async importStudents(@Body() body: { students: any[]; sendWelcomeEmail?: boolean }) {
-    return this.usersService.importStudents(body.students, body.sendWelcomeEmail);
+  async importStudents(
+    @Body() body: { students: any[]; sendWelcomeEmail?: boolean },
+  ) {
+    return this.usersService.importStudents(
+      body.students,
+      body.sendWelcomeEmail,
+    );
   }
 
   @Post('students/broadcast')
@@ -319,9 +326,13 @@ export class UsersController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Send broadcast email to students' })
-  @ApiResponse({ status: 200, description: 'Broadcast email sent successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Broadcast email sent successfully',
+  })
   async sendBroadcastToStudents(
-    @Body() body: {
+    @Body()
+    body: {
       subject: string;
       message: string;
       studentIds?: string[];
@@ -344,8 +355,18 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Message sent successfully' })
   async sendMessageToStudent(
     @Param('id') id: string,
-    @Body() body: { subject: string; message: string; type?: 'email' | 'notification' | 'both' },
+    @Body()
+    body: {
+      subject: string;
+      message: string;
+      type?: 'email' | 'notification' | 'both';
+    },
   ) {
-    return this.usersService.sendMessageToStudent(id, body.subject, body.message, body.type);
+    return this.usersService.sendMessageToStudent(
+      id,
+      body.subject,
+      body.message,
+      body.type,
+    );
   }
 }

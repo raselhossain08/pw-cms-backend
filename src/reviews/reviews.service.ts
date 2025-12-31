@@ -12,7 +12,7 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 
 @Injectable()
 export class ReviewsService {
-  constructor(@InjectModel(Review.name) private reviewModel: Model<Review>) { }
+  constructor(@InjectModel(Review.name) private reviewModel: Model<Review>) {}
 
   async create(
     createReviewDto: CreateReviewDto,
@@ -214,7 +214,7 @@ export class ReviewsService {
     ]);
 
     // Transform to include course field for backward compatibility
-    const transformedReviews = reviews.map(review => {
+    const transformedReviews = reviews.map((review) => {
       const reviewObj = review.toObject();
       return {
         ...reviewObj,

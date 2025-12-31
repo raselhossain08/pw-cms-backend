@@ -19,7 +19,7 @@ export class CoursesService {
   constructor(
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) { }
+  ) {}
 
   async create(
     createCourseDto: CreateCourseDto,
@@ -141,10 +141,10 @@ export class CoursesService {
       _id: course._id.toString(),
       instructor: course.instructor
         ? {
-          ...course.instructor,
-          id: course.instructor._id.toString(),
-          _id: course.instructor._id.toString(),
-        }
+            ...course.instructor,
+            id: course.instructor._id.toString(),
+            _id: course.instructor._id.toString(),
+          }
         : null,
     }));
 

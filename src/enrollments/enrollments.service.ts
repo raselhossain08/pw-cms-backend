@@ -7,7 +7,10 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Enrollment, EnrollmentStatus } from './entities/enrollment.entity';
-import { CreateEnrollmentDto, CreateEnrollmentAdminDto } from './dto/create-enrollment.dto';
+import {
+  CreateEnrollmentDto,
+  CreateEnrollmentAdminDto,
+} from './dto/create-enrollment.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 import { Course } from '../courses/entities/course.entity';
 
@@ -16,7 +19,7 @@ export class EnrollmentsService {
   constructor(
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
-  ) { }
+  ) {}
 
   async enroll(
     createEnrollmentDto: CreateEnrollmentDto,
@@ -243,7 +246,7 @@ export class EnrollmentsService {
       averageProgress:
         enrollments.length > 0
           ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-          enrollments.length
+            enrollments.length
           : 0,
     };
 
@@ -416,10 +419,13 @@ export class EnrollmentsService {
     }));
   }
 
-  async getAdminTrends(
-    range: '7d' | '30d' | '90d' | 'year' = '30d',
-  ): Promise<
-    { date: string; enrollments: number; completions: number; cancellations: number }[]
+  async getAdminTrends(range: '7d' | '30d' | '90d' | 'year' = '30d'): Promise<
+    {
+      date: string;
+      enrollments: number;
+      completions: number;
+      cancellations: number;
+    }[]
   > {
     const now = new Date();
     let startDate = new Date();
@@ -528,7 +534,9 @@ export class EnrollmentsService {
     return enrollment;
   }
 
-  async createEnrollmentAdmin(createEnrollmentDto: CreateEnrollmentAdminDto): Promise<Enrollment> {
+  async createEnrollmentAdmin(
+    createEnrollmentDto: CreateEnrollmentAdminDto,
+  ): Promise<Enrollment> {
     const { studentId, courseId, orderId, status } = createEnrollmentDto;
 
     // Check if already enrolled

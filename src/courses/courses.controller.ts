@@ -33,7 +33,7 @@ import { CourseAccessGuard } from './guards/course-access.guard';
 @ApiTags('Courses')
 @Controller('courses')
 export class CoursesController {
-  constructor(private readonly coursesService: CoursesService) { }
+  constructor(private readonly coursesService: CoursesService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -422,7 +422,12 @@ export class CoursesController {
     @Query('category') category?: string,
     @Req() req?,
   ) {
-    return this.coursesService.exportCourses(format, status, category, req.user);
+    return this.coursesService.exportCourses(
+      format,
+      status,
+      category,
+      req.user,
+    );
   }
 
   @Get(':id/analytics')
@@ -432,7 +437,11 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get course analytics' })
   @ApiResponse({ status: 200, description: 'Course analytics data' })
   async getCourseAnalytics(@Param('id') id: string, @Req() req) {
-    return this.coursesService.getCourseAnalytics(id, req.user.id, req.user.role);
+    return this.coursesService.getCourseAnalytics(
+      id,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get(':id/preview')

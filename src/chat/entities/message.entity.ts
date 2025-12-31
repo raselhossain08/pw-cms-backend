@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from '../../../src/users/entities/user.entity';
 import { Conversation } from './conversation.entity';
@@ -9,6 +9,7 @@ export enum MessageType {
   IMAGE = 'image',
   FILE = 'file',
   SYSTEM = 'system',
+  AI_RESPONSE = 'ai_response',
 }
 
 @Schema({ timestamps: true })
@@ -18,8 +19,8 @@ export class Message extends Document {
   conversation: Types.ObjectId | Conversation;
 
   @ApiProperty({ type: String, description: 'Sender user ID' })
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  sender: Types.ObjectId | User;
+  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
+  sender: Types.ObjectId | string;
 
   @ApiProperty({ example: 'Hello there!', description: 'Message content' })
   @Prop({ required: true })

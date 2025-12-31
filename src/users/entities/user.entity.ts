@@ -8,6 +8,8 @@ export enum UserRole {
   INSTRUCTOR = 'instructor',
   STUDENT = 'student',
   AFFILIATE = 'affiliate',
+  SUPPORT_LEAD = 'support_lead',
+  SUPPORT_AGENT = 'support_agent',
 }
 
 export enum UserStatus {

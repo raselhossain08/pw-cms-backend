@@ -18,7 +18,10 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { EnrollmentsService } from './enrollments.service';
-import { CreateEnrollmentDto, CreateEnrollmentAdminDto } from './dto/create-enrollment.dto';
+import {
+  CreateEnrollmentDto,
+  CreateEnrollmentAdminDto,
+} from './dto/create-enrollment.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -31,7 +34,7 @@ import { EnrollmentStatus } from './entities/enrollment.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class EnrollmentsController {
-  constructor(private readonly enrollmentsService: EnrollmentsService) { }
+  constructor(private readonly enrollmentsService: EnrollmentsService) {}
 
   @Post()
   @ApiOperation({ summary: 'Enroll in a course (free or paid with order)' })

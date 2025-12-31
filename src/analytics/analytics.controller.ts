@@ -35,13 +35,26 @@ import { UpdateReportDto } from './dto/update-report.dto';
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
 @ApiBearerAuth('JWT-auth')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) { }
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Get dashboard analytics' })
   @ApiResponse({ status: 200, description: 'Dashboard analytics data' })
   async getDashboardAnalytics() {
     return this.analyticsService.getDashboardAnalytics();
+  }
+
+  @Get('chat')
+  @ApiOperation({ summary: 'Get chat analytics' })
+  @ApiQuery({
+    name: 'period',
+    enum: AnalyticsPeriod,
+    required: false,
+    description: 'Time period for analytics',
+  })
+  @ApiResponse({ status: 200, description: 'Chat analytics data' })
+  async getChatAnalytics(@Query('period') period?: AnalyticsPeriod) {
+    return this.analyticsService.getChatAnalytics(period || AnalyticsPeriod.MONTH);
   }
 
   @Get('revenue')
