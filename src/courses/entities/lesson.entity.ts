@@ -83,6 +83,14 @@ export class Lesson extends Document {
   isFree: boolean;
 
   @ApiProperty({
+    example: 'https://example.com/thumbnail.jpg',
+    description: 'Lesson thumbnail URL',
+    required: false,
+  })
+  @Prop()
+  thumbnail: string;
+
+  @ApiProperty({
     example: ['quiz1', 'quiz2'],
     description: 'Quiz questions',
     required: false,

@@ -22,7 +22,7 @@ export class CourseModulesService {
     @InjectModel(CourseModule.name) private moduleModel: Model<CourseModule>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) {}
+  ) { }
 
   async create(
     dto: CreateCourseModuleDto,
@@ -46,7 +46,16 @@ export class CourseModulesService {
       order: dto.order,
       course: new Types.ObjectId(dto.courseId),
     });
-    return module.save();
+    const savedModule = await module.save();
+
+    // Add module to course's modules array
+    await this.courseModel.findByIdAndUpdate(
+      dto.courseId,
+      { $addToSet: { modules: savedModule._id } },
+      { new: true }
+    );
+
+    return savedModule;
   }
 
   async findAll(

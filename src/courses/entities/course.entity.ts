@@ -147,6 +147,13 @@ export class Course extends Document {
   instructor: Types.ObjectId | User;
 
   @ApiProperty({
+    type: [String],
+    description: 'Course modules',
+  })
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'CourseModule' }] })
+  modules: Types.ObjectId[];
+
+  @ApiProperty({
     example: ['airline', 'certification'],
     description: 'Course categories',
   })

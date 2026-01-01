@@ -3,7 +3,7 @@ import { Document, Types } from 'mongoose';
 import { CourseModule } from '../../course-modules/entities/course-module.entity';
 import { Lesson } from '../../courses/entities/lesson.entity';
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } })
 export class Certificate extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   student: Types.ObjectId;
@@ -43,6 +43,33 @@ export class Certificate extends Document {
 }
 
 export const CertificateSchema = SchemaFactory.createForClass(Certificate);
+
+// Ensure dates are properly serialized to JSON
+CertificateSchema.set('toJSON', {
+  transform: function (_doc: any, ret: any) {
+    // Convert Date objects to ISO strings for proper JSON serialization
+    if (ret.issuedAt instanceof Date) {
+      ret.issuedAt = ret.issuedAt.toISOString();
+    }
+    if (ret.createdAt instanceof Date) {
+      ret.createdAt = ret.createdAt.toISOString();
+    }
+    if (ret.updatedAt instanceof Date) {
+      ret.updatedAt = ret.updatedAt.toISOString();
+    }
+    if (ret.emailSentAt instanceof Date) {
+      ret.emailSentAt = ret.emailSentAt.toISOString();
+    }
+    if (ret.revokedAt instanceof Date) {
+      ret.revokedAt = ret.revokedAt.toISOString();
+    }
+    if (ret.expiryDate instanceof Date) {
+      ret.expiryDate = ret.expiryDate.toISOString();
+    }
+    return ret;
+  },
+});
+
 CertificateSchema.index({ student: 1, course: 1 }, { unique: true });
 
 @Schema({ timestamps: true })

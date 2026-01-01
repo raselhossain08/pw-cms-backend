@@ -150,4 +150,54 @@ export class CreateCourseDto {
   @IsString({ each: true })
   @IsOptional()
   learningObjectives?: string[];
+
+  @ApiProperty({
+    example: 'Complete ATP certification training for aspiring airline pilots',
+    description: 'Short excerpt for previews',
+  })
+  @IsString()
+  @IsOptional()
+  excerpt?: string;
+
+  @ApiProperty({
+    example: ['Boeing 737', 'Airbus A320'],
+    description: 'Aircraft types covered',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  aircraftTypes?: string[];
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether course is featured',
+  })
+  @IsBoolean()
+  @IsOptional()
+  isFeatured?: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether course provides certificate',
+  })
+  @IsBoolean()
+  @IsOptional()
+  providesCertificate?: boolean;
+
+  @ApiProperty({
+    example: 30,
+    description: 'Money back guarantee in days',
+  })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  moneyBackGuarantee?: number;
+
+  @ApiProperty({
+    example: 'en',
+    description: 'Primary language code',
+  })
+  @IsString()
+  @IsOptional()
+  language?: string;
 }

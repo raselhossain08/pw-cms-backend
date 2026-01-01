@@ -17,6 +17,9 @@ export class CourseModule extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Course', required: true })
   course: Types.ObjectId;
 
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Lesson' }], default: [] })
+  lessons: Types.ObjectId[];
+
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Course' }], default: [] })
   courses: Types.ObjectId[];
 
@@ -29,7 +32,7 @@ export class CourseModule extends Document {
   @Prop({
     type: String,
     enum: CourseModuleStatus,
-    default: CourseModuleStatus.DRAFT,
+    default: CourseModuleStatus.PUBLISHED,
   })
   status: CourseModuleStatus;
 }

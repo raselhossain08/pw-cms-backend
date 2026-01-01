@@ -88,6 +88,14 @@ export class CreateLessonDto {
   videoUrl?: string;
 
   @ApiProperty({
+    example: 'https://example.com/thumbnail.jpg',
+    description: 'Lesson thumbnail URL',
+  })
+  @IsString()
+  @IsOptional()
+  thumbnail?: string;
+
+  @ApiProperty({
     example: ['document1.pdf', 'slides.pptx'],
     description: 'Lesson materials',
   })
@@ -95,6 +103,11 @@ export class CreateLessonDto {
   @IsString({ each: true })
   @IsOptional()
   materials?: string[];
+
+  @ApiProperty({ example: true, description: 'Whether lesson is free to preview' })
+  @IsBoolean()
+  @IsOptional()
+  isFree?: boolean;
 
   @ApiProperty({ example: true, description: 'Whether lesson is published' })
   @IsBoolean()

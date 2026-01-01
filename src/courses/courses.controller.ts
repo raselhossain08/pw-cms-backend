@@ -22,6 +22,7 @@ import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
+import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../shared/decorators/roles.decorator';
@@ -33,7 +34,7 @@ import { CourseAccessGuard } from './guards/course-access.guard';
 @ApiTags('Courses')
 @Controller('courses')
 export class CoursesController {
-  constructor(private readonly coursesService: CoursesService) {}
+  constructor(private readonly coursesService: CoursesService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -312,7 +313,7 @@ export class CoursesController {
   @ApiResponse({ status: 200, description: 'Lesson updated' })
   async updateLesson(
     @Param('lessonId') lessonId: string,
-    @Body() updateData: any,
+    @Body() updateData: UpdateLessonDto,
     @Req() req,
   ) {
     return this.coursesService.updateLesson(
@@ -407,6 +408,43 @@ export class CoursesController {
     };
   }
 
+  @Post('lessons/:lessonId/duplicate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Duplicate a lesson' })
+  @ApiResponse({ status: 201, description: 'Lesson duplicated successfully' })
+  async duplicateLesson(@Param('lessonId') lessonId: string, @Req() req) {
+    return this.coursesService.duplicateLesson(
+      lessonId,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Get('lessons/export/:format')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Export lessons to CSV/XLSX/PDF' })
+  @ApiQuery({ name: 'format', required: true, enum: ['csv', 'xlsx', 'pdf'] })
+  @ApiQuery({ name: 'courseId', required: false, type: String })
+  @ApiQuery({ name: 'moduleId', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Export file' })
+  async exportLessons(
+    @Param('format') format: 'csv' | 'xlsx' | 'pdf',
+    @Query('courseId') courseId?: string,
+    @Query('moduleId') moduleId?: string,
+    @Req() req?,
+  ) {
+    return this.coursesService.exportLessons(
+      format,
+      courseId,
+      moduleId,
+      req.user,
+    );
+  }
+
   @Get('export')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
@@ -439,6 +477,20 @@ export class CoursesController {
   async getCourseAnalytics(@Param('id') id: string, @Req() req) {
     return this.coursesService.getCourseAnalytics(
       id,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Get('lessons/:lessonId/analytics')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get lesson analytics' })
+  @ApiResponse({ status: 200, description: 'Lesson analytics data' })
+  async getLessonAnalytics(@Param('lessonId') lessonId: string, @Req() req) {
+    return this.coursesService.getLessonAnalytics(
+      lessonId,
       req.user.id,
       req.user.role,
     );

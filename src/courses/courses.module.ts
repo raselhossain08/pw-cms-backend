@@ -10,6 +10,7 @@ import {
 } from '../enrollments/entities/enrollment.entity';
 import { CourseAccessGuard } from './guards/course-access.guard';
 import { EnrollmentsModule } from '../enrollments/enrollments.module';
+import { CourseModule as CourseModuleEntity, CourseModuleSchema } from '../course-modules/entities/course-module.entity';
 
 @Module({
   imports: [
@@ -17,10 +18,11 @@ import { EnrollmentsModule } from '../enrollments/enrollments.module';
       { name: Course.name, schema: CourseSchema },
       { name: Lesson.name, schema: LessonSchema },
       { name: Enrollment.name, schema: EnrollmentSchema },
+      { name: CourseModuleEntity.name, schema: CourseModuleSchema },
     ]),
   ],
   controllers: [CoursesController],
   providers: [CoursesService, CourseAccessGuard],
   exports: [CoursesService, CourseAccessGuard],
 })
-export class CoursesModule {}
+export class CoursesModule { }

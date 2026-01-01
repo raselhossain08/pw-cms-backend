@@ -13,13 +13,15 @@ import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { User, UserRole } from '../users/entities/user.entity';
+import { CourseModule } from '../course-modules/entities/course-module.entity';
 
 @Injectable()
 export class CoursesService {
   constructor(
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) {}
+    @InjectModel(CourseModule.name) private courseModuleModel: Model<CourseModule>,
+  ) { }
 
   async create(
     createCourseDto: CreateCourseDto,
@@ -60,13 +62,16 @@ export class CoursesService {
     const duration =
       (createCourseDto as any).duration ?? createCourseDto.durationHours;
 
-    // Transform isPublished to status
+    // Transform isPublished to status - default to PUBLISHED
     const courseData: any = { ...createCourseDto };
     if (createCourseDto.isPublished !== undefined) {
       courseData.status = createCourseDto.isPublished
         ? CourseStatus.PUBLISHED
         : CourseStatus.DRAFT;
       delete courseData.isPublished;
+    } else {
+      // Automatically set status to PUBLISHED if not specified
+      courseData.status = CourseStatus.PUBLISHED;
     }
 
     // Handle isFree flag - if isFree is true, set price to 0
@@ -141,10 +146,10 @@ export class CoursesService {
       _id: course._id.toString(),
       instructor: course.instructor
         ? {
-            ...course.instructor,
-            id: course.instructor._id.toString(),
-            _id: course.instructor._id.toString(),
-          }
+          ...course.instructor,
+          id: course.instructor._id.toString(),
+          _id: course.instructor._id.toString(),
+        }
         : null,
     }));
 
@@ -162,6 +167,13 @@ export class CoursesService {
         'instructor',
         'firstName lastName email avatar bio certifications flightHours',
       )
+      .populate({
+        path: 'modules',
+        populate: {
+          path: 'lessons',
+          select: 'title duration order type status videoUrl',
+        },
+      })
       .exec();
 
     if (!course) {
@@ -173,11 +185,20 @@ export class CoursesService {
 
   async findBySlug(slug: string): Promise<Course> {
     const course = await this.courseModel
-      .findOne({ slug, status: CourseStatus.PUBLISHED })
+      .findOne({ slug })
+      // Temporarily removed status filter to allow draft courses in development
+      // .findOne({ slug, status: CourseStatus.PUBLISHED })
       .populate(
         'instructor',
         'firstName lastName email avatar bio certifications flightHours',
       )
+      .populate({
+        path: 'modules',
+        populate: {
+          path: 'lessons',
+          select: 'title duration order type status videoUrl',
+        },
+      })
       .exec();
 
     if (!course) {
@@ -370,8 +391,18 @@ export class CoursesService {
       lessonData.order = count + 1;
     }
     const lesson = new this.lessonModel(lessonData);
+    const savedLesson = await lesson.save();
 
-    return await lesson.save();
+    // Update module's lessons array
+    if (lessonData.module) {
+      await this.courseModuleModel.findByIdAndUpdate(
+        lessonData.module,
+        { $addToSet: { lessons: savedLesson._id } },
+        { new: true }
+      );
+    }
+
+    return savedLesson;
   }
 
   async getCourseLessons(
@@ -641,6 +672,157 @@ export class CoursesService {
     await (this.lessonModel as any).bulkWrite(bulkOps);
 
     return { updated: lessons.length };
+  }
+
+  async duplicateLesson(
+    lessonId: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<Lesson> {
+    const originalLesson = await this.lessonModel
+      .findById(lessonId)
+      .populate('course')
+      .exec();
+
+    if (!originalLesson) {
+      throw new NotFoundException('Lesson not found');
+    }
+
+    const course = originalLesson.course as Course;
+
+    // Check permissions
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.SUPER_ADMIN &&
+      course.instructor.toString() !== userId
+    ) {
+      throw new ForbiddenException(
+        'You can only duplicate lessons in your own courses',
+      );
+    }
+
+    // Create slug for duplicate
+    const baseSlug = originalLesson.slug;
+    let newSlug = `${baseSlug}-copy`;
+    let counter = 1;
+
+    // Ensure unique slug
+    while (await this.lessonModel.findOne({ slug: newSlug })) {
+      newSlug = `${baseSlug}-copy-${counter}`;
+      counter++;
+    }
+
+    // Get highest order number for the course and module
+    const filter: any = { course: originalLesson.course };
+    if (originalLesson.module) {
+      filter.module = originalLesson.module;
+    }
+    const maxOrderLesson = await this.lessonModel
+      .findOne(filter)
+      .sort({ order: -1 })
+      .select('order')
+      .exec();
+    const newOrder = (maxOrderLesson?.order || 0) + 1;
+
+    // Remove fields that shouldn't be duplicated
+    const lessonData: any = originalLesson.toObject();
+    delete lessonData._id;
+    delete lessonData.createdAt;
+    delete lessonData.updatedAt;
+    delete lessonData.completionCount;
+    delete lessonData.averageScore;
+
+    // Create new lesson with modified data
+    const duplicatedLesson = new this.lessonModel({
+      ...lessonData,
+      title: `${originalLesson.title} (Copy)`,
+      slug: newSlug,
+      order: newOrder,
+      status: 'draft',
+    });
+
+    return await duplicatedLesson.save();
+  }
+
+  async exportLessons(
+    format: 'csv' | 'xlsx' | 'pdf',
+    courseId?: string,
+    moduleId?: string,
+    user?: any,
+  ): Promise<any> {
+    // Build query
+    const query: any = {};
+
+    if (courseId) {
+      query.course = new Types.ObjectId(courseId);
+    }
+
+    if (moduleId) {
+      query.module = new Types.ObjectId(moduleId);
+    }
+
+    // Check permissions - filter by instructor if not admin
+    if (
+      user &&
+      user.role !== UserRole.ADMIN &&
+      user.role !== UserRole.SUPER_ADMIN
+    ) {
+      // Get courses where user is instructor
+      const instructorCourses = await this.courseModel
+        .find({ instructor: new Types.ObjectId(user.id) })
+        .select('_id')
+        .exec();
+
+      const courseIds = instructorCourses.map((c) => c._id);
+
+      if (courseIds.length === 0) {
+        throw new ForbiddenException('No courses found for export');
+      }
+
+      query.course = { $in: courseIds };
+    }
+
+    // Fetch lessons
+    const lessons = await this.lessonModel
+      .find(query)
+      .populate('course', 'title')
+      .populate('module', 'title')
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+
+    // Format data for export
+    const exportData = lessons.map((lesson: any) => ({
+      Title: lesson.title,
+      Type: lesson.type,
+      Status: lesson.status,
+      Duration: `${Math.floor(lesson.duration / 60)}m ${lesson.duration % 60}s`,
+      'Is Free': lesson.isFree ? 'Yes' : 'No',
+      Course: lesson.course?.title || 'N/A',
+      Module: lesson.module?.title || 'N/A',
+      Order: lesson.order,
+      'Completion Count': lesson.completionCount || 0,
+      'Average Score': lesson.averageScore || 0,
+    }));
+
+    if (format === 'csv') {
+      // Simple CSV implementation
+      const headers = Object.keys(exportData[0] || {});
+      const csvRows = [headers.join(',')];
+
+      for (const row of exportData) {
+        const values = headers.map((header) => {
+          const value = row[header] || '';
+          return `"${String(value).replace(/"/g, '""')}"`;
+        });
+        csvRows.push(values.join(','));
+      }
+
+      return csvRows.join('\n');
+    }
+
+    // For xlsx and pdf, return JSON data (client can handle formatting)
+    return exportData;
   }
 
   async getStats(): Promise<any> {
@@ -1162,30 +1344,22 @@ export class CoursesService {
     userId: string,
     userRole: UserRole,
   ): Promise<any> {
-    const course = await this.courseModel
-      .findById(courseId)
-      .populate('instructor', 'firstName lastName');
-
-    if (!course) {
-      throw new NotFoundException('Course not found');
-    }
+    const course = await this.findById(courseId);
 
     // Check permissions
     if (
-      userRole !== UserRole.SUPER_ADMIN &&
       userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.SUPER_ADMIN &&
       course.instructor.toString() !== userId
     ) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException(
+        'You can only view analytics for your own courses',
+      );
     }
 
-    // Get lessons count
-    const lessonsCount = await this.lessonModel.countDocuments({
-      course: new Types.ObjectId(courseId),
-    });
+    const lessons = await this.lessonModel.find({ course: courseId });
 
-    // Build analytics data
-    return {
+    const analytics = {
       courseId: course._id,
       title: course.title,
       totalStudents: course.studentCount || 0,
@@ -1193,7 +1367,33 @@ export class CoursesService {
       completionRate: course.completionRate || 0,
       averageRating: course.rating || 0,
       totalReviews: course.reviewCount || 0,
-      lessonsCount,
+      totalLessons: lessons.length,
+      publishedLessons: lessons.filter((l) => l.status === 'published').length,
+      totalDuration: lessons.reduce((sum, l) => sum + (l.duration || 0), 0),
+      avgDuration:
+        lessons.length > 0
+          ? Math.round(
+            lessons.reduce((sum, l) => sum + (l.duration || 0), 0) /
+            lessons.length,
+          )
+          : 0,
+      lessonsByType: {
+        video: lessons.filter((l) => l.type === 'video').length,
+        text: lessons.filter((l) => l.type === 'text').length,
+        quiz: lessons.filter((l) => l.type === 'quiz').length,
+        assignment: lessons.filter((l) => l.type === 'assignment').length,
+      },
+      totalCompletions: lessons.reduce(
+        (sum, l) => sum + (l.completionCount || 0),
+        0,
+      ),
+      avgCompletionRate:
+        lessons.length > 0
+          ? Math.round(
+            lessons.reduce((sum, l) => sum + (l.completionCount || 0), 0) /
+            lessons.length,
+          )
+          : 0,
       enrollmentTrend: [], // Placeholder for time-series data
       revenueByMonth: [], // Placeholder for revenue trends
       studentEngagement: {
@@ -1201,6 +1401,50 @@ export class CoursesService {
         completed: 0,
         dropped: 0,
       },
+    };
+
+    return analytics;
+  }
+
+  async getLessonAnalytics(
+    lessonId: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<any> {
+    const lesson = await this.lessonModel
+      .findById(lessonId)
+      .populate('course')
+      .exec();
+
+    if (!lesson) {
+      throw new NotFoundException('Lesson not found');
+    }
+
+    const course = lesson.course as Course;
+
+    // Check permissions
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.SUPER_ADMIN &&
+      course.instructor.toString() !== userId
+    ) {
+      throw new ForbiddenException(
+        'You can only view analytics for lessons in your own courses',
+      );
+    }
+
+    // Return basic analytics (can be enhanced with real tracking data)
+    return {
+      lessonId: lesson._id,
+      title: lesson.title,
+      type: lesson.type,
+      status: lesson.status,
+      views: lesson.completionCount || 0,
+      completions: lesson.completionCount || 0,
+      averageProgress: 0, // Would need a separate tracking collection
+      averageTimeSpent: lesson.duration || 0,
+      averageScore: lesson.averageScore || 0,
+      lastAccessed: new Date(),
     };
   }
 
