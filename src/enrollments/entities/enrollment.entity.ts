@@ -63,6 +63,41 @@ export class Enrollment extends Document {
 
   @Prop({ type: [String], default: [] })
   notes: string[];
+
+  // Purchase tracking fields
+  @Prop()
+  purchaseDate?: Date;
+
+  @Prop({ enum: ['free', 'paid'], default: 'free' })
+  accessType: string;
+
+  @Prop({ default: 0 })
+  amountPaid: number;
+
+  @Prop({ enum: ['pending', 'completed', 'failed', 'refunded'], default: 'completed' })
+  paymentStatus: string;
+
+  @Prop()
+  paymentMethod?: string; // stripe, paypal, etc.
+
+  @Prop()
+  transactionId?: string;
+
+  @Prop()
+  refundedAt?: Date;
+
+  @Prop()
+  refundReason?: string;
+
+  // Access control fields
+  @Prop({ default: true })
+  hasAccess: boolean;
+
+  @Prop()
+  accessRevokedAt?: Date;
+
+  @Prop()
+  accessRevokedReason?: string;
 }
 
 export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);
@@ -71,3 +106,6 @@ export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);
 EnrollmentSchema.index({ student: 1, course: 1 }, { unique: true });
 EnrollmentSchema.index({ status: 1 });
 EnrollmentSchema.index({ progress: 1 });
+EnrollmentSchema.index({ paymentStatus: 1 });
+EnrollmentSchema.index({ purchaseDate: -1 });
+EnrollmentSchema.index({ hasAccess: 1 });

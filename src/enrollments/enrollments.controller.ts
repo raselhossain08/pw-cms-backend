@@ -34,7 +34,7 @@ import { EnrollmentStatus } from './entities/enrollment.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class EnrollmentsController {
-  constructor(private readonly enrollmentsService: EnrollmentsService) {}
+  constructor(private readonly enrollmentsService: EnrollmentsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Enroll in a course (free or paid with order)' })
@@ -304,4 +304,117 @@ export class EnrollmentsController {
       status,
     });
   }
+
+  // ==================== Purchase Tracking Endpoints ====================
+
+  @Get('purchased-courses')
+  @ApiOperation({ summary: 'Get all purchased courses with detailed stats' })
+  @ApiQuery({ name: 'paymentStatus', required: false, type: String })
+  @ApiQuery({ name: 'accessType', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'sortBy', required: false, type: String })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['asc', 'desc'],
+  })
+  @ApiResponse({ status: 200, description: 'Purchased courses with stats' })
+  async getPurchasedCourses(
+    @Req() req,
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('accessType') accessType?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+  ) {
+    return this.enrollmentsService.getPurchasedCourses(req.user.id, {
+      paymentStatus,
+      accessType,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      sortBy,
+      sortOrder,
+    });
+  }
+
+  @Post('verify-purchase')
+  @ApiOperation({ summary: 'Verify purchase and create enrollments' })
+  @ApiResponse({
+    status: 201,
+    description: 'Enrollments created after purchase verification',
+  })
+  async verifyPurchase(
+    @Req() req,
+    @Body()
+    body: {
+      orderId: string;
+      courses: Array<{ courseId: string; price: number }>;
+      paymentData: {
+        paymentMethod: string;
+        transactionId?: string;
+        totalAmount: number;
+      };
+    },
+  ) {
+    return this.enrollmentsService.verifyAndCreateEnrollments(
+      req.user.id,
+      body.orderId,
+      body.courses,
+      body.paymentData,
+    );
+  }
+
+  @Patch(':enrollmentId/access')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update enrollment access (admin)' })
+  @ApiResponse({ status: 200, description: 'Access updated' })
+  async updateAccess(
+    @Param('enrollmentId') enrollmentId: string,
+    @Body() body: { hasAccess: boolean; reason?: string },
+  ) {
+    return this.enrollmentsService.updateAccess(
+      enrollmentId,
+      body.hasAccess,
+      body.reason,
+    );
+  }
+
+  @Post(':enrollmentId/refund')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Process refund and revoke access (admin)' })
+  @ApiResponse({ status: 200, description: 'Refund processed' })
+  async processRefund(
+    @Param('enrollmentId') enrollmentId: string,
+    @Body('refundReason') refundReason: string,
+  ) {
+    return this.enrollmentsService.processRefund(enrollmentId, refundReason);
+  }
+
+  @Get('admin/purchase-analytics')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiOperation({ summary: 'Get purchase analytics (admin/instructor)' })
+  @ApiQuery({ name: 'startDate', required: false, type: Date })
+  @ApiQuery({ name: 'endDate', required: false, type: Date })
+  @ApiQuery({ name: 'courseId', required: false, type: String })
+  @ApiQuery({ name: 'instructorId', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Purchase analytics data' })
+  async getPurchaseAnalytics(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('courseId') courseId?: string,
+    @Query('instructorId') instructorId?: string,
+  ) {
+    return this.enrollmentsService.getPurchaseAnalytics({
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      courseId,
+      instructorId,
+    });
+  }
 }
+

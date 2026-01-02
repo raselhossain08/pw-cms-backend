@@ -36,7 +36,7 @@ export class CourseAccessGuard implements CanActivate {
       }
     }
 
-    if (!courseId) {
+    if (!courseId || courseId === 'undefined' || courseId === 'null') {
       throw new NotFoundException('Course ID is required');
     }
 

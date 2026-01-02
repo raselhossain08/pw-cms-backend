@@ -57,7 +57,7 @@ export class PaymentsService {
     private couponsService: CouponsService,
     private mailService: MailService,
     private enrollmentsService: EnrollmentsService,
-  ) {}
+  ) { }
 
   async createPaymentIntent(
     createPaymentIntentDto: CreatePaymentIntentDto,
@@ -383,7 +383,14 @@ export class PaymentsService {
     const event = await this.stripeService.constructEvent(payload, signature);
     const type = event.type;
 
+    this.logger.log(`[handleStripeWebhook] Received webhook event: ${type}`);
+
     switch (type) {
+      case 'checkout.session.completed':
+        // Handle Stripe Checkout Session completion
+        await this.handleCheckoutSessionCompleted(event.data.object);
+        break;
+
       case 'payment_intent.succeeded':
         await this.handlePaymentSuccess(event.data.object);
         break;
@@ -397,7 +404,7 @@ export class PaymentsService {
         break;
 
       default:
-        console.log(`Unhandled event type: ${type}`);
+        this.logger.log(`[handleStripeWebhook] Unhandled event type: ${type}`);
     }
 
     return { received: true };
@@ -561,23 +568,23 @@ export class PaymentsService {
       dueDate: new Date(),
       billingInfo: order.billingAddress
         ? {
-            companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
-            address: order.billingAddress.street,
-            city: order.billingAddress.city,
-            state: order.billingAddress.state,
-            zipCode: order.billingAddress.zipCode,
-            country: order.billingAddress.country,
-            taxId: '',
-          }
+          companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
+          address: order.billingAddress.street,
+          city: order.billingAddress.city,
+          state: order.billingAddress.state,
+          zipCode: order.billingAddress.zipCode,
+          country: order.billingAddress.country,
+          taxId: '',
+        }
         : {
-            companyName: 'Personal Wings',
-            address: '123 Aviation Way',
-            city: 'Sky Harbor',
-            state: 'AZ',
-            zipCode: '85034',
-            country: 'US',
-            taxId: 'TAX-123456',
-          },
+          companyName: 'Personal Wings',
+          address: '123 Aviation Way',
+          city: 'Sky Harbor',
+          state: 'AZ',
+          zipCode: '85034',
+          country: 'US',
+          taxId: 'TAX-123456',
+        },
       items: [
         {
           description: 'Course Enrollment',
@@ -602,7 +609,123 @@ export class PaymentsService {
     }));
   }
 
+  /**
+   * Handle Stripe Checkout Session completed event
+   * This is triggered automatically by Stripe webhook when checkout session is completed
+   */
+  private async handleCheckoutSessionCompleted(session: any) {
+    this.logger.log(
+      `[handleCheckoutSessionCompleted] Processing session: ${session.id}`,
+    );
+
+    // Find order by session ID
+    let order = await this.orderModel
+      .findOne({
+        paymentIntentId: session.id,
+      })
+      .populate('user courses');
+
+    // If not found, try using metadata orderId
+    if (!order && session.metadata?.orderId) {
+      this.logger.log(
+        `[handleCheckoutSessionCompleted] Trying to find order by metadata orderId: ${session.metadata.orderId}`,
+      );
+      order = await this.orderModel
+        .findById(session.metadata.orderId)
+        .populate('user courses');
+
+      if (order) {
+        // Update order with session ID
+        order.paymentIntentId = session.id;
+        await order.save();
+      }
+    }
+
+    if (!order) {
+      this.logger.error(
+        `[handleCheckoutSessionCompleted] Order not found for session: ${session.id}`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `[handleCheckoutSessionCompleted] Found order: ${order.orderNumber}, status: ${order.status}`,
+    );
+
+    // Only process if not already completed
+    if (order.status !== OrderStatus.COMPLETED) {
+      if (session.payment_status === 'paid') {
+        this.logger.log(
+          `[handleCheckoutSessionCompleted] Marking order ${order.orderNumber} as COMPLETED`,
+        );
+
+        order.status = OrderStatus.COMPLETED;
+        order.paidAt = new Date();
+        await order.save();
+
+        // Create transaction record
+        try {
+          const userId = order.user._id?.toString() || order.user.toString();
+          await this.createTransaction({
+            user: userId as any,
+            amount: order.total,
+            currency: 'USD',
+            type: TransactionType.PAYMENT,
+            status: TransactionStatus.COMPLETED,
+            description: `Course purchase - Order ${order.orderNumber}`,
+            gateway: 'stripe',
+            gatewayTransactionId: session.id,
+            orderId: (order as any)._id.toString(),
+            processedAt: new Date(),
+          } as any);
+        } catch (error) {
+          this.logger.error(
+            `[handleCheckoutSessionCompleted] Failed to create transaction:`,
+            error?.stack || error,
+          );
+        }
+
+        // Create enrollments for purchased courses
+        this.logger.log(
+          `[handleCheckoutSessionCompleted] Creating enrollments for order: ${order.orderNumber}`,
+        );
+        await this.createEnrollmentsForOrder(order);
+
+        // Create invoice
+        this.logger.log(
+          `[handleCheckoutSessionCompleted] Creating invoice for order: ${order.orderNumber}`,
+        );
+        await this.createInvoice(order);
+
+        // Send confirmation email
+        const user = await this.userModel.findById(order.user);
+        if (user) {
+          this.logger.log(
+            `[handleCheckoutSessionCompleted] Sending confirmation email to: ${user.email}`,
+          );
+          await this.sendPurchaseConfirmationEmail(user, order);
+        }
+
+        this.logger.log(
+          `[handleCheckoutSessionCompleted] Successfully processed order: ${order.orderNumber}`,
+        );
+      } else {
+        this.logger.warn(
+          `[handleCheckoutSessionCompleted] Payment not completed. Status: ${session.payment_status}`,
+        );
+      }
+    } else {
+      this.logger.log(
+        `[handleCheckoutSessionCompleted] Order ${order.orderNumber} already completed, skipping`,
+      );
+    }
+  }
+
   private async handlePaymentSuccess(paymentIntent: any) {
+    this.logger.log(
+      `[handlePaymentSuccess] Processing payment intent: ${paymentIntent.id}`,
+    );
+
     const order = await this.orderModel
       .findOne({
         paymentIntentId: paymentIntent.id,
@@ -610,6 +733,10 @@ export class PaymentsService {
       .populate('user courses');
 
     if (order && order.status !== OrderStatus.COMPLETED) {
+      this.logger.log(
+        `[handlePaymentSuccess] Marking order ${order.orderNumber} as COMPLETED`,
+      );
+
       order.status = OrderStatus.COMPLETED;
       order.paidAt = new Date();
       await order.save();
@@ -621,16 +748,37 @@ export class PaymentsService {
       );
 
       // Create enrollments for purchased courses
+      this.logger.log(
+        `[handlePaymentSuccess] Creating enrollments for order: ${order.orderNumber}`,
+      );
       await this.createEnrollmentsForOrder(order);
 
       // Create invoice
+      this.logger.log(
+        `[handlePaymentSuccess] Creating invoice for order: ${order.orderNumber}`,
+      );
       await this.createInvoice(order);
 
       // Send confirmation email
       const user = await this.userModel.findById(order.user);
       if (user) {
+        this.logger.log(
+          `[handlePaymentSuccess] Sending confirmation email to: ${user.email}`,
+        );
         await this.sendPurchaseConfirmationEmail(user, order);
       }
+
+      this.logger.log(
+        `[handlePaymentSuccess] Successfully processed order: ${order.orderNumber}`,
+      );
+    } else if (!order) {
+      this.logger.error(
+        `[handlePaymentSuccess] Order not found for payment intent: ${paymentIntent.id}`,
+      );
+    } else {
+      this.logger.log(
+        `[handlePaymentSuccess] Order ${order.orderNumber} already completed`,
+      );
     }
   }
 
@@ -856,23 +1004,184 @@ export class PaymentsService {
   }
 
   async verifyStripeSession(sessionId: string, userId: string) {
-    const session = await this.stripeService.retrieveCheckoutSession(sessionId);
+    this.logger.log(
+      `[verifyStripeSession] Verifying session: ${sessionId} for user: ${userId}`,
+    );
 
-    const order = await this.orderModel.findOne({
-      paymentIntentId: sessionId,
-      user: userId,
-    });
+    const session =
+      await this.stripeService.retrieveCheckoutSession(sessionId);
 
-    if (!order) {
-      throw new NotFoundException('Order not found');
+    if (!session) {
+      this.logger.error(`[verifyStripeSession] Session not found: ${sessionId}`);
+      throw new NotFoundException('Payment session not found');
     }
 
-    return {
-      success: session.payment_status === 'paid',
-      orderNumber: order.orderNumber,
-      status: session.payment_status,
-      amountTotal: (session.amount_total || 0) / 100,
-    };
+    // First, try to find order by sessionId only to debug
+    let order = await this.orderModel
+      .findOne({
+        paymentIntentId: sessionId,
+      })
+      .populate('user courses');
+
+    if (!order) {
+      // Order doesn't exist at all - check if update is still pending
+      this.logger.error(
+        `[verifyStripeSession] No order found with paymentIntentId: ${sessionId}`,
+      );
+
+      // Try to find by metadata orderId in the Stripe session
+      const orderId = session.metadata?.orderId;
+      if (orderId) {
+        this.logger.log(
+          `[verifyStripeSession] Trying to find order by ID from metadata: ${orderId}`,
+        );
+        order = await this.orderModel
+          .findById(orderId)
+          .populate('user courses');
+
+        if (order) {
+          this.logger.warn(
+            `[verifyStripeSession] Found order ${order.orderNumber} but paymentIntentId not set yet. Current: ${order.paymentIntentId}`,
+          );
+
+          // Update the order with the correct sessionId
+          order.paymentIntentId = sessionId;
+          await order.save();
+
+          this.logger.log(
+            `[verifyStripeSession] Updated order ${order.orderNumber} with sessionId`,
+          );
+        } else {
+          throw new NotFoundException(
+            `Order not found. Session: ${sessionId}, Metadata orderId: ${orderId}`,
+          );
+        }
+      } else {
+        throw new NotFoundException(
+          `Order not found for session: ${sessionId}. No metadata orderId available.`,
+        );
+      }
+    }
+
+    // Verify user matches
+    const orderUserId = order.user._id?.toString() || order.user.toString();
+
+    if (orderUserId !== userId) {
+      this.logger.error(
+        `[verifyStripeSession] User mismatch. Order user: ${orderUserId}, requesting user: ${userId}`,
+      );
+      throw new NotFoundException(
+        'Order not found or you do not have permission to access this order',
+      );
+    }
+
+    this.logger.log(
+      `[verifyStripeSession] Order found: ${order.orderNumber}, status: ${order.status}, payment_status: ${session.payment_status}`,
+    );
+
+    // Log detailed order info
+    this.logger.log(
+      `[verifyStripeSession] Order details - ID: ${order._id}, Courses count: ${order.courses?.length || 0}, User: ${order.user?._id || order.user}`,
+    );
+
+    if (order.courses && order.courses.length > 0) {
+      const courseInfo = order.courses.map((c: any) => ({
+        id: c._id?.toString() || c.toString(),
+        title: c.title || 'N/A',
+      }));
+      this.logger.log(
+        `[verifyStripeSession] Courses in order: ${JSON.stringify(courseInfo)}`,
+      );
+    } else {
+      this.logger.error(
+        `[verifyStripeSession] ⚠️ WARNING: Order ${order.orderNumber} has NO courses!`,
+      );
+    }
+
+    // Check if payment is successful
+    if (session.payment_status === 'paid') {
+      // Update order status if not already completed
+      if (order.status !== OrderStatus.COMPLETED) {
+        this.logger.log(
+          `[verifyStripeSession] Updating order ${order.orderNumber} to COMPLETED`,
+        );
+
+        order.status = OrderStatus.COMPLETED;
+        order.paidAt = new Date();
+        await order.save();
+
+        // Create transaction record
+        this.logger.log(
+          `[verifyStripeSession] Creating transaction record for order: ${order.orderNumber}`,
+        );
+        try {
+          const transaction = await this.createTransaction({
+            user: userId as any,
+            amount: order.total,
+            currency: 'USD',
+            type: TransactionType.PAYMENT,
+            status: TransactionStatus.COMPLETED,
+            description: `Course purchase - Order ${order.orderNumber}`,
+            gateway: 'stripe',
+            gatewayTransactionId: sessionId,
+            orderId: (order as any)._id.toString(),
+            processedAt: new Date(),
+          } as any);
+          this.logger.log(
+            `[verifyStripeSession] Transaction created successfully: ${transaction.transactionId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `[verifyStripeSession] Failed to create transaction:`,
+            error?.stack || error,
+          );
+        }
+
+        // Create invoice
+        this.logger.log(
+          `[verifyStripeSession] Creating invoice for order: ${order.orderNumber}`,
+        );
+        await this.createInvoice(order);
+
+        // Create enrollments for purchased courses
+        this.logger.log(
+          `[verifyStripeSession] Creating enrollments for order: ${order.orderNumber}`,
+        );
+        await this.createEnrollmentsForOrder(order);
+
+        // Send confirmation email
+        const user = await this.userModel.findById(userId);
+        if (user) {
+          this.logger.log(
+            `[verifyStripeSession] Sending purchase confirmation email to: ${user.email}`,
+          );
+          await this.sendPurchaseConfirmationEmail(user, order);
+        }
+      } else {
+        this.logger.log(
+          `[verifyStripeSession] Order ${order.orderNumber} already completed, skipping updates`,
+        );
+      }
+
+      return {
+        success: true,
+        orderNumber: order.orderNumber,
+        status: session.payment_status,
+        amountTotal: (session.amount_total || 0) / 100,
+        message: 'Payment verified successfully!',
+      };
+    } else {
+      this.logger.warn(
+        `[verifyStripeSession] Payment not completed. Status: ${session.payment_status}`,
+      );
+      return {
+        success: false,
+        orderNumber: order.orderNumber,
+        status: session.payment_status,
+        amountTotal: (session.amount_total || 0) / 100,
+        message: 'Payment has not been completed yet.',
+      };
+    }
   }
 
   /**
@@ -881,35 +1190,64 @@ export class PaymentsService {
   private async createEnrollmentsForOrder(order: any) {
     const userId = order.user._id?.toString() || order.user.toString();
 
+    this.logger.log(
+      `[createEnrollmentsForOrder] Creating enrollments for order ${order.orderNumber}, userId: ${userId}, courses: ${order.courses.length}`,
+    );
+
     for (const courseId of order.courses) {
       const courseIdStr = courseId._id?.toString() || courseId.toString();
 
       try {
+        this.logger.log(
+          `[createEnrollmentsForOrder] Processing course ${courseIdStr} for user ${userId}`,
+        );
+
         // Check if user is already enrolled
         const existingEnrollment = await this.enrollmentsService.getEnrollment(
           courseIdStr,
           userId,
         );
 
-        // Only enroll if not already enrolled
-        if (!existingEnrollment) {
-          await this.enrollmentsService.enroll(
+        if (existingEnrollment) {
+          this.logger.log(
+            `[createEnrollmentsForOrder] User ${userId} already enrolled in course ${courseIdStr}`,
+          );
+        } else {
+          this.logger.log(
+            `[createEnrollmentsForOrder] Enrolling user ${userId} in course ${courseIdStr}`,
+          );
+
+          const enrollment = await this.enrollmentsService.enroll(
             {
               courseId: courseIdStr,
               orderId: order._id.toString(),
             },
             userId,
           );
+
+          this.logger.log(
+            `[createEnrollmentsForOrder] Successfully enrolled user ${userId} in course ${courseIdStr}. Enrollment ID: ${enrollment._id}`,
+          );
         }
 
         // Update course statistics
+        this.logger.log(
+          `[createEnrollmentsForOrder] Updating course statistics for ${courseIdStr}`,
+        );
         await this.coursesService.incrementEnrollment(courseIdStr);
         await this.coursesService.addRevenue(courseIdStr, order.total);
       } catch (error) {
         // Log error but don't fail the entire process
-        console.error(`Failed to enroll user in course ${courseIdStr}:`, error);
+        this.logger.error(
+          `[createEnrollmentsForOrder] Failed to enroll user ${userId} in course ${courseIdStr}:`,
+          error?.stack || error,
+        );
       }
     }
+
+    this.logger.log(
+      `[createEnrollmentsForOrder] Completed enrollment process for order ${order.orderNumber}`,
+    );
   }
 
   /**
@@ -994,27 +1332,27 @@ export class PaymentsService {
       coupon: appliedCoupon ? appliedCoupon._id.toString() : undefined,
       billingAddress: billingAddress
         ? {
-            firstName: billingAddress.firstName || firstName || '',
-            lastName: billingAddress.lastName || lastName || '',
-            email: billingAddress.email || email || '',
-            phone: billingAddress.phone || phone || '',
-            street: billingAddress.address || billingAddress.street || '',
-            city: billingAddress.city || '',
-            state: billingAddress.state || '',
-            country: billingAddress.country || '',
-            zipCode: billingAddress.zipCode || '',
-          }
+          firstName: billingAddress.firstName || firstName || '',
+          lastName: billingAddress.lastName || lastName || '',
+          email: billingAddress.email || email || '',
+          phone: billingAddress.phone || phone || '',
+          street: billingAddress.address || billingAddress.street || '',
+          city: billingAddress.city || '',
+          state: billingAddress.state || '',
+          country: billingAddress.country || '',
+          zipCode: billingAddress.zipCode || '',
+        }
         : {
-            firstName: firstName || '',
-            lastName: lastName || '',
-            email: email || '',
-            phone: phone || '',
-            street: '',
-            city: '',
-            state: '',
-            country: '',
-            zipCode: '',
-          },
+          firstName: firstName || '',
+          lastName: lastName || '',
+          email: email || '',
+          phone: phone || '',
+          street: '',
+          city: '',
+          state: '',
+          country: '',
+          zipCode: '',
+        },
     } as any);
 
     // Handle payment based on method and test mode
@@ -1211,6 +1549,11 @@ export class PaymentsService {
 
       const orderId =
         (order as any)._id?.toString() || (order as any).id?.toString();
+
+      this.logger.log(
+        `[processCheckout] Creating Stripe session for order: ${order.orderNumber}`,
+      );
+
       paymentResult = await this.stripeService.createCheckoutSession({
         lineItems,
         successUrl: `${this.configService.get('FRONTEND_URL')}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -1221,10 +1564,44 @@ export class PaymentsService {
         },
       } as any);
 
-      // Update order with session ID
-      await this.orderModel.findByIdAndUpdate(order._id, {
-        paymentIntentId: paymentResult.sessionId || paymentResult.id,
-      });
+      const sessionId = paymentResult.sessionId || paymentResult.id;
+      this.logger.log(
+        `[processCheckout] Stripe session created: ${sessionId}`,
+      );
+
+      // Update order with session ID and wait for confirmation
+      const updatedOrder = await this.orderModel
+        .findByIdAndUpdate(
+          order._id,
+          {
+            paymentIntentId: sessionId,
+          },
+          { new: true }, // Return the updated document
+        )
+        .populate('user courses'); // Populate to verify courses are present
+
+      if (!updatedOrder) {
+        this.logger.error(
+          `[processCheckout] Failed to update order ${order._id} with session ID`,
+        );
+        throw new Error('Failed to update order with payment session');
+      }
+
+      this.logger.log(
+        `[processCheckout] Order ${order.orderNumber} updated with sessionId: ${sessionId}. Courses: ${updatedOrder.courses?.length || 0}`,
+      );
+
+      // Log course details for debugging
+      if (updatedOrder.courses && updatedOrder.courses.length > 0) {
+        const courseIds = updatedOrder.courses.map((c: any) => c._id?.toString() || c.toString());
+        this.logger.log(
+          `[processCheckout] Order courses: ${courseIds.join(', ')}`,
+        );
+      } else {
+        this.logger.error(
+          `[processCheckout] ⚠️ WARNING: Order ${order.orderNumber} has NO courses after update!`,
+        );
+      }
     } else if (paymentMethod === 'paypal') {
       // Real PayPal payment
       const items = cartItems.map((item: any) => ({
@@ -1252,9 +1629,30 @@ export class PaymentsService {
         }
       }
 
-      await this.orderModel.findByIdAndUpdate(order._id, {
-        paymentIntentId: paymentResult.orderId,
-      });
+      const paypalOrderId = paymentResult.orderId;
+      this.logger.log(
+        `[processCheckout] PayPal order created: ${paypalOrderId}`,
+      );
+
+      // Update order with PayPal order ID and wait for confirmation
+      const updatedOrder = await this.orderModel.findByIdAndUpdate(
+        order._id,
+        {
+          paymentIntentId: paypalOrderId,
+        },
+        { new: true },
+      );
+
+      if (!updatedOrder) {
+        this.logger.error(
+          `[processCheckout] Failed to update order ${order._id} with PayPal order ID`,
+        );
+        throw new Error('Failed to update order with PayPal order ID');
+      }
+
+      this.logger.log(
+        `[processCheckout] Order ${order.orderNumber} updated with PayPal orderId: ${paypalOrderId}`,
+      );
     } else {
       throw new BadRequestException('Invalid payment method selected');
     }
@@ -1544,6 +1942,10 @@ export class PaymentsService {
         }
       }
 
+      this.logger.log(
+        `[processGuestCheckout] Creating Stripe session for order: ${order.orderNumber}`,
+      );
+
       paymentResult = await this.stripeService.createCheckoutSession({
         lineItems,
         successUrl: `${this.configService.get('FRONTEND_URL')}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -1551,10 +1953,30 @@ export class PaymentsService {
         metadata,
       } as any);
 
-      // Update order with session ID
-      await this.orderModel.findByIdAndUpdate(order._id, {
-        paymentIntentId: paymentResult.id,
-      });
+      const sessionId = paymentResult.id;
+      this.logger.log(
+        `[processGuestCheckout] Stripe session created: ${sessionId}`,
+      );
+
+      // Update order with session ID and wait for confirmation
+      const updatedOrder = await this.orderModel.findByIdAndUpdate(
+        order._id,
+        {
+          paymentIntentId: sessionId,
+        },
+        { new: true }, // Return the updated document
+      );
+
+      if (!updatedOrder) {
+        this.logger.error(
+          `[processGuestCheckout] Failed to update order ${order._id} with session ID`,
+        );
+        throw new Error('Failed to update order with payment session');
+      }
+
+      this.logger.log(
+        `[processGuestCheckout] Order ${order.orderNumber} updated with sessionId: ${sessionId}`,
+      );
     } else if (paymentMethod === 'paypal') {
       const items = cartItems.map((item: any) => ({
         name: item.courseName || item.productName || 'Item',
@@ -1581,9 +2003,30 @@ export class PaymentsService {
         }
       }
 
-      await this.orderModel.findByIdAndUpdate(order._id, {
-        paymentIntentId: paymentResult.orderId,
-      });
+      const paypalOrderId = paymentResult.orderId;
+      this.logger.log(
+        `[processGuestCheckout] PayPal order created: ${paypalOrderId}`,
+      );
+
+      // Update order with PayPal order ID and wait for confirmation
+      const updatedOrder = await this.orderModel.findByIdAndUpdate(
+        order._id,
+        {
+          paymentIntentId: paypalOrderId,
+        },
+        { new: true },
+      );
+
+      if (!updatedOrder) {
+        this.logger.error(
+          `[processGuestCheckout] Failed to update order ${order._id} with PayPal order ID`,
+        );
+        throw new Error('Failed to update order with PayPal order ID');
+      }
+
+      this.logger.log(
+        `[processGuestCheckout] Order ${order.orderNumber} updated with PayPal orderId: ${paypalOrderId}`,
+      );
     } else {
       throw new BadRequestException('Invalid payment method selected');
     }

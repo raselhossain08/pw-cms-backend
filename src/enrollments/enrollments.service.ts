@@ -19,7 +19,7 @@ export class EnrollmentsService {
   constructor(
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
-  ) {}
+  ) { }
 
   async enroll(
     createEnrollmentDto: CreateEnrollmentDto,
@@ -50,11 +50,20 @@ export class EnrollmentsService {
       );
     }
 
+    // Determine access type and payment info
+    const isPaidCourse = !course.isFree && course.price > 0;
+    const hasOrder = !!createEnrollmentDto.orderId;
+
     const enrollment = new this.enrollmentModel({
       student: userId,
       course: createEnrollmentDto.courseId,
       order: createEnrollmentDto.orderId,
       lastAccessedAt: new Date(),
+      purchaseDate: hasOrder ? new Date() : undefined,
+      accessType: isPaidCourse && hasOrder ? 'paid' : 'free',
+      amountPaid: isPaidCourse && hasOrder ? course.price : 0,
+      paymentStatus: hasOrder ? 'completed' : 'completed',
+      hasAccess: true,
     });
 
     return await enrollment.save();
@@ -246,7 +255,7 @@ export class EnrollmentsService {
       averageProgress:
         enrollments.length > 0
           ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-            enrollments.length
+          enrollments.length
           : 0,
     };
 
@@ -645,4 +654,368 @@ export class EnrollmentsService {
       total: enrollments.length,
     };
   }
+
+  // ==================== Purchase Tracking Methods ====================
+
+  /**
+   * Create enrollment after successful purchase
+   */
+  async createPurchaseEnrollment(
+    userId: string,
+    courseId: string,
+    purchaseData: {
+      orderId: string;
+      amountPaid: number;
+      paymentMethod: string;
+      transactionId?: string;
+      paymentStatus?: string;
+    },
+  ): Promise<Enrollment> {
+    // Check if already enrolled
+    const existing = await this.enrollmentModel.findOne({
+      student: userId,
+      course: courseId,
+    });
+
+    if (existing) {
+      // Update existing enrollment with purchase data
+      existing.order = new Types.ObjectId(purchaseData.orderId);
+      existing.accessType = 'paid';
+      existing.amountPaid = purchaseData.amountPaid;
+      existing.paymentMethod = purchaseData.paymentMethod;
+      existing.transactionId = purchaseData.transactionId;
+      existing.paymentStatus = purchaseData.paymentStatus || 'completed';
+      existing.purchaseDate = new Date();
+      existing.hasAccess = true;
+      existing.status = EnrollmentStatus.ACTIVE;
+      existing.lastAccessedAt = new Date();
+
+      return await existing.save();
+    }
+
+    // Create new enrollment
+    const enrollment = new this.enrollmentModel({
+      student: userId,
+      course: courseId,
+      order: purchaseData.orderId,
+      accessType: 'paid',
+      amountPaid: purchaseData.amountPaid,
+      paymentMethod: purchaseData.paymentMethod,
+      transactionId: purchaseData.transactionId,
+      paymentStatus: purchaseData.paymentStatus || 'completed',
+      purchaseDate: new Date(),
+      hasAccess: true,
+      status: EnrollmentStatus.ACTIVE,
+      lastAccessedAt: new Date(),
+    });
+
+    await enrollment.save();
+
+    // Increment course enrollment count
+    await this.courseModel.findByIdAndUpdate(courseId, {
+      $inc: { enrollmentCount: 1 },
+    });
+
+    return enrollment;
+  }
+
+  /**
+   * Verify purchase and create enrollments for multiple courses
+   */
+  async verifyAndCreateEnrollments(
+    userId: string,
+    orderId: string,
+    courses: Array<{
+      courseId: string;
+      price: number;
+    }>,
+    paymentData: {
+      paymentMethod: string;
+      transactionId?: string;
+      totalAmount: number;
+    },
+  ): Promise<{ enrollments: Enrollment[]; failures: string[] }> {
+    const enrollments: Enrollment[] = [];
+    const failures: string[] = [];
+
+    for (const courseData of courses) {
+      try {
+        const enrollment = await this.createPurchaseEnrollment(
+          userId,
+          courseData.courseId,
+          {
+            orderId,
+            amountPaid: courseData.price,
+            paymentMethod: paymentData.paymentMethod,
+            transactionId: paymentData.transactionId,
+            paymentStatus: 'completed',
+          },
+        );
+        enrollments.push(enrollment);
+      } catch (error) {
+        console.error(
+          `Failed to create enrollment for course ${courseData.courseId}:`,
+          error,
+        );
+        failures.push(courseData.courseId);
+      }
+    }
+
+    return { enrollments, failures };
+  }
+
+  /**
+   * Get purchased courses for dashboard
+   */
+  async getPurchasedCourses(
+    userId: string,
+    filters?: {
+      paymentStatus?: string;
+      accessType?: string;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    },
+  ): Promise<{
+    enrollments: Enrollment[];
+    total: number;
+    stats: {
+      totalPurchased: number;
+      totalSpent: number;
+      activeAccess: number;
+      completed: number;
+    };
+  }> {
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const query: any = { student: userId };
+
+    if (filters?.paymentStatus) {
+      query.paymentStatus = filters.paymentStatus;
+    }
+
+    if (filters?.accessType) {
+      query.accessType = filters.accessType;
+    }
+
+    // Get enrollments with populated course data
+    const sortOptions: any = {};
+    if (filters?.sortBy) {
+      sortOptions[filters.sortBy] =
+        filters.sortOrder === 'desc' ? -1 : 1;
+    } else {
+      sortOptions.purchaseDate = -1; // Default: newest first
+    }
+
+    const [enrollments, total, stats] = await Promise.all([
+      this.enrollmentModel
+        .find(query)
+        .populate({
+          path: 'course',
+          select:
+            'title slug thumbnail instructor duration totalLessons price level',
+          populate: {
+            path: 'instructor',
+            select: 'firstName lastName',
+          },
+        })
+        .populate('certificate')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.enrollmentModel.countDocuments(query),
+      this.enrollmentModel.aggregate([
+        { $match: { student: new Types.ObjectId(userId) } },
+        {
+          $group: {
+            _id: null,
+            totalPurchased: { $sum: 1 },
+            totalSpent: { $sum: '$amountPaid' },
+            activeAccess: {
+              $sum: { $cond: [{ $eq: ['$hasAccess', true] }, 1, 0] },
+            },
+            completed: {
+              $sum: {
+                $cond: [{ $eq: ['$status', EnrollmentStatus.COMPLETED] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const statResults = stats[0] || {
+      totalPurchased: 0,
+      totalSpent: 0,
+      activeAccess: 0,
+      completed: 0,
+    };
+
+    return {
+      enrollments,
+      total,
+      stats: statResults,
+    };
+  }
+
+  /**
+   * Update access control for enrollment
+   */
+  async updateAccess(
+    enrollmentId: string,
+    hasAccess: boolean,
+    reason?: string,
+  ): Promise<Enrollment> {
+    const enrollment = await this.enrollmentModel.findById(enrollmentId);
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    enrollment.hasAccess = hasAccess;
+
+    if (!hasAccess) {
+      enrollment.accessRevokedAt = new Date();
+      enrollment.accessRevokedReason = reason;
+    } else {
+      enrollment.accessRevokedAt = undefined;
+      enrollment.accessRevokedReason = undefined;
+    }
+
+    return await enrollment.save();
+  }
+
+  /**
+   * Process refund and revoke access
+   */
+  async processRefund(
+    enrollmentId: string,
+    refundReason: string,
+  ): Promise<Enrollment> {
+    const enrollment = await this.enrollmentModel.findById(enrollmentId);
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    enrollment.paymentStatus = 'refunded';
+    enrollment.refundedAt = new Date();
+    enrollment.refundReason = refundReason;
+    enrollment.hasAccess = false;
+    enrollment.status = EnrollmentStatus.CANCELLED;
+    enrollment.accessRevokedAt = new Date();
+    enrollment.accessRevokedReason = `Refunded: ${refundReason}`;
+
+    // Decrement course enrollment count
+    await this.courseModel.findByIdAndUpdate(enrollment.course, {
+      $inc: { enrollmentCount: -1 },
+    });
+
+    return await enrollment.save();
+  }
+
+  /**
+   * Get purchase analytics for admin/instructor
+   */
+  async getPurchaseAnalytics(
+    filters?: {
+      startDate?: Date;
+      endDate?: Date;
+      courseId?: string;
+      instructorId?: string;
+    },
+  ): Promise<{
+    totalRevenue: number;
+    totalPurchases: number;
+    averageOrderValue: number;
+    refundRate: number;
+    topCourses: Array<{
+      courseId: string;
+      courseName: string;
+      purchases: number;
+      revenue: number;
+    }>;
+  }> {
+    const matchQuery: any = { accessType: 'paid' };
+
+    if (filters?.startDate || filters?.endDate) {
+      matchQuery.purchaseDate = {};
+      if (filters.startDate) matchQuery.purchaseDate.$gte = filters.startDate;
+      if (filters.endDate) matchQuery.purchaseDate.$lte = filters.endDate;
+    }
+
+    if (filters?.courseId) {
+      matchQuery.course = new Types.ObjectId(filters.courseId);
+    }
+
+    const [analytics, topCourses] = await Promise.all([
+      this.enrollmentModel.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: '$amountPaid' },
+            totalPurchases: { $sum: 1 },
+            refunds: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'refunded'] }, 1, 0] },
+            },
+          },
+        },
+      ]),
+      this.enrollmentModel.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: '$course',
+            purchases: { $sum: 1 },
+            revenue: { $sum: '$amountPaid' },
+          },
+        },
+        { $sort: { revenue: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: 'courses',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'courseData',
+          },
+        },
+        { $unwind: '$courseData' },
+        {
+          $project: {
+            courseId: '$_id',
+            courseName: '$courseData.title',
+            purchases: 1,
+            revenue: 1,
+          },
+        },
+      ]),
+    ]);
+
+    const analyticsData = analytics[0] || {
+      totalRevenue: 0,
+      totalPurchases: 0,
+      refunds: 0,
+    };
+
+    return {
+      totalRevenue: analyticsData.totalRevenue,
+      totalPurchases: analyticsData.totalPurchases,
+      averageOrderValue:
+        analyticsData.totalPurchases > 0
+          ? analyticsData.totalRevenue / analyticsData.totalPurchases
+          : 0,
+      refundRate:
+        analyticsData.totalPurchases > 0
+          ? (analyticsData.refunds / analyticsData.totalPurchases) * 100
+          : 0,
+      topCourses,
+    };
+  }
 }
+
