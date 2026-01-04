@@ -146,12 +146,38 @@ export class UsersController {
     return this.usersService.remove(id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @Delete('me')
   @ApiOperation({ summary: 'Delete my account' })
   @ApiResponse({ status: 200, description: 'Account deleted' })
-  async removeMe(@Req() req) {
+  async removeMe(@Req() req, @Body() body?: { confirmation?: string; reason?: string }) {
     const uid = req.user?.id || req.user?.userId;
+    // Optional: Add confirmation check here if needed
+    if (body?.confirmation && body.confirmation !== 'DELETE') {
+      return { success: false, message: 'Invalid confirmation' };
+    }
     return this.usersService.remove(uid);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('me/export-data')
+  @ApiOperation({ summary: 'Export user data' })
+  @ApiResponse({ status: 200, description: 'User data exported' })
+  async exportMyData(@Req() req) {
+    const userId = req.user?.id || req.user?.userId;
+    return this.usersService.exportUserData(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Post('me/send-verification-email')
+  @ApiOperation({ summary: 'Send verification email to current user' })
+  @ApiResponse({ status: 200, description: 'Verification email sent' })
+  async sendMyVerificationEmail(@Req() req) {
+    const userId = req.user?.id || req.user?.userId;
+    return this.usersService.sendVerificationEmail(userId);
   }
 
   @Put(':id/change-password')

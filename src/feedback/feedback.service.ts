@@ -22,6 +22,7 @@ export class FeedbackService {
     limit = 10,
     type?: FeedbackType,
     resolved?: boolean,
+    search?: string,
   ): Promise<{ data: Feedback[]; total: number; pages: number }> {
     const query: any = {};
 
@@ -31,6 +32,15 @@ export class FeedbackService {
 
     if (resolved !== undefined) {
       query.resolved = resolved;
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { message: searchRegex },
+        { email: searchRegex },
+        { name: searchRegex },
+      ];
     }
 
     const total = await this.feedbackModel.countDocuments(query);

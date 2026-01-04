@@ -39,6 +39,7 @@
     "seed:terms-conditions": "ts-node -r tsconfig-paths/register src/cms/terms-conditions/scripts/seed-terms-conditions.ts",
     "test:footer": "ts-node -r tsconfig-paths/register src/cms/footer/scripts/test-footer.ts",
     "create-admin": "ts-node -r tsconfig-paths/register src/scripts/create-admin.ts",
+    "create-super-admin": "ts-node -r tsconfig-paths/register scripts/create-super-admin.ts",
     "check:websocket": "node check-websocket-setup.js"
   },
   "dependencies": {

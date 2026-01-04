@@ -146,6 +146,44 @@ export class User extends Document {
   };
 
   @Prop({ type: Object })
+  notificationPreferences: {
+    emailNotifications?: {
+      courseUpdates?: boolean;
+      promotions?: boolean;
+      newsletter?: boolean;
+      newMessages?: boolean;
+      assignments?: boolean;
+    };
+    pushNotifications?: {
+      enabled?: boolean;
+      courseReminders?: boolean;
+      liveSessionAlerts?: boolean;
+    };
+    inAppNotifications?: {
+      enabled?: boolean;
+      sound?: boolean;
+    };
+  };
+
+  @Prop()
+  profileVisibility: string;
+
+  @Prop({ default: false })
+  showEmail: boolean;
+
+  @Prop({ default: false })
+  showPhone: boolean;
+
+  @Prop()
+  coverPhoto: string;
+
+  @Prop({ default: false })
+  twoFactorEnabled: boolean;
+
+  @Prop()
+  stripeCustomerId: string;
+
+  @Prop({ type: Object })
   billingAddress: {
     street: string;
     city: string;

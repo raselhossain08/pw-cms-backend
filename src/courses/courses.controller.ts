@@ -10,6 +10,7 @@ import {
   Query,
   Req,
   Put,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -62,7 +63,15 @@ export class CoursesController {
     @Query('level') level?: string,
     @Query('status') status?: CourseStatus,
   ) {
-    return this.coursesService.findAll(page, limit, search, level, status);
+    const result = await this.coursesService.findAll(page, limit, search, level, status);
+    return {
+      success: true,
+      data: {
+        ...result,
+        page: Number(page),
+        totalPages: Math.ceil(result.total / Number(limit)),
+      },
+    };
   }
 
   @Get('featured')
@@ -70,7 +79,47 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get featured courses' })
   @ApiResponse({ status: 200, description: 'List of featured courses' })
   async getFeaturedCourses(@Query('limit') limit: number = 6) {
-    return this.coursesService.getFeaturedCourses(limit);
+    const courses = await this.coursesService.getFeaturedCourses(limit);
+    return {
+      success: true,
+      data: {
+        courses,
+        total: courses.length,
+      },
+    };
+  }
+
+  @Get('recommendations')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get personalized course recommendations' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'List of recommended courses' })
+  async getRecommendations(
+    @Req() req,
+    @Query('limit') limit: number = 10,
+  ) {
+    const recommendations = await this.coursesService.getRecommendations(req.user.id, limit);
+    return {
+      success: true,
+      data: recommendations,
+    };
+  }
+
+  @Get('compare')
+  @Public()
+  @ApiOperation({ summary: 'Compare multiple courses side-by-side' })
+  @ApiQuery({ name: 'ids', required: true, type: String, description: 'Comma-separated course IDs' })
+  @ApiResponse({ status: 200, description: 'Comparison data for courses' })
+  async compareCourses(@Query('ids') ids: string) {
+    const courseIds = ids.split(',').map(id => id.trim()).filter(Boolean);
+    if (courseIds.length < 2) {
+      throw new BadRequestException('At least 2 course IDs are required for comparison');
+    }
+    if (courseIds.length > 5) {
+      throw new BadRequestException('Maximum 5 courses can be compared at once');
+    }
+    return this.coursesService.compareCourses(courseIds);
   }
 
   @Get('instructor/my-courses')
@@ -104,7 +153,11 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get course by slug' })
   @ApiResponse({ status: 200, description: 'Course details' })
   async findBySlug(@Param('slug') slug: string) {
-    return this.coursesService.findBySlug(slug);
+    const course = await this.coursesService.findBySlug(slug);
+    return {
+      success: true,
+      data: course,
+    };
   }
 
   @Get(':id')
@@ -112,7 +165,11 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get course by ID' })
   @ApiResponse({ status: 200, description: 'Course details' })
   async findOne(@Param('id') id: string) {
-    return this.coursesService.findById(id);
+    const course = await this.coursesService.findById(id);
+    return {
+      success: true,
+      data: course,
+    };
   }
 
   @Patch(':id')
@@ -284,7 +341,7 @@ export class CoursesController {
     @Body() createLessonDto: CreateLessonDto,
     @Req() req,
   ) {
-    return this.coursesService.createLesson(id, createLessonDto, req.user.id);
+    return this.coursesService.createLesson(id, createLessonDto, req.user.id, req.user.role);
   }
 
   @Get(':id/lessons')
@@ -293,7 +350,14 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get course lessons (requires enrollment)' })
   @ApiResponse({ status: 200, description: 'List of course lessons' })
   async getCourseLessons(@Param('id') id: string, @Req() req) {
-    return this.coursesService.getCourseLessons(id, req.user.id, req.user.role);
+    const lessons = await this.coursesService.getCourseLessons(id, req.user.id, req.user.role);
+    return {
+      success: true,
+      data: {
+        lessons,
+        total: lessons.length,
+      },
+    };
   }
 
   @Get('lessons/:lessonId')

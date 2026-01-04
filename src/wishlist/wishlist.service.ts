@@ -58,6 +58,34 @@ export class WishlistService {
       .exec();
   }
 
+  async bulkRemoveFromWishlist(
+    userId: string,
+    courseIds: string[],
+  ): Promise<Wishlist | null> {
+    const wishlist = await this.wishlistModel.findOne({ user: userId });
+    if (wishlist) {
+      wishlist.courses = wishlist.courses.filter(
+        (id) => !courseIds.includes(id.toString()),
+      );
+      await wishlist.save();
+    }
+    return wishlist;
+  }
+
+  async checkWishlist(
+    userId: string,
+    courseId: string,
+  ): Promise<{ inWishlist: boolean }> {
+    const wishlist = await this.wishlistModel.findOne({ user: userId });
+    if (!wishlist) {
+      return { inWishlist: false };
+    }
+    const inWishlist = wishlist.courses.some(
+      (id) => id.toString() === courseId,
+    );
+    return { inWishlist };
+  }
+
   private async recalculateCart(cart: Cart): Promise<Cart> {
     // 1. Calculate Subtotal
     const subtotal = cart.items.reduce(

@@ -137,4 +137,62 @@ export class CreateUserDto {
     website?: string;
     github?: string;
   };
+
+  @ApiProperty({
+    example: 'https://example.com/cover.jpg',
+    description: 'Cover photo URL',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  coverPhoto?: string;
+
+  @ApiProperty({
+    description: 'Notification preferences',
+    required: false,
+  })
+  @IsOptional()
+  notificationPreferences?: {
+    emailNotifications?: {
+      courseUpdates?: boolean;
+      promotions?: boolean;
+      newsletter?: boolean;
+      newMessages?: boolean;
+      assignments?: boolean;
+    };
+    pushNotifications?: {
+      enabled?: boolean;
+      courseReminders?: boolean;
+      liveSessionAlerts?: boolean;
+    };
+    inAppNotifications?: {
+      enabled?: boolean;
+      sound?: boolean;
+    };
+  };
+
+  @ApiProperty({
+    example: 'public',
+    description: 'Profile visibility',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  profileVisibility?: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'Show email on profile',
+    required: false,
+  })
+  @IsOptional()
+  showEmail?: boolean;
+
+  @ApiProperty({
+    example: false,
+    description: 'Show phone on profile',
+    required: false,
+  })
+  @IsOptional()
+  showPhone?: boolean;
 }

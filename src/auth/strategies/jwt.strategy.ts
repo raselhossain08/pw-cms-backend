@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
+import { Request } from 'express';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -13,6 +14,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         ExtractJwt.fromAuthHeaderAsBearerToken(),
+        // Extract from cookies
+        (request: Request) => {
+          let token = null;
+          if (request && request.cookies) {
+            token = request.cookies['accessToken'];
+          }
+          return token;
+        },
+        // Extract from query parameter (for special cases)
         (request: any) => {
           return request?.query?.token;
         },

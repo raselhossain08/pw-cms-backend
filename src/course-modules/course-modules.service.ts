@@ -39,12 +39,26 @@ export class CourseModulesService {
       throw new ForbiddenException('You can only modify your own courses');
     }
 
+    // If order not provided, get the next order number
+    let order = dto.order;
+    if (!order) {
+      const existingModules = await this.moduleModel.find({ course: dto.courseId });
+      order = existingModules.length + 1;
+    }
+
+    // Handle multiple courses support
+    const coursesArray = dto.courseIds 
+      ? dto.courseIds.map(id => new Types.ObjectId(id))
+      : [new Types.ObjectId(dto.courseId)];
+
     const module = new this.moduleModel({
       title: dto.title,
       description: dto.description,
       duration: dto.duration || 0,
-      order: dto.order,
+      order: order,
+      status: dto.status || 'published',
       course: new Types.ObjectId(dto.courseId),
+      courses: coursesArray,
     });
     const savedModule = await module.save();
 
@@ -54,6 +68,18 @@ export class CourseModulesService {
       { $addToSet: { modules: savedModule._id } },
       { new: true }
     );
+
+    // If there are additional courses, add the module to them as well
+    if (dto.courseIds && dto.courseIds.length > 1) {
+      const additionalCourseIds = dto.courseIds.filter(id => id !== dto.courseId);
+      for (const courseId of additionalCourseIds) {
+        await this.courseModel.findByIdAndUpdate(
+          courseId,
+          { $addToSet: { modules: savedModule._id } },
+          { new: true }
+        );
+      }
+    }
 
     return savedModule;
   }
@@ -127,17 +153,56 @@ export class CourseModulesService {
 
     // Transform courseId to course field for Mongoose
     const updateData: any = { ...dto };
+    
     if (dto.courseId) {
       const courseIdObj = new Types.ObjectId(dto.courseId);
       updateData.course = courseIdObj;
 
-      // Add to courses array if not already present
-      const existingCourses = module.courses || [];
-      if (!existingCourses.some((c) => c.toString() === dto.courseId)) {
-        updateData.courses = [...existingCourses, courseIdObj];
+      // Handle courseIds if provided (for multi-course modules)
+      if ((dto as any).courseIds && Array.isArray((dto as any).courseIds)) {
+        const courseIdsObjs = (dto as any).courseIds.map((cid: string) => new Types.ObjectId(cid));
+        updateData.courses = courseIdsObjs;
+        
+        // Update all affected courses' modules arrays
+        const oldCourseIds = (module.courses || []).map(c => c.toString());
+        const newCourseIds = (dto as any).courseIds;
+        
+        // Remove module from courses it no longer belongs to
+        const coursesToRemove = oldCourseIds.filter((oid: string) => !newCourseIds.includes(oid));
+        for (const courseId of coursesToRemove) {
+          await this.courseModel.findByIdAndUpdate(
+            courseId,
+            { $pull: { modules: module._id } },
+            { new: true }
+          );
+        }
+        
+        // Add module to new courses
+        const coursesToAdd = newCourseIds.filter((nid: string) => !oldCourseIds.includes(nid));
+        for (const courseId of coursesToAdd) {
+          await this.courseModel.findByIdAndUpdate(
+            courseId,
+            { $addToSet: { modules: module._id } },
+            { new: true }
+          );
+        }
+      } else {
+        // Add to courses array if not already present
+        const existingCourses = module.courses || [];
+        if (!existingCourses.some((c) => c.toString() === dto.courseId)) {
+          updateData.courses = [...existingCourses, courseIdObj];
+          
+          // Add module to the new course
+          await this.courseModel.findByIdAndUpdate(
+            dto.courseId,
+            { $addToSet: { modules: module._id } },
+            { new: true }
+          );
+        }
       }
 
       delete updateData.courseId;
+      delete updateData.courseIds;
     }
 
     const updated = await this.moduleModel
@@ -383,5 +448,100 @@ export class CourseModulesService {
       publishedModules: module.status === 'published' ? 1 : 0,
       draftModules: module.status === 'draft' ? 1 : 0,
     };
+  }
+
+  async exportModules(
+    format: 'csv' | 'xlsx' | 'pdf',
+    courseId: string | undefined,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<any> {
+    const query: any = {};
+    if (courseId) query.course = new Types.ObjectId(courseId);
+
+    const modules = await this.moduleModel
+      .find(query)
+      .populate('course', 'title instructor')
+      .populate('courses', 'title instructor')
+      .sort({ course: 1, order: 1 })
+      .lean()
+      .exec();
+
+    // Add lesson counts
+    const withCounts = await Promise.all(
+      modules.map(async (m: any) => {
+        const lessonCount = await this.lessonModel.countDocuments({
+          module: m._id,
+        });
+        return {
+          ...m,
+          id: m._id.toString(),
+          lessonsCount: lessonCount,
+          courseTitle: m.course?.title || 'N/A',
+        };
+      }),
+    );
+
+    // For now, return the data - actual export implementation would use libraries like csv-writer, xlsx, pdfkit
+    return {
+      format,
+      data: withCounts,
+      message: `Export in ${format.toUpperCase()} format - implementation pending`,
+    };
+  }
+
+  async searchModules(params: {
+    query?: string;
+    status?: string;
+    courseId?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ modules: any[]; total: number }> {
+    const { query, status, courseId, page = 1, limit = 20 } = params;
+    const skip = (page - 1) * limit;
+
+    const searchQuery: any = {};
+
+    // Text search
+    if (query) {
+      searchQuery.$or = [
+        { title: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+      ];
+    }
+
+    // Status filter
+    if (status && status !== 'all') {
+      searchQuery.status = status;
+    }
+
+    // Course filter
+    if (courseId) {
+      searchQuery.course = new Types.ObjectId(courseId);
+    }
+
+    const [modules, total] = await Promise.all([
+      this.moduleModel
+        .find(searchQuery)
+        .populate('course', 'title instructor')
+        .populate('courses', 'title instructor')
+        .sort({ course: 1, order: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.moduleModel.countDocuments(searchQuery),
+    ]);
+
+    const withCounts = await Promise.all(
+      modules.map(async (m: any) => {
+        const lessonCount = await this.lessonModel.countDocuments({
+          module: m._id,
+        });
+        return { ...m, id: m._id.toString(), lessonsCount: lessonCount };
+      }),
+    );
+
+    return { modules: withCounts, total };
   }
 }

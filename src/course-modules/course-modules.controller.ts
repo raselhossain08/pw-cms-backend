@@ -55,6 +55,41 @@ export class CourseModulesController {
     return this.modulesService.findAll(page, limit, courseId);
   }
 
+  @Get('search')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Search modules' })
+  @ApiQuery({ name: 'q', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'courseId', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Search results' })
+  async search(
+    @Query('q') query?: string,
+    @Query('status') status?: string,
+    @Query('courseId') courseId?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.modulesService.searchModules({ query, status, courseId, page, limit });
+  }
+
+  @Get('export/:format')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Export modules (CSV, XLSX, PDF)' })
+  @ApiQuery({ name: 'courseId', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'File exported successfully' })
+  async export(
+    @Param('format') format: 'csv' | 'xlsx' | 'pdf',
+    @Query('courseId') courseId?: string,
+    @Req() req?: any,
+  ) {
+    return this.modulesService.exportModules(format, courseId, req.user.id, req.user.role);
+  }
+
   @Get('course/:courseId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')

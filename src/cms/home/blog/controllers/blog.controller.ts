@@ -12,15 +12,24 @@ import {
   Param,
   NotFoundException,
   Req,
+  BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { BlogService } from '../services/blog.service';
 import { UpdateBlogDto } from '../dto/blog.dto';
+import { User } from '../../../../users/entities/user.entity';
+import { JwtAuthGuard } from '../../../../auth/guards/jwt-auth.guard';
 
 @Controller('cms/home/blog')
 export class BlogController {
-  constructor(private readonly blogService: BlogService) {}
+  constructor(
+    private readonly blogService: BlogService,
+    @InjectModel(User.name) private userModel: Model<User>,
+  ) { }
 
   @Get()
   async getBlog() {
@@ -122,19 +131,37 @@ export class BlogController {
   }
 
   @Post(':slug/comments')
+  @UseGuards(JwtAuthGuard)
   async addComment(
     @Param('slug') slug: string,
     @Body() createCommentDto: any,
     @Req() req: any,
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+
+    if (!userId) {
+      throw new BadRequestException('User must be authenticated to comment');
+    }
+
+    // Fetch user data from database
+    const user = await this.userModel.findById(userId).select('firstName lastName email').exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const comment = await this.blogService.addComment(slug, {
       ...createCommentDto,
-      userId: req.user?.userId,
+      userId: userId.toString(),
+      userName: `${user.firstName} ${user.lastName}`.trim(),
+      userEmail: user.email,
     });
+
     return comment;
   }
 
   @Delete(':slug/comments/:commentId')
+  @UseGuards(JwtAuthGuard)
   async deleteComment(
     @Param('slug') slug: string,
     @Param('commentId') commentId: string,

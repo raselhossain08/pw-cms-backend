@@ -143,6 +143,43 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
     }
   }
 
+  async createCustomer(
+    email: string,
+    firstName?: string,
+    lastName?: string,
+  ): Promise<Stripe.Customer> {
+    const stripe = await this.checkInitialized();
+    try {
+      const customer = await stripe.customers.create({
+        email,
+        name: `${firstName || ''} ${lastName || ''}`.trim() || undefined,
+        metadata: {
+          firstName: firstName || '',
+          lastName: lastName || '',
+        },
+      });
+      return customer;
+    } catch (error: any) {
+      this.logger.error(`Create customer failed: ${error.message}`);
+      throw new BadRequestException(`Failed to create customer: ${error.message}`);
+    }
+  }
+
+  async createSetupIntent(customerId: string): Promise<Stripe.SetupIntent> {
+    const stripe = await this.checkInitialized();
+    try {
+      const setupIntent = await stripe.setupIntents.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        usage: 'off_session',
+      });
+      return setupIntent;
+    } catch (error: any) {
+      this.logger.error(`Create setup intent failed: ${error.message}`);
+      throw new BadRequestException(`Failed to create setup intent: ${error.message}`);
+    }
+  }
+
   async cancelSubscription(subscriptionId: string) {
     const stripe = await this.checkInitialized();
     try {
@@ -188,19 +225,6 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       throw new BadRequestException(
         `Session retrieval failed: ${error.message}`,
       );
-    }
-  }
-
-  async createCustomer(email: string, name: string) {
-    const stripe = await this.checkInitialized();
-    try {
-      const customer = await stripe.customers.create({
-        email,
-        name,
-      });
-      return customer;
-    } catch (error: any) {
-      throw new BadRequestException(`Create customer failed: ${error.message}`);
     }
   }
 

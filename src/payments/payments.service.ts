@@ -157,6 +157,48 @@ export class PaymentsService {
     };
   }
 
+  async createSetupIntent(userId: string) {
+    try {
+      // Get or create Stripe customer
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      let stripeCustomerId = user.stripeCustomerId;
+
+      // Create Stripe customer if doesn't exist
+      if (!stripeCustomerId) {
+        const customer = await this.stripeService.createCustomer(
+          user.email,
+          user.firstName,
+          user.lastName,
+        );
+        stripeCustomerId = customer.id;
+
+        // Save to user
+        await this.userModel.findByIdAndUpdate(userId, {
+          stripeCustomerId,
+        });
+      }
+
+      // Create Setup Intent
+      const setupIntent = await this.stripeService.createSetupIntent(
+        stripeCustomerId,
+      );
+
+      return {
+        clientSecret: setupIntent.client_secret,
+        customerId: stripeCustomerId,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create setup intent', error);
+      throw new BadRequestException(
+        'Failed to create payment setup. Please try again.',
+      );
+    }
+  }
+
   async processPayment(processPaymentDto: ProcessPaymentDto, userId: string) {
     const { paymentIntentId, paymentMethod, orderNumber } = processPaymentDto;
 
@@ -294,7 +336,7 @@ export class PaymentsService {
     return methods;
   }
 
-  async addPaymentMethod(userId: string, paymentMethodId: string) {
+  async addPaymentMethod(userId: string, paymentMethodId: string, isDefault?: boolean) {
     const user = await this.userModel.findById(userId);
     if (!user) throw new NotFoundException('User not found');
 
@@ -346,14 +388,19 @@ export class PaymentsService {
       brand: pm.card?.brand || '',
       expMonth: pm.card?.exp_month,
       expYear: pm.card?.exp_year,
-      isDefault: false, // Logic to set default if first one?
+      isDefault: false,
     });
 
-    // If it's the first method, make it default
+    // If it's the first method or explicitly set as default, make it default
     const count = await this.paymentMethodModel.countDocuments({
       user: userId,
     });
-    if (count === 0) {
+    if (count === 0 || isDefault === true) {
+      // Unset all other defaults
+      await this.paymentMethodModel.updateMany(
+        { user: userId },
+        { $set: { isDefault: false } },
+      );
       method.isDefault = true;
     }
 
@@ -377,6 +424,29 @@ export class PaymentsService {
 
     await this.paymentMethodModel.findByIdAndDelete(methodId);
     return { success: true, message: 'Payment method deleted' };
+  }
+
+  async setDefaultPaymentMethod(userId: string, methodId: string) {
+    const method = await this.paymentMethodModel.findOne({
+      _id: methodId,
+      user: userId,
+    });
+    if (!method) {
+      throw new NotFoundException('Payment method not found');
+    }
+
+    // Unset all other defaults
+    await this.paymentMethodModel.updateMany(
+      { user: userId },
+      { $set: { isDefault: false } },
+    );
+
+    // Set this one as default
+    await this.paymentMethodModel.findByIdAndUpdate(methodId, {
+      isDefault: true,
+    });
+
+    return { success: true, message: 'Default payment method updated' };
   }
 
   async handleStripeWebhook(payload: any, signature: string) {

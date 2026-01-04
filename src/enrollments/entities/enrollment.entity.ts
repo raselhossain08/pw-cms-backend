@@ -102,6 +102,23 @@ export class Enrollment extends Document {
 
 export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);
 
+// Transform Maps to Objects when converting to JSON
+EnrollmentSchema.set('toJSON', {
+  transform: (doc: any, ret: any) => {
+    // Convert Map objects to plain objects
+    if (ret.completedLessons instanceof Map) {
+      ret.completedLessons = Object.fromEntries(ret.completedLessons);
+    }
+    if (ret.lessonProgress instanceof Map) {
+      ret.lessonProgress = Object.fromEntries(ret.lessonProgress);
+    }
+    if (ret.lastAccessedLessons instanceof Map) {
+      ret.lastAccessedLessons = Object.fromEntries(ret.lastAccessedLessons);
+    }
+    return ret;
+  },
+});
+
 // Indexes
 EnrollmentSchema.index({ student: 1, course: 1 }, { unique: true });
 EnrollmentSchema.index({ status: 1 });

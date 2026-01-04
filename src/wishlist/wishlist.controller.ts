@@ -24,24 +24,47 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class WishlistController {
-  constructor(private readonly wishlistService: WishlistService) {}
+  constructor(private readonly wishlistService: WishlistService) { }
 
-  @Get('wishlist')
+  @Get()
   @ApiOperation({ summary: 'Get user wishlist' })
   async getWishlist(@Req() req) {
     return this.wishlistService.getWishlist(req.user.id);
   }
 
-  @Post('wishlist/:courseId')
+  @Post(':courseId')
   @ApiOperation({ summary: 'Add course to wishlist' })
   async addToWishlist(@Param('courseId') courseId: string, @Req() req) {
     return this.wishlistService.addToWishlist(req.user.id, courseId);
   }
 
-  @Delete('wishlist/:courseId')
+  @Delete(':courseId')
   @ApiOperation({ summary: 'Remove from wishlist' })
   async removeFromWishlist(@Param('courseId') courseId: string, @Req() req) {
     return this.wishlistService.removeFromWishlist(req.user.id, courseId);
+  }
+
+  @Post('bulk-remove')
+  @ApiOperation({ summary: 'Remove multiple courses from wishlist' })
+  @ApiResponse({ status: 200, description: 'Courses removed successfully' })
+  async bulkRemoveFromWishlist(
+    @Body() body: { courseIds: string[] },
+    @Req() req,
+  ) {
+    if (!body.courseIds || !Array.isArray(body.courseIds)) {
+      throw new BadRequestException('courseIds must be an array');
+    }
+    return this.wishlistService.bulkRemoveFromWishlist(
+      req.user.id,
+      body.courseIds,
+    );
+  }
+
+  @Get('check/:courseId')
+  @ApiOperation({ summary: 'Check if course is in wishlist' })
+  @ApiResponse({ status: 200, description: 'Returns whether course is in wishlist' })
+  async checkWishlist(@Param('courseId') courseId: string, @Req() req) {
+    return this.wishlistService.checkWishlist(req.user.id, courseId);
   }
 
   // More specific routes must come before less specific ones

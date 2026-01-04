@@ -73,11 +73,20 @@ export class EnrollmentsService {
     courseId: string,
     userId: string,
   ): Promise<Enrollment | null> {
-    return await this.enrollmentModel
+    const enrollment = await this.enrollmentModel
       .findOne({ student: userId, course: courseId })
       .populate('course')
       .populate('certificate')
       .exec();
+
+    if (!enrollment) {
+      return null;
+    }
+
+    // Convert to JSON and back to ensure Maps are serialized to objects
+    const enrollmentObj = enrollment.toJSON();
+
+    return enrollmentObj as any;
   }
 
   async getUserEnrollments(
@@ -93,7 +102,14 @@ export class EnrollmentsService {
     const [enrollments, total] = await Promise.all([
       this.enrollmentModel
         .find(filter)
-        .populate('course')
+        .populate({
+          path: 'course',
+          select: 'title slug description thumbnail price level type status duration rating reviewCount studentCount instructor category totalLessons',
+          populate: {
+            path: 'instructor',
+            select: 'firstName lastName email avatar',
+          },
+        })
         .populate('certificate')
         .sort({ lastAccessedAt: -1 })
         .skip(skip)
@@ -110,10 +126,12 @@ export class EnrollmentsService {
     updateProgressDto: UpdateProgressDto,
     userId: string,
   ): Promise<Enrollment> {
-    const enrollment = await this.enrollmentModel.findOne({
-      student: userId,
-      course: courseId,
-    });
+    const enrollment = await this.enrollmentModel
+      .findOne({
+        student: userId,
+        course: courseId,
+      })
+      .populate('course');
 
     if (!enrollment) {
       throw new NotFoundException('Enrollment not found');
@@ -137,15 +155,27 @@ export class EnrollmentsService {
       enrollment.totalTimeSpent += Math.round(timeSpent / 60);
     }
 
-    // Calculate overall progress
+    // Calculate overall progress using actual completed count
     const completedCount = Array.from(
       enrollment.completedLessons.values(),
     ).filter(Boolean).length;
-    const totalLessons = enrollment.completedLessons.size;
+
+    // Get total lessons from the course
+    const course = enrollment.course as any;
+    const totalLessons = course?.totalLessons || enrollment.completedLessons.size;
 
     if (totalLessons > 0) {
       enrollment.progress = Math.round((completedCount / totalLessons) * 100);
     }
+
+    console.log('[EnrollmentsService] Progress update:', {
+      lessonId,
+      completed,
+      completedCount,
+      totalLessons,
+      calculatedProgress: enrollment.progress,
+      completedLessonsMap: Object.fromEntries(enrollment.completedLessons),
+    });
 
     // Check if course is completed
     if (enrollment.progress === 100 && !enrollment.completedAt) {
@@ -153,7 +183,10 @@ export class EnrollmentsService {
       enrollment.completedAt = new Date();
     }
 
-    return await enrollment.save();
+    const saved = await enrollment.save();
+
+    // Return serialized object to ensure Maps are converted
+    return saved.toJSON() as any;
   }
 
   async getCourseEnrollments(
@@ -816,10 +849,10 @@ export class EnrollmentsService {
         .populate({
           path: 'course',
           select:
-            'title slug thumbnail instructor duration totalLessons price level',
+            'title slug thumbnail description price originalPrice rating reviewCount studentCount instructor categories duration totalLessons level type status',
           populate: {
             path: 'instructor',
-            select: 'firstName lastName',
+            select: 'firstName lastName email avatar',
           },
         })
         .populate('certificate')

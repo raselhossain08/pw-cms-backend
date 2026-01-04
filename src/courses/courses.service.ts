@@ -14,6 +14,7 @@ import { UpdateCourseDto } from './dto/update-course.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { CourseModule } from '../course-modules/entities/course-module.entity';
+import { Enrollment } from '../enrollments/entities/enrollment.entity';
 
 @Injectable()
 export class CoursesService {
@@ -21,7 +22,176 @@ export class CoursesService {
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
     @InjectModel(CourseModule.name) private courseModuleModel: Model<CourseModule>,
+    @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
   ) { }
+
+  async getRecommendations(userId: string, limit: number = 10): Promise<Course[]> {
+    try {
+      const userObjectId = new Types.ObjectId(userId);
+
+      // Get user's enrolled courses with categories and levels
+      const enrollments = await this.enrollmentModel
+        .find({ student: userObjectId })
+        .populate('course', 'categories level')
+        .lean();
+
+      const enrolledCourseIds = enrollments.map((e: any) => e.course?._id?.toString()).filter(Boolean);
+      const enrolledCategories = enrollments
+        .map((e: any) => e.course?.categories || [])
+        .flat()
+        .filter(Boolean);
+      const enrolledLevels = enrollments
+        .map((e: any) => e.course?.level)
+        .filter(Boolean);
+
+      // Build recommendation query
+      const recommendationQuery: any = {
+        _id: { $nin: enrolledCourseIds.map(id => new Types.ObjectId(id)) },
+        status: CourseStatus.PUBLISHED,
+      };
+
+      // Score and fetch courses
+      const courses = await this.courseModel
+        .find(recommendationQuery)
+        .populate('instructor', 'firstName lastName')
+        .limit(limit * 3) // Fetch more to score and filter
+        .lean()
+        .exec();
+
+      // Score each course based on relevance
+      const scoredCourses = courses.map((course: any) => {
+        let score = 0;
+
+        // Category match (highest weight)
+        const courseCategories = course.categories || [];
+        const hasMatchingCategory = courseCategories.some((cat: string) =>
+          enrolledCategories.includes(cat)
+        );
+        if (hasMatchingCategory) {
+          score += 10;
+        }
+
+        // Level match (progressive learning)
+        if (enrolledLevels.includes('beginner') && course.level === 'intermediate') {
+          score += 8;
+        } else if (enrolledLevels.includes('intermediate') && course.level === 'advanced') {
+          score += 8;
+        } else if (enrolledLevels.includes(course.level)) {
+          score += 5;
+        }
+
+        // Popularity (enrollment count)
+        score += Math.min((course.totalEnrollments || 0) / 10, 5);
+
+        // Rating
+        score += Math.min((course.rating || 0), 5);
+
+        // Featured courses get bonus
+        if (course.isFeatured) {
+          score += 3;
+        }
+
+        // Recently created courses get slight boost
+        const daysSinceCreation = (Date.now() - new Date(course.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceCreation < 30) {
+          score += 2;
+        }
+
+        return { ...course, recommendationScore: score };
+      });
+
+      // Sort by score and return top results with normalized fields
+      return scoredCourses
+        .sort((a, b) => b.recommendationScore - a.recommendationScore)
+        .slice(0, limit)
+        .map(({ recommendationScore, ...course }) => ({
+          ...course,
+          id: course._id.toString(),
+          _id: course._id.toString(),
+          students: course.totalEnrollments || course.students || 0,
+          enrollmentCount: course.totalEnrollments || course.students || 0,
+          reviews: course.ratingCount || course.reviews || 0,
+          ratingCount: course.ratingCount || course.reviews || 0,
+          totalLessons: course.totalLessons || course.lessons?.length || 0,
+          instructor: course.instructor
+            ? {
+              ...course.instructor,
+              id: course.instructor._id.toString(),
+              _id: course.instructor._id.toString(),
+            }
+            : null,
+        })) as any as Course[];
+
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+      // Fallback to popular/featured courses
+      const fallbackCourses = await this.courseModel
+        .find({ status: CourseStatus.PUBLISHED })
+        .populate('instructor', 'firstName lastName')
+        .sort({ totalEnrollments: -1, rating: -1 })
+        .limit(limit)
+        .lean()
+        .exec();
+
+      return fallbackCourses.map((course: any) => ({
+        ...course,
+        id: course._id.toString(),
+        _id: course._id.toString(),
+        students: course.totalEnrollments || course.students || 0,
+        enrollmentCount: course.totalEnrollments || course.students || 0,
+        reviews: course.ratingCount || course.reviews || 0,
+        ratingCount: course.ratingCount || course.reviews || 0,
+        totalLessons: course.totalLessons || course.lessons?.length || 0,
+        instructor: course.instructor
+          ? {
+            ...course.instructor,
+            id: course.instructor._id.toString(),
+            _id: course.instructor._id.toString(),
+          }
+          : null,
+      })) as any as Course[];
+    }
+  }
+
+  async compareCourses(courseIds: string[]): Promise<any> {
+    try {
+      const courses = await Promise.all(
+        courseIds.map(id =>
+          this.courseModel
+            .findById(id)
+            .populate('instructor', 'firstName lastName email')
+            .lean()
+            .exec()
+        )
+      );
+
+      // Filter out null courses (invalid IDs)
+      const validCourses = courses.filter(course => course !== null) as any[];
+
+      if (validCourses.length === 0) {
+        throw new NotFoundException('No valid courses found for comparison');
+      }
+
+      // Return structured comparison data
+      return {
+        courses: validCourses,
+        comparison: {
+          count: validCourses.length,
+          priceRange: {
+            min: Math.min(...validCourses.map(c => c.price || 0)),
+            max: Math.max(...validCourses.map(c => c.price || 0)),
+          },
+          avgRating: validCourses.reduce((sum, c) => sum + (c.rating || 0), 0) / validCourses.length,
+          totalStudents: validCourses.reduce((sum, c) => sum + (c.totalEnrollments || 0), 0),
+          levels: [...new Set(validCourses.map(c => c.level).filter(Boolean))],
+          categories: [...new Set(validCourses.map(c => c.categories || []).flat().filter(Boolean))],
+        },
+      };
+    } catch (error) {
+      console.error('Error comparing courses:', error);
+      throw error;
+    }
+  }
 
   async create(
     createCourseDto: CreateCourseDto,
@@ -139,11 +309,16 @@ export class CoursesService {
       this.courseModel.countDocuments(query),
     ]);
 
-    // Convert _id to id for each course
+    // Convert _id to id for each course and normalize fields
     const serializedCourses = courses.map((course: any) => ({
       ...course,
       id: course._id.toString(),
       _id: course._id.toString(),
+      students: course.totalEnrollments || course.students || 0,
+      enrollmentCount: course.totalEnrollments || course.students || 0,
+      reviews: course.ratingCount || course.reviews || 0,
+      ratingCount: course.ratingCount || course.reviews || 0,
+      totalLessons: course.totalLessons || course.lessons?.length || 0,
       instructor: course.instructor
         ? {
           ...course.instructor,
@@ -315,7 +490,7 @@ export class CoursesService {
   }
 
   async getFeaturedCourses(limit: number = 6): Promise<Course[]> {
-    return await this.courseModel
+    const courses = await this.courseModel
       .find({
         status: CourseStatus.PUBLISHED,
         isFeatured: true,
@@ -323,7 +498,27 @@ export class CoursesService {
       .populate('instructor', 'firstName lastName email avatar')
       .sort({ rating: -1, studentCount: -1 })
       .limit(limit)
+      .lean()
       .exec();
+
+    // Normalize fields for frontend consistency
+    return courses.map((course: any) => ({
+      ...course,
+      id: course._id.toString(),
+      _id: course._id.toString(),
+      students: course.totalEnrollments || course.students || 0,
+      enrollmentCount: course.totalEnrollments || course.students || 0,
+      reviews: course.ratingCount || course.reviews || 0,
+      ratingCount: course.ratingCount || course.reviews || 0,
+      totalLessons: course.totalLessons || course.lessons?.length || 0,
+      instructor: course.instructor
+        ? {
+          ...course.instructor,
+          id: course.instructor._id.toString(),
+          _id: course.instructor._id.toString(),
+        }
+        : null,
+    })) as any;
   }
 
   async getInstructorCourses(
@@ -346,6 +541,7 @@ export class CoursesService {
     courseId: string,
     createLessonDto: CreateLessonDto,
     instructorId: string,
+    userRole?: UserRole,
   ): Promise<Lesson> {
     const course = await this.findById(courseId);
 
@@ -354,7 +550,10 @@ export class CoursesService {
       ? (course.instructor as any)._id.toString()
       : course.instructor.toString();
 
-    if (courseInstructorId !== instructorId) {
+    // Allow admins and super_admins to add lessons to any course
+    const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN;
+
+    if (courseInstructorId !== instructorId && !isAdmin) {
       throw new ForbiddenException(
         'You can only add lessons to your own courses',
       );

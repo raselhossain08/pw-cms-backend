@@ -6,6 +6,7 @@ import {
   Req,
   Get,
   Param,
+  Patch,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,7 +24,7 @@ import { ProcessPaymentDto } from './dto/process-payment.dto';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(private readonly paymentsService: PaymentsService) { }
 
   @Post('create-intent')
   @ApiOperation({ summary: 'Create payment intent' })
@@ -36,6 +37,13 @@ export class PaymentsController {
       createPaymentIntentDto,
       req.user.id,
     );
+  }
+
+  @Post('create-setup-intent')
+  @ApiOperation({ summary: 'Create setup intent for saving payment method' })
+  @ApiResponse({ status: 201, description: 'Setup intent created' })
+  async createSetupIntent(@Req() req) {
+    return this.paymentsService.createSetupIntent(req.user.id);
   }
 
   @Post('process')
@@ -86,6 +94,7 @@ export class PaymentsController {
     return this.paymentsService.addPaymentMethod(
       req.user.id,
       body.paymentMethodId,
+      body.isDefault,
     );
   }
 
@@ -94,6 +103,13 @@ export class PaymentsController {
   @ApiResponse({ status: 200, description: 'Payment method deleted' })
   async deletePaymentMethod(@Param('id') id: string, @Req() req) {
     return this.paymentsService.deletePaymentMethod(req.user.id, id);
+  }
+
+  @Patch('methods/:id/default')
+  @ApiOperation({ summary: 'Set default payment method' })
+  @ApiResponse({ status: 200, description: 'Default payment method updated' })
+  async setDefaultPaymentMethod(@Param('id') id: string, @Req() req) {
+    return this.paymentsService.setDefaultPaymentMethod(req.user.id, id);
   }
 
   @Get('invoices')
@@ -173,7 +189,7 @@ import { GuestCheckoutDto } from './dto/guest-checkout.dto';
 @ApiTags('Guest Payments')
 @Controller('payments/guest')
 export class GuestPaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(private readonly paymentsService: PaymentsService) { }
 
   @Post('checkout')
   @ApiOperation({ summary: 'Guest checkout - creates user if not exists' })

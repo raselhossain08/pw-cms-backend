@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<User>) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Check if user already exists
@@ -268,7 +268,7 @@ export class UsersService {
     const avgRating =
       courses.length > 0
         ? courses.reduce((sum, course) => sum + (course.rating || 0), 0) /
-          courses.length
+        courses.length
         : 0;
 
     // Format lessons as duration string
@@ -590,18 +590,18 @@ export class UsersService {
     const overallProgress =
       totalEnrollments > 0
         ? Math.round(
-            enrollments.reduce(
-              (sum: number, e: any) => sum + (e.progress || 0),
-              0,
-            ) / totalEnrollments,
-          )
+          enrollments.reduce(
+            (sum: number, e: any) => sum + (e.progress || 0),
+            0,
+          ) / totalEnrollments,
+        )
         : 0;
     const avgQuizScore =
       quizScores.length > 0
         ? Math.round(
-            quizScores.reduce((sum, q: any) => sum + q.avgScore, 0) /
-              quizScores.length,
-          )
+          quizScores.reduce((sum, q: any) => sum + q.avgScore, 0) /
+          quizScores.length,
+        )
         : 0;
     const totalTimeSpent = enrollments.reduce(
       (sum: number, e: any) => sum + (e.totalTimeSpent || 0),
@@ -631,9 +631,9 @@ export class UsersService {
         timeSpent: e.totalTimeSpent || 0,
         certificate: e.certificate
           ? {
-              certificateNumber: e.certificate.certificateNumber,
-              issuedAt: e.certificate.issuedAt,
-            }
+            certificateNumber: e.certificate.certificateNumber,
+            issuedAt: e.certificate.issuedAt,
+          }
           : null,
       })),
       quizzes: quizScores.map((q: any) => ({
@@ -885,6 +885,28 @@ export class UsersService {
         email: student.email,
       },
       type,
+    };
+  }
+
+  async exportUserData(userId: string): Promise<any> {
+    const user = await this.findById(userId);
+
+    // Remove sensitive information
+    const userData = user.toJSON();
+    delete userData.password;
+    delete userData.passwordResetToken;
+    delete userData.emailVerificationToken;
+    delete userData.refreshToken;
+    delete userData.apiKey;
+
+    return {
+      success: true,
+      message: 'User data exported successfully',
+      data: {
+        profile: userData,
+        exportedAt: new Date().toISOString(),
+        format: 'JSON',
+      },
     };
   }
 }

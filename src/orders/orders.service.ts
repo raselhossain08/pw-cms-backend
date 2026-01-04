@@ -22,7 +22,7 @@ export class OrdersService {
     private usersService: UsersService,
     private notificationsService: NotificationsService,
     private couponsService: CouponsService,
-  ) {}
+  ) { }
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
     // Generate order number explicitly to ensure it's always set
@@ -83,6 +83,7 @@ export class OrdersService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
+        .lean<Order[]>()
         .exec(),
       this.orderModel.countDocuments(query),
     ]);

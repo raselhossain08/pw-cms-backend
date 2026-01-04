@@ -5,6 +5,8 @@ import {
   IsOptional,
   IsNumber,
   Min,
+  IsArray,
+  IsEnum,
 } from 'class-validator';
 
 export class CreateCourseModuleDto {
@@ -30,10 +32,31 @@ export class CreateCourseModuleDto {
   @ApiProperty({ example: 1, description: 'Display order within course' })
   @IsNumber()
   @Min(1)
-  order: number;
+  @IsOptional()
+  order?: number;
 
-  @ApiProperty({ example: 'courseId', description: 'Parent course ID' })
+  @ApiProperty({ example: 'courseId', description: 'Primary course ID' })
   @IsString()
   @IsNotEmpty()
   courseId: string;
+
+  @ApiProperty({ 
+    example: ['courseId1', 'courseId2'], 
+    description: 'Array of course IDs this module belongs to (supports multiple courses)',
+    required: false,
+    type: [String]
+  })
+  @IsArray()
+  @IsOptional()
+  courseIds?: string[];
+
+  @ApiProperty({
+    example: 'published',
+    description: 'Module status',
+    enum: ['draft', 'published'],
+    required: false
+  })
+  @IsEnum(['draft', 'published'])
+  @IsOptional()
+  status?: string;
 }

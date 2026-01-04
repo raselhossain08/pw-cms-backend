@@ -76,6 +76,12 @@ export class FeedbackController {
     type: Boolean,
     description: 'Filter by resolved status',
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by message, name or email',
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'List of feedback items',
@@ -85,12 +91,14 @@ export class FeedbackController {
     @Query('limit') limit = 10,
     @Query('type') type?: FeedbackType,
     @Query('resolved') resolved?: boolean,
+    @Query('search') search?: string,
   ) {
     return this.feedbackService.findAll(
       parseInt(page as any),
       parseInt(limit as any),
       type,
       resolved,
+      search,
     );
   }
 
