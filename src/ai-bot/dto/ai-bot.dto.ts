@@ -6,6 +6,7 @@ import {
   MinLength,
   IsBoolean,
   IsArray,
+  IsNumber,
 } from 'class-validator';
 import { BotIntent } from '../entities/ai-bot.entity';
 
@@ -92,6 +93,47 @@ export class CreateAgentDto {
   @IsEnum(['active', 'inactive', 'training'])
   @IsOptional()
   status?: 'active' | 'inactive' | 'training';
+
+  @IsString()
+  @IsOptional()
+  customPrompt?: string;
+
+  @IsString()
+  @IsOptional()
+  systemInstructions?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  enableWebSearch?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  enableMemory?: boolean;
+
+  @IsNumber()
+  @IsOptional()
+  temperature?: number;
+
+  @IsNumber()
+  @IsOptional()
+  maxTokens?: number;
+
+  @IsNumber()
+  @IsOptional()
+  topP?: number;
+
+  @IsNumber()
+  @IsOptional()
+  frequencyPenalty?: number;
+
+  @IsNumber()
+  @IsOptional()
+  presencePenalty?: number;
+
+  @IsString()
+  @IsEnum(['text', 'markdown', 'html', 'json'])
+  @IsOptional()
+  responseFormat?: string;
 }
 
 export class UpdateAgentDto {
@@ -122,6 +164,47 @@ export class UpdateAgentDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsOptional()
+  customPrompt?: string;
+
+  @IsString()
+  @IsOptional()
+  systemInstructions?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  enableWebSearch?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  enableMemory?: boolean;
+
+  @IsNumber()
+  @IsOptional()
+  temperature?: number;
+
+  @IsNumber()
+  @IsOptional()
+  maxTokens?: number;
+
+  @IsNumber()
+  @IsOptional()
+  topP?: number;
+
+  @IsNumber()
+  @IsOptional()
+  frequencyPenalty?: number;
+
+  @IsNumber()
+  @IsOptional()
+  presencePenalty?: number;
+
+  @IsString()
+  @IsEnum(['text', 'markdown', 'html', 'json'])
+  @IsOptional()
+  responseFormat?: string;
 }
 
 export class ToggleAgentStatusDto {

@@ -1,4 +1,14 @@
-import { IsEnum, IsOptional, IsString, IsNumber, Min, Max, IsEmail, IsBoolean, IsObject } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsNumber,
+  Min,
+  Max,
+  IsEmail,
+  IsBoolean,
+  IsObject,
+} from 'class-validator';
 import { FeedbackType, FeedbackRating } from '../feedback.entity';
 
 export class CreateFeedbackDto {

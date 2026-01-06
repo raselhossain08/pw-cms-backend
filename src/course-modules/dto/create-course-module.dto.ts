@@ -40,11 +40,12 @@ export class CreateCourseModuleDto {
   @IsNotEmpty()
   courseId: string;
 
-  @ApiProperty({ 
-    example: ['courseId1', 'courseId2'], 
-    description: 'Array of course IDs this module belongs to (supports multiple courses)',
+  @ApiProperty({
+    example: ['courseId1', 'courseId2'],
+    description:
+      'Array of course IDs this module belongs to (supports multiple courses)',
     required: false,
-    type: [String]
+    type: [String],
   })
   @IsArray()
   @IsOptional()
@@ -54,7 +55,7 @@ export class CreateCourseModuleDto {
     example: 'published',
     description: 'Module status',
     enum: ['draft', 'published'],
-    required: false
+    required: false,
   })
   @IsEnum(['draft', 'published'])
   @IsOptional()

@@ -18,7 +18,14 @@ export class BlogService {
   }
 
   async findOne(): Promise<Blog | null> {
-    const blog = await this.blogModel.findOne({ isActive: true }).lean().exec();
+    // IMPORTANT: Always get the FIRST blog document (oldest by creation date)
+    // This ensures we're always working with the same container document
+    // The blog collection should only have ONE document that acts as a container
+    const blog = await this.blogModel
+      .findOne()
+      .sort({ createdAt: 1 })
+      .lean()
+      .exec();
 
     if (blog && blog.blogs) {
       // Explicitly convert dates to strings to ensure they survive JSON serialization
@@ -40,13 +47,19 @@ export class BlogService {
     updateBlogDto: UpdateBlogDto,
     images?: { [key: string]: Express.Multer.File[] },
   ): Promise<Blog> {
-    let blog = await this.blogModel.findOne().exec();
+    // Always find the same document - get the first blog document
+    // This ensures we're always updating the same container
+    let blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
 
     if (!blog) {
       // If no document exists, create one
-      blog = new this.blogModel(updateBlogDto as CreateBlogDto);
+      blog = new this.blogModel({
+        ...(updateBlogDto as CreateBlogDto),
+        isActive:
+          updateBlogDto.isActive !== undefined ? updateBlogDto.isActive : true,
+      });
     } else {
-      // Update existing document
+      // Update existing document - ensure we're working with the same one
 
       // Manually update fields to ensure proper assignment
       if (updateBlogDto.title !== undefined) blog.title = updateBlogDto.title;
@@ -58,6 +71,7 @@ export class BlogService {
         blog.isActive = updateBlogDto.isActive;
 
       // Deep update for blogs array - cast to any to avoid type mismatch
+      // IMPORTANT: This replaces the entire array, so make sure frontend sends all posts
       if (updateBlogDto.blogs !== undefined) {
         blog.blogs = updateBlogDto.blogs as any;
       }
@@ -99,7 +113,8 @@ export class BlogService {
   }
 
   async toggleActive(): Promise<Blog> {
-    const blog = await this.blogModel.findOne().exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog section not found');
     }
@@ -114,7 +129,8 @@ export class BlogService {
   }
 
   async incrementView(slug: string): Promise<{ views: number }> {
-    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
@@ -134,7 +150,8 @@ export class BlogService {
     slug: string,
     userId?: string,
   ): Promise<{ likes: number; isLiked: boolean }> {
-    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
@@ -175,7 +192,8 @@ export class BlogService {
     slug: string,
     userId?: string,
   ): Promise<{ likes: number; isLiked: boolean }> {
-    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
@@ -197,7 +215,8 @@ export class BlogService {
   }
 
   async getComments(slug: string): Promise<any[]> {
-    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
@@ -221,7 +240,8 @@ export class BlogService {
       parentId?: string;
     },
   ): Promise<any> {
-    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
@@ -259,7 +279,8 @@ export class BlogService {
     commentId: string,
     userId?: string,
   ): Promise<void> {
-    const blog = await this.blogModel.findOne({ isActive: true }).exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
@@ -294,7 +315,8 @@ export class BlogService {
   }
 
   async duplicateBlogPost(slug: string): Promise<Blog> {
-    const blog = await this.blogModel.findOne().exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
@@ -321,7 +343,8 @@ export class BlogService {
   }
 
   async export(format: 'json' | 'pdf' = 'json'): Promise<any> {
-    const blog = await this.blogModel.findOne().exec();
+    // Get the first blog document to ensure consistency
+    const blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }

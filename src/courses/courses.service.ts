@@ -21,11 +21,15 @@ export class CoursesService {
   constructor(
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-    @InjectModel(CourseModule.name) private courseModuleModel: Model<CourseModule>,
+    @InjectModel(CourseModule.name)
+    private courseModuleModel: Model<CourseModule>,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
-  ) { }
+  ) {}
 
-  async getRecommendations(userId: string, limit: number = 10): Promise<Course[]> {
+  async getRecommendations(
+    userId: string,
+    limit: number = 10,
+  ): Promise<Course[]> {
     try {
       const userObjectId = new Types.ObjectId(userId);
 
@@ -35,7 +39,9 @@ export class CoursesService {
         .populate('course', 'categories level')
         .lean();
 
-      const enrolledCourseIds = enrollments.map((e: any) => e.course?._id?.toString()).filter(Boolean);
+      const enrolledCourseIds = enrollments
+        .map((e: any) => e.course?._id?.toString())
+        .filter(Boolean);
       const enrolledCategories = enrollments
         .map((e: any) => e.course?.categories || [])
         .flat()
@@ -46,7 +52,7 @@ export class CoursesService {
 
       // Build recommendation query
       const recommendationQuery: any = {
-        _id: { $nin: enrolledCourseIds.map(id => new Types.ObjectId(id)) },
+        _id: { $nin: enrolledCourseIds.map((id) => new Types.ObjectId(id)) },
         status: CourseStatus.PUBLISHED,
       };
 
@@ -65,16 +71,22 @@ export class CoursesService {
         // Category match (highest weight)
         const courseCategories = course.categories || [];
         const hasMatchingCategory = courseCategories.some((cat: string) =>
-          enrolledCategories.includes(cat)
+          enrolledCategories.includes(cat),
         );
         if (hasMatchingCategory) {
           score += 10;
         }
 
         // Level match (progressive learning)
-        if (enrolledLevels.includes('beginner') && course.level === 'intermediate') {
+        if (
+          enrolledLevels.includes('beginner') &&
+          course.level === 'intermediate'
+        ) {
           score += 8;
-        } else if (enrolledLevels.includes('intermediate') && course.level === 'advanced') {
+        } else if (
+          enrolledLevels.includes('intermediate') &&
+          course.level === 'advanced'
+        ) {
           score += 8;
         } else if (enrolledLevels.includes(course.level)) {
           score += 5;
@@ -84,7 +96,7 @@ export class CoursesService {
         score += Math.min((course.totalEnrollments || 0) / 10, 5);
 
         // Rating
-        score += Math.min((course.rating || 0), 5);
+        score += Math.min(course.rating || 0, 5);
 
         // Featured courses get bonus
         if (course.isFeatured) {
@@ -92,7 +104,9 @@ export class CoursesService {
         }
 
         // Recently created courses get slight boost
-        const daysSinceCreation = (Date.now() - new Date(course.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+        const daysSinceCreation =
+          (Date.now() - new Date(course.createdAt).getTime()) /
+          (1000 * 60 * 60 * 24);
         if (daysSinceCreation < 30) {
           score += 2;
         }
@@ -115,13 +129,12 @@ export class CoursesService {
           totalLessons: course.totalLessons || course.lessons?.length || 0,
           instructor: course.instructor
             ? {
-              ...course.instructor,
-              id: course.instructor._id.toString(),
-              _id: course.instructor._id.toString(),
-            }
+                ...course.instructor,
+                id: course.instructor._id.toString(),
+                _id: course.instructor._id.toString(),
+              }
             : null,
         })) as any as Course[];
-
     } catch (error) {
       console.error('Error getting recommendations:', error);
       // Fallback to popular/featured courses
@@ -144,10 +157,10 @@ export class CoursesService {
         totalLessons: course.totalLessons || course.lessons?.length || 0,
         instructor: course.instructor
           ? {
-            ...course.instructor,
-            id: course.instructor._id.toString(),
-            _id: course.instructor._id.toString(),
-          }
+              ...course.instructor,
+              id: course.instructor._id.toString(),
+              _id: course.instructor._id.toString(),
+            }
           : null,
       })) as any as Course[];
     }
@@ -156,17 +169,17 @@ export class CoursesService {
   async compareCourses(courseIds: string[]): Promise<any> {
     try {
       const courses = await Promise.all(
-        courseIds.map(id =>
+        courseIds.map((id) =>
           this.courseModel
             .findById(id)
             .populate('instructor', 'firstName lastName email')
             .lean()
-            .exec()
-        )
+            .exec(),
+        ),
       );
 
       // Filter out null courses (invalid IDs)
-      const validCourses = courses.filter(course => course !== null) as any[];
+      const validCourses = courses.filter((course) => course !== null) as any[];
 
       if (validCourses.length === 0) {
         throw new NotFoundException('No valid courses found for comparison');
@@ -178,13 +191,27 @@ export class CoursesService {
         comparison: {
           count: validCourses.length,
           priceRange: {
-            min: Math.min(...validCourses.map(c => c.price || 0)),
-            max: Math.max(...validCourses.map(c => c.price || 0)),
+            min: Math.min(...validCourses.map((c) => c.price || 0)),
+            max: Math.max(...validCourses.map((c) => c.price || 0)),
           },
-          avgRating: validCourses.reduce((sum, c) => sum + (c.rating || 0), 0) / validCourses.length,
-          totalStudents: validCourses.reduce((sum, c) => sum + (c.totalEnrollments || 0), 0),
-          levels: [...new Set(validCourses.map(c => c.level).filter(Boolean))],
-          categories: [...new Set(validCourses.map(c => c.categories || []).flat().filter(Boolean))],
+          avgRating:
+            validCourses.reduce((sum, c) => sum + (c.rating || 0), 0) /
+            validCourses.length,
+          totalStudents: validCourses.reduce(
+            (sum, c) => sum + (c.totalEnrollments || 0),
+            0,
+          ),
+          levels: [
+            ...new Set(validCourses.map((c) => c.level).filter(Boolean)),
+          ],
+          categories: [
+            ...new Set(
+              validCourses
+                .map((c) => c.categories || [])
+                .flat()
+                .filter(Boolean),
+            ),
+          ],
         },
       };
     } catch (error) {
@@ -321,10 +348,10 @@ export class CoursesService {
       totalLessons: course.totalLessons || course.lessons?.length || 0,
       instructor: course.instructor
         ? {
-          ...course.instructor,
-          id: course.instructor._id.toString(),
-          _id: course.instructor._id.toString(),
-        }
+            ...course.instructor,
+            id: course.instructor._id.toString(),
+            _id: course.instructor._id.toString(),
+          }
         : null,
     }));
 
@@ -513,10 +540,10 @@ export class CoursesService {
       totalLessons: course.totalLessons || course.lessons?.length || 0,
       instructor: course.instructor
         ? {
-          ...course.instructor,
-          id: course.instructor._id.toString(),
-          _id: course.instructor._id.toString(),
-        }
+            ...course.instructor,
+            id: course.instructor._id.toString(),
+            _id: course.instructor._id.toString(),
+          }
         : null,
     })) as any;
   }
@@ -551,7 +578,8 @@ export class CoursesService {
       : course.instructor.toString();
 
     // Allow admins and super_admins to add lessons to any course
-    const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN;
+    const isAdmin =
+      userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN;
 
     if (courseInstructorId !== instructorId && !isAdmin) {
       throw new ForbiddenException(
@@ -597,7 +625,7 @@ export class CoursesService {
       await this.courseModuleModel.findByIdAndUpdate(
         lessonData.module,
         { $addToSet: { lessons: savedLesson._id } },
-        { new: true }
+        { new: true },
       );
     }
 
@@ -1572,9 +1600,9 @@ export class CoursesService {
       avgDuration:
         lessons.length > 0
           ? Math.round(
-            lessons.reduce((sum, l) => sum + (l.duration || 0), 0) /
-            lessons.length,
-          )
+              lessons.reduce((sum, l) => sum + (l.duration || 0), 0) /
+                lessons.length,
+            )
           : 0,
       lessonsByType: {
         video: lessons.filter((l) => l.type === 'video').length,
@@ -1589,9 +1617,9 @@ export class CoursesService {
       avgCompletionRate:
         lessons.length > 0
           ? Math.round(
-            lessons.reduce((sum, l) => sum + (l.completionCount || 0), 0) /
-            lessons.length,
-          )
+              lessons.reduce((sum, l) => sum + (l.completionCount || 0), 0) /
+                lessons.length,
+            )
           : 0,
       enrollmentTrend: [], // Placeholder for time-series data
       revenueByMonth: [], // Placeholder for revenue trends

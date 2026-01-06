@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 // Conversation intents that the bot can recognize
 export enum BotIntent {
@@ -289,6 +289,60 @@ export class AIAgent extends Document {
 
   @Prop({ type: String })
   iconColor?: string;
+
+  // Advanced Configuration
+  @Prop({ type: String })
+  customPrompt?: string;
+
+  @Prop({ type: String })
+  systemInstructions?: string;
+
+  @Prop({ type: Boolean, default: false })
+  enableWebSearch?: boolean;
+
+  @Prop({ type: Boolean, default: true })
+  enableMemory?: boolean;
+
+  // AI Model Configuration
+  @Prop({ type: Number, default: 0.7, min: 0, max: 2 })
+  temperature?: number;
+
+  @Prop({ type: Number, default: 2000, min: 100, max: 4000 })
+  maxTokens?: number;
+
+  @Prop({ type: Number, default: 1, min: 0, max: 1 })
+  topP?: number;
+
+  @Prop({ type: Number, default: 0, min: 0, max: 2 })
+  frequencyPenalty?: number;
+
+  @Prop({ type: Number, default: 0, min: 0, max: 2 })
+  presencePenalty?: number;
+
+  @Prop({
+    type: String,
+    enum: ['text', 'markdown', 'html', 'json'],
+    default: 'text',
+  })
+  responseFormat?: string;
+
+  // Knowledge Base Files
+  @Prop({
+    type: [{ name: String, url: String, size: Number, uploadedAt: Date }],
+    default: [],
+  })
+  knowledgeBaseFiles?: Array<{
+    name: string;
+    url: string;
+    size: number;
+    uploadedAt: Date;
+  }>;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  createdBy?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  updatedBy?: Types.ObjectId;
 }
 
 export const AIAgentSchema = SchemaFactory.createForClass(AIAgent);

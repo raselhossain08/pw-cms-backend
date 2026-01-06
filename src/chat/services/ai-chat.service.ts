@@ -32,7 +32,9 @@ export class AIChatService {
       confidenceThreshold?: number;
     },
   ): Promise<AIResponse | null> {
-    this.logger.log(`[AI-Chat] Starting generateAIResponse - enabled: ${this.enabled}`);
+    this.logger.log(
+      `[AI-Chat] Starting generateAIResponse - enabled: ${this.enabled}`,
+    );
     this.logger.log(`[AI-Chat] User message: ${userMessage}`);
     this.logger.log(`[AI-Chat] AI Config: ${JSON.stringify(aiConfig)}`);
 
@@ -64,7 +66,9 @@ export class AIChatService {
       // Check confidence threshold
       // Default to 0.4 to allow fallback responses (confidence 0.5) when no API keys are configured
       const confidenceThreshold = aiConfig?.confidenceThreshold ?? 0.4;
-      this.logger.log(`[AI-Chat] Confidence threshold: ${confidenceThreshold}, actual: ${intentResult.confidence}`);
+      this.logger.log(
+        `[AI-Chat] Confidence threshold: ${confidenceThreshold}, actual: ${intentResult.confidence}`,
+      );
 
       if (intentResult.confidence < confidenceThreshold) {
         this.logger.log('[AI-Chat] Confidence below threshold, not responding');

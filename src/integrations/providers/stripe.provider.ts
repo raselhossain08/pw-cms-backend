@@ -161,7 +161,9 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       return customer;
     } catch (error: any) {
       this.logger.error(`Create customer failed: ${error.message}`);
-      throw new BadRequestException(`Failed to create customer: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to create customer: ${error.message}`,
+      );
     }
   }
 
@@ -176,7 +178,9 @@ export class StripeProvider implements PaymentProvider, OnModuleInit {
       return setupIntent;
     } catch (error: any) {
       this.logger.error(`Create setup intent failed: ${error.message}`);
-      throw new BadRequestException(`Failed to create setup intent: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to create setup intent: ${error.message}`,
+      );
     }
   }
 

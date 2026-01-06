@@ -54,7 +54,9 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Chat analytics data' })
   async getChatAnalytics(@Query('period') period?: AnalyticsPeriod) {
-    return this.analyticsService.getChatAnalytics(period || AnalyticsPeriod.MONTH);
+    return this.analyticsService.getChatAnalytics(
+      period || AnalyticsPeriod.MONTH,
+    );
   }
 
   @Get('revenue')

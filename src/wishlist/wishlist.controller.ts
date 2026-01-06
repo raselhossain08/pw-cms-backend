@@ -24,7 +24,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class WishlistController {
-  constructor(private readonly wishlistService: WishlistService) { }
+  constructor(private readonly wishlistService: WishlistService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get user wishlist' })
@@ -62,7 +62,10 @@ export class WishlistController {
 
   @Get('check/:courseId')
   @ApiOperation({ summary: 'Check if course is in wishlist' })
-  @ApiResponse({ status: 200, description: 'Returns whether course is in wishlist' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns whether course is in wishlist',
+  })
   async checkWishlist(@Param('courseId') courseId: string, @Req() req) {
     return this.wishlistService.checkWishlist(req.user.id, courseId);
   }

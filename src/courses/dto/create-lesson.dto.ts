@@ -104,7 +104,10 @@ export class CreateLessonDto {
   @IsOptional()
   materials?: string[];
 
-  @ApiProperty({ example: true, description: 'Whether lesson is free to preview' })
+  @ApiProperty({
+    example: true,
+    description: 'Whether lesson is free to preview',
+  })
   @IsBoolean()
   @IsOptional()
   isFree?: boolean;

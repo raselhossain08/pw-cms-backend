@@ -32,7 +32,7 @@ export class ChatService {
     private activityLogsService: ActivityLogsService,
     private chatLoggerService: ChatLoggerService,
     private aiChatService: AIChatService,
-  ) { }
+  ) {}
 
   setSocketServer(server: Server): void {
     this.socketServer = server;
@@ -284,7 +284,8 @@ export class ChatService {
 
     // Helper to get Name from participant (object or string)
     const getParticipantName = (p: any): string => {
-      if (typeof p === 'string') return p.startsWith('guest_') ? 'Guest User' : 'Unknown';
+      if (typeof p === 'string')
+        return p.startsWith('guest_') ? 'Guest User' : 'Unknown';
       if (p && p.firstName) return `${p.firstName} ${p.lastName}`;
       return 'Unknown';
     };
@@ -337,7 +338,11 @@ export class ChatService {
     const populatedMessage = await messageQuery.exec();
 
     // Broadcast user message to SSE clients
-    this.broadcastToConversation(conversationId, 'new_message', populatedMessage);
+    this.broadcastToConversation(
+      conversationId,
+      'new_message',
+      populatedMessage,
+    );
 
     // Generate AI response if enabled
     if (createMessageDto.aiConfig?.enabled) {
@@ -371,7 +376,10 @@ export class ChatService {
     userMessage: string,
     aiConfig: any,
   ): Promise<void> {
-    console.log('Starting AI response generation for conversation:', conversationId);
+    console.log(
+      'Starting AI response generation for conversation:',
+      conversationId,
+    );
     console.log('AI Config:', JSON.stringify(aiConfig));
     try {
       // Get recent conversation history
@@ -384,12 +392,10 @@ export class ChatService {
 
       console.log(`Found ${recentMessages.length} recent messages`);
 
-      const conversationHistory = recentMessages
-        .reverse()
-        .map((msg) => ({
-          role: msg.sender === 'ai-assistant' ? 'assistant' : 'user',
-          content: msg.content,
-        }));
+      const conversationHistory = recentMessages.reverse().map((msg) => ({
+        role: msg.sender === 'ai-assistant' ? 'assistant' : 'user',
+        content: msg.content,
+      }));
 
       console.log('Conversation history:', JSON.stringify(conversationHistory));
 
@@ -401,7 +407,10 @@ export class ChatService {
         aiConfig,
       );
 
-      console.log('AI Response received:', aiResponse ? JSON.stringify(aiResponse) : 'null');
+      console.log(
+        'AI Response received:',
+        aiResponse ? JSON.stringify(aiResponse) : 'null',
+      );
 
       if (aiResponse && aiResponse.content) {
         console.log('AI response has content, creating message...');
@@ -421,7 +430,8 @@ export class ChatService {
           sender: 'ai-assistant',
           content: savedAIMessage.content,
           type: savedAIMessage.type,
-          createdAt: (savedAIMessage as any).createdAt || new Date().toISOString(),
+          createdAt:
+            (savedAIMessage as any).createdAt || new Date().toISOString(),
         };
 
         console.log('[AI] Sending message to frontend:', messageToSend);
@@ -432,7 +442,11 @@ export class ChatService {
         });
 
         // Broadcast AI message (send the message directly, not wrapped)
-        this.broadcastToConversation(conversationId, 'new_message', messageToSend);
+        this.broadcastToConversation(
+          conversationId,
+          'new_message',
+          messageToSend,
+        );
 
         // Update conversation's last message
         await this.conversationModel.findByIdAndUpdate(conversationId, {
@@ -440,7 +454,9 @@ export class ChatService {
         });
       } else {
         // No AI response generated, stop typing indicator
-        console.log('No AI response generated - aiResponse is null or has no content');
+        console.log(
+          'No AI response generated - aiResponse is null or has no content',
+        );
         this.broadcastToConversation(conversationId, 'ai_typing_stop', {
           conversationId,
         });
@@ -470,8 +486,12 @@ export class ChatService {
     // Try Socket.IO first (preferred method)
     if (this.socketServer) {
       try {
-        this.socketServer.to(`conversation_${conversationId}`).emit(event, data);
-        console.log(`[Socket.IO] Successfully broadcast ${event} to conversation ${conversationId}`);
+        this.socketServer
+          .to(`conversation_${conversationId}`)
+          .emit(event, data);
+        console.log(
+          `[Socket.IO] Successfully broadcast ${event} to conversation ${conversationId}`,
+        );
         return;
       } catch (error) {
         console.error('[Socket.IO] Failed to broadcast:', error);
@@ -480,18 +500,24 @@ export class ChatService {
 
     // Fallback to SSE if Socket.IO is not available
     const client = this.sseClients.get(conversationId);
-    console.log(`[SSE] Broadcasting ${event} to conversation ${conversationId}, client exists: ${!!client}`);
+    console.log(
+      `[SSE] Broadcasting ${event} to conversation ${conversationId}, client exists: ${!!client}`,
+    );
     if (client && !client.writableEnded) {
       try {
         const eventData = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
         client.write(eventData);
-        console.log(`[SSE] Successfully broadcast ${event} to conversation ${conversationId}`);
+        console.log(
+          `[SSE] Successfully broadcast ${event} to conversation ${conversationId}`,
+        );
       } catch (error) {
         console.error('[SSE] Failed to broadcast to SSE client:', error);
         this.sseClients.delete(conversationId);
       }
     } else {
-      console.log(`[SSE] No active SSE client for conversation ${conversationId}`);
+      console.log(
+        `[SSE] No active SSE client for conversation ${conversationId}`,
+      );
     }
   }
 
@@ -542,7 +568,10 @@ export class ChatService {
     return message;
   }
 
-  async sendTypingIndicator(conversationId: string, userId: string): Promise<void> {
+  async sendTypingIndicator(
+    conversationId: string,
+    userId: string,
+  ): Promise<void> {
     // Implementation for typing indicator
     // This would typically broadcast a typing event to other participants
     console.log(`User ${userId} is typing in conversation ${conversationId}`);
@@ -668,7 +697,7 @@ export class ChatService {
 
       // Check if this is a support conversation (has guest user)
       const hasGuestUser = conversation.participants.some((p) =>
-        String(p).startsWith('guest_')
+        String(p).startsWith('guest_'),
       );
 
       // If it's a support conversation and user is NOT a guest, allow access
@@ -720,7 +749,10 @@ export class ChatService {
   }
 
   async createMessage(
-    createMessageDto: CreateMessageDto & { sender: string; conversation: string },
+    createMessageDto: CreateMessageDto & {
+      sender: string;
+      conversation: string;
+    },
   ): Promise<Message> {
     // Verify user can access conversation
     const canAccess = await this.canUserAccessConversation(
@@ -745,7 +777,11 @@ export class ChatService {
     // Populate sender info
     const messageQuery = this.messageModel.findById(savedMessage._id);
 
-    if (createMessageDto.sender && !createMessageDto.sender.startsWith('guest_') && createMessageDto.sender !== 'ai-assistant') {
+    if (
+      createMessageDto.sender &&
+      !createMessageDto.sender.startsWith('guest_') &&
+      createMessageDto.sender !== 'ai-assistant'
+    ) {
       messageQuery.populate('sender', 'firstName lastName avatar');
     }
 
@@ -754,11 +790,14 @@ export class ChatService {
     return populatedMessage!;
   }
 
-  async detectSpam(content: string, userId: string): Promise<{ isSpam: boolean; reason?: string }> {
+  async detectSpam(
+    content: string,
+    userId: string,
+  ): Promise<{ isSpam: boolean; reason?: string }> {
     // 1. Content moderation (Basic blacklist)
     const blacklist = ['spam', 'abuse', 'badword', 'viagra', 'casino']; // Add more real words in production
     const lowerContent = content.toLowerCase();
-    if (blacklist.some(word => lowerContent.includes(word))) {
+    if (blacklist.some((word) => lowerContent.includes(word))) {
       return { isSpam: true, reason: 'Message contains prohibited content' };
     }
 
@@ -770,21 +809,28 @@ export class ChatService {
     });
 
     if (recentMessageCount >= 10) {
-      return { isSpam: true, reason: 'You are sending messages too quickly. Please wait a moment.' };
+      return {
+        isSpam: true,
+        reason: 'You are sending messages too quickly. Please wait a moment.',
+      };
     }
 
     // 3. Repetition check (Check last 3 messages)
-    const lastMessages = await this.messageModel.find({
-      sender: userId,
-    })
+    const lastMessages = await this.messageModel
+      .find({
+        sender: userId,
+      })
       .sort({ createdAt: -1 })
       .limit(3)
       .select('content');
 
     if (lastMessages.length > 0) {
-      const allIdentical = lastMessages.every(msg => msg.content === content);
+      const allIdentical = lastMessages.every((msg) => msg.content === content);
       if (allIdentical && lastMessages.length === 3) {
-        return { isSpam: true, reason: 'Please do not repeat the same message.' };
+        return {
+          isSpam: true,
+          reason: 'Please do not repeat the same message.',
+        };
       }
     }
 
@@ -887,7 +933,7 @@ export class ChatService {
   async getFileUploads(filter: any = {}): Promise<any[]> {
     const messages = await this.messageModel.find({
       ...filter,
-      type: { $in: ['file', 'image', 'audio', 'video'] }
+      type: { $in: ['file', 'image', 'audio', 'video'] },
     });
 
     return messages.map((msg) => ({
@@ -902,19 +948,19 @@ export class ChatService {
       { $match: filter },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
           count: { $sum: 1 },
-          uniqueUsers: { $addToSet: "$sender" }
-        }
+          uniqueUsers: { $addToSet: '$sender' },
+        },
       },
       {
         $project: {
-          date: "$_id",
-          count: "$count", // Renamed from messages to count for compatibility with formatChartData
-          activeUsers: { $size: "$uniqueUsers" }
-        }
+          date: '$_id',
+          count: '$count', // Renamed from messages to count for compatibility with formatChartData
+          activeUsers: { $size: '$uniqueUsers' },
+        },
       },
-      { $sort: { date: 1 } }
+      { $sort: { date: 1 } },
     ]);
   }
 
@@ -928,8 +974,10 @@ export class ChatService {
     // For performance, we're not counting messages per conversation here
     // In a production app, this should be pre-calculated or stored in the conversation document
     return conversations.map((c: any) => ({
-      duration: c.updatedAt ? (new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime()) : 0,
-      messageCount: 0
+      duration: c.updatedAt
+        ? new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime()
+        : 0,
+      messageCount: 0,
     }));
   }
 
@@ -938,11 +986,11 @@ export class ChatService {
       { $match: filter },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          count: { $sum: 1 }
-        }
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 },
+        },
       },
-      { $sort: { _id: 1 } }
+      { $sort: { _id: 1 } },
     ]);
   }
 
@@ -972,13 +1020,15 @@ export class ChatService {
 
     let waitingUsers = 0;
     for (const conv of waitingConversations) {
-      const messages = await this.messageModel.find({
-        conversation: conv._id,
-      }).limit(10);
+      const messages = await this.messageModel
+        .find({
+          conversation: conv._id,
+        })
+        .limit(10);
 
       // Check if any message is from an admin (non-guest user)
-      const hasAdminResponse = messages.some(msg =>
-        !String(msg.sender).startsWith('guest_')
+      const hasAdminResponse = messages.some(
+        (msg) => !String(msg.sender).startsWith('guest_'),
       );
 
       if (!hasAdminResponse) {
@@ -987,37 +1037,39 @@ export class ChatService {
     }
 
     // Calculate average wait time (time from conversation creation to first admin response)
-    const recentConversations = await this.conversationModel
+    const recentConversations = (await this.conversationModel
       .find({
         isSupport: true,
         createdAt: { $gte: thirtyMinutesAgo },
       })
-      .lean() as any[];
+      .lean()) as any[];
 
     let totalWaitTime = 0;
     let conversationsWithResponse = 0;
 
     for (const conv of recentConversations) {
-      const messages = await this.messageModel
+      const messages = (await this.messageModel
         .find({ conversation: conv._id })
         .sort({ createdAt: 1 })
-        .lean() as any[];
+        .lean()) as any[];
 
-      const firstAdminMessage = messages.find(msg =>
-        !String(msg.sender).startsWith('guest_')
+      const firstAdminMessage = messages.find(
+        (msg) => !String(msg.sender).startsWith('guest_'),
       );
 
       if (firstAdminMessage) {
-        const waitTime = new Date(firstAdminMessage.createdAt).getTime() -
+        const waitTime =
+          new Date(firstAdminMessage.createdAt).getTime() -
           new Date(conv.createdAt).getTime();
         totalWaitTime += waitTime;
         conversationsWithResponse++;
       }
     }
 
-    const averageWaitTime = conversationsWithResponse > 0
-      ? Math.floor(totalWaitTime / conversationsWithResponse / 1000)
-      : 0;
+    const averageWaitTime =
+      conversationsWithResponse > 0
+        ? Math.floor(totalWaitTime / conversationsWithResponse / 1000)
+        : 0;
 
     // Get response time distribution
     const responseTimes = {
@@ -1029,18 +1081,20 @@ export class ChatService {
     };
 
     for (const conv of recentConversations) {
-      const messages = await this.messageModel
+      const messages = (await this.messageModel
         .find({ conversation: conv._id })
         .sort({ createdAt: 1 })
-        .lean() as any[];
+        .lean()) as any[];
 
-      const firstAdminMessage = messages.find(msg =>
-        !String(msg.sender).startsWith('guest_')
+      const firstAdminMessage = messages.find(
+        (msg) => !String(msg.sender).startsWith('guest_'),
       );
 
       if (firstAdminMessage) {
-        const responseTime = (new Date(firstAdminMessage.createdAt).getTime() -
-          new Date(conv.createdAt).getTime()) / 1000;
+        const responseTime =
+          (new Date(firstAdminMessage.createdAt).getTime() -
+            new Date(conv.createdAt).getTime()) /
+          1000;
 
         if (responseTime < 30) responseTimes.immediate++;
         else if (responseTime < 60) responseTimes.within1Min++;
@@ -1053,7 +1107,7 @@ export class ChatService {
     // Convert to percentages
     const total = Object.values(responseTimes).reduce((a, b) => a + b, 0);
     if (total > 0) {
-      Object.keys(responseTimes).forEach(key => {
+      Object.keys(responseTimes).forEach((key) => {
         responseTimes[key] = Math.round((responseTimes[key] / total) * 100);
       });
     }
@@ -1080,39 +1134,51 @@ export class ChatService {
     const now = new Date();
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
-    const conversations = await this.conversationModel
+    const conversations = (await this.conversationModel
       .find({
         isSupport: true,
         updatedAt: { $gte: thirtyMinutesAgo },
       })
       .sort({ updatedAt: -1 })
-      .lean() as any[];
+      .lean()) as any[];
 
     const sessions: any[] = [];
 
     for (const conv of conversations) {
-      const lastMessage = await this.messageModel
+      const lastMessage = (await this.messageModel
         .findOne({ conversation: conv._id })
         .sort({ createdAt: -1 })
-        .lean() as any;
+        .lean()) as any;
 
-      const messages = await this.messageModel
+      const messages = (await this.messageModel
         .find({ conversation: conv._id })
         .sort({ createdAt: 1 })
-        .lean() as any[];
+        .lean()) as any[];
 
-      const hasAdminResponse = messages.some(msg =>
-        !String(msg.sender).startsWith('guest_')
+      const hasAdminResponse = messages.some(
+        (msg) => !String(msg.sender).startsWith('guest_'),
       );
 
-      const firstAdminMessage = messages.find(msg =>
-        !String(msg.sender).startsWith('guest_')
+      const firstAdminMessage = messages.find(
+        (msg) => !String(msg.sender).startsWith('guest_'),
       );
 
       const waitTime = firstAdminMessage
-        ? Math.floor((new Date(firstAdminMessage.createdAt).getTime() -
-          new Date(conv.createdAt).getTime()) / 1000)
-        : Math.floor((now.getTime() - new Date(conv.createdAt).getTime()) / 1000);
+        ? Math.floor(
+            (new Date(firstAdminMessage.createdAt).getTime() -
+              new Date(conv.createdAt).getTime()) /
+              1000,
+          )
+        : Math.floor(
+            (now.getTime() - new Date(conv.createdAt).getTime()) / 1000,
+          );
+
+      const status =
+        conv.supportStatus === 'resolved'
+          ? 'resolved'
+          : hasAdminResponse
+            ? 'active'
+            : 'waiting';
 
       sessions.push({
         id: conv._id.toString(),
@@ -1121,12 +1187,63 @@ export class ChatService {
         startedAt: conv.createdAt,
         lastMessage: lastMessage?.content || '',
         waitTime,
-        status: hasAdminResponse ? 'active' : 'waiting',
-        agentId: undefined, // TODO: Track which agent is handling the conversation
+        status,
+        agentId: conv.assignedAgent?.toString(),
       });
     }
 
     return sessions;
+  }
+
+  /**
+   * Assign an agent to a support conversation
+   */
+  async assignAgent(
+    conversationId: string,
+    agentId: string,
+  ): Promise<Conversation> {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    conversation.assignedAgent = new Types.ObjectId(agentId);
+    conversation.supportStatus = 'active';
+    await conversation.save();
+
+    return conversation;
+  }
+
+  /**
+   * Mark a support conversation as resolved
+   */
+  async markResolved(
+    conversationId: string,
+    resolvedBy: string,
+  ): Promise<Conversation> {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    conversation.supportStatus = 'resolved';
+    conversation.resolvedAt = new Date();
+    await conversation.save();
+
+    // Log the resolution
+    await this.activityLogsService.createChatLog({
+      senderId: resolvedBy,
+      senderName: 'Support Agent',
+      conversationId,
+      message: 'Conversation resolved',
+      chatType: ChatType.USER_TO_SUPPORT,
+      metadata: {
+        action: 'resolved',
+        resolvedAt: new Date(),
+      },
+    });
+
+    return conversation;
   }
 
   /**
@@ -1277,13 +1394,21 @@ export class ChatService {
     if (userId.startsWith('guest_')) {
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!createSupportConversationDto.email || !emailRegex.test(createSupportConversationDto.email)) {
+      if (
+        !createSupportConversationDto.email ||
+        !emailRegex.test(createSupportConversationDto.email)
+      ) {
         throw new BadRequestException('Invalid email format');
       }
 
       // Validate name length
-      if (!createSupportConversationDto.name || createSupportConversationDto.name.length < 2) {
-        throw new BadRequestException('Name must be at least 2 characters long');
+      if (
+        !createSupportConversationDto.name ||
+        createSupportConversationDto.name.length < 2
+      ) {
+        throw new BadRequestException(
+          'Name must be at least 2 characters long',
+        );
       }
     }
 
@@ -1341,7 +1466,11 @@ export class ChatService {
       if (!Types.ObjectId.isValid(userId)) {
         return null;
       }
-      return await this.userModel.findById(userId).select('firstName lastName email').lean().exec();
+      return await this.userModel
+        .findById(userId)
+        .select('firstName lastName email')
+        .lean()
+        .exec();
     } catch (error) {
       console.error('Failed to get user by ID:', error);
       return null;
@@ -1356,18 +1485,22 @@ export class ChatService {
     userId: string;
   }) {
     // Validate conversation access
-    const conversation = await this.conversationModel.findById(fileData.conversationId);
+    const conversation = await this.conversationModel.findById(
+      fileData.conversationId,
+    );
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
     }
 
     // Check if user is a participant
     const isParticipant = conversation.participants.some(
-      (participant) => participant.toString() === fileData.userId
+      (participant) => participant.toString() === fileData.userId,
     );
 
     if (!isParticipant) {
-      throw new ForbiddenException('You are not a participant in this conversation');
+      throw new ForbiddenException(
+        'You are not a participant in this conversation',
+      );
     }
 
     // Validate file size (max 10MB)
@@ -1377,9 +1510,14 @@ export class ChatService {
 
     // Validate file type
     const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'application/pdf', 'text/plain',
-      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'text/plain',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ];
 
     if (!allowedTypes.includes(fileData.fileType)) {
@@ -1396,17 +1534,16 @@ export class ChatService {
         fileName: fileData.fileName,
         fileType: fileData.fileType,
         fileSize: fileData.fileSize,
-        uploadedAt: new Date()
-      }
+        uploadedAt: new Date(),
+      },
     });
 
     await message.save();
 
     // Update conversation last message
-    await this.conversationModel.findByIdAndUpdate(
-      fileData.conversationId,
-      { lastMessage: message._id }
-    );
+    await this.conversationModel.findByIdAndUpdate(fileData.conversationId, {
+      lastMessage: message._id,
+    });
 
     // Log file upload
     await this.chatLoggerService.logMessage(
@@ -1419,8 +1556,8 @@ export class ChatService {
       {
         fileName: fileData.fileName,
         fileType: fileData.fileType,
-        fileSize: fileData.fileSize
-      }
+        fileSize: fileData.fileSize,
+      },
     );
 
     return {
@@ -1430,8 +1567,8 @@ export class ChatService {
         content: message.content,
         type: message.type,
         metadata: message.metadata,
-        createdAt: (message as any).createdAt
-      }
+        createdAt: (message as any).createdAt,
+      },
     };
   }
 }

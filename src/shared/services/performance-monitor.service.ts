@@ -23,13 +23,16 @@ export class PerformanceMonitorService {
 
     this.connection.on('commandSucceeded', (event: any) => {
       const duration = Date.now() - (event.startTime || Date.now());
-      if (duration > 100) { // Log queries > 100ms
+      if (duration > 100) {
+        // Log queries > 100ms
         this.slowQueries.push({
           command: event.commandName,
           duration,
           timestamp: new Date(),
         });
-        this.logger.warn(`Slow query detected: ${event.commandName} (${duration}ms)`);
+        this.logger.warn(
+          `Slow query detected: ${event.commandName} (${duration}ms)`,
+        );
       }
     });
   }
@@ -42,7 +45,7 @@ export class PerformanceMonitorService {
   logPerformanceMetrics() {
     const uptime = (Date.now() - this.startTime) / 1000;
     const memory = process.memoryUsage();
-    
+
     this.logger.log({
       uptime: `${Math.floor(uptime)}s`,
       requests: this.requestCount,
@@ -73,4 +76,3 @@ export class PerformanceMonitorService {
     };
   }
 }
-

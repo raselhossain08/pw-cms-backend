@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Feedback, FeedbackDocument, FeedbackType, FeedbackRating } from './feedback.entity';
+import {
+  Feedback,
+  FeedbackDocument,
+  FeedbackType,
+  FeedbackRating,
+} from './feedback.entity';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 import { FeedbackStatsDto } from './dto/feedback-stats.dto';
@@ -10,7 +15,7 @@ import { FeedbackStatsDto } from './dto/feedback-stats.dto';
 export class FeedbackService {
   constructor(
     @InjectModel(Feedback.name) private feedbackModel: Model<FeedbackDocument>,
-  ) { }
+  ) {}
 
   async create(createFeedbackDto: CreateFeedbackDto): Promise<Feedback> {
     const feedback = new this.feedbackModel(createFeedbackDto);
@@ -75,7 +80,10 @@ export class FeedbackService {
     return feedback;
   }
 
-  async update(id: string, updateFeedbackDto: UpdateFeedbackDto): Promise<Feedback> {
+  async update(
+    id: string,
+    updateFeedbackDto: UpdateFeedbackDto,
+  ): Promise<Feedback> {
     const feedback = await this.feedbackModel
       .findByIdAndUpdate(id, updateFeedbackDto, { new: true })
       .populate('userId', 'name email')
@@ -124,18 +132,18 @@ export class FeedbackService {
           total: { $sum: 1 },
           averageRating: { $avg: '$rating' },
           resolvedCount: {
-            $sum: { $cond: [{ $eq: ['$resolved', true] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ['$resolved', true] }, 1, 0] },
           },
           followUpRequired: {
-            $sum: { $cond: [{ $eq: ['$followUpRequired', true] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ['$followUpRequired', true] }, 1, 0] },
           },
           ratingDistribution: {
             $push: {
               rating: '$rating',
-              count: 1
-            }
-          }
-        }
+              count: 1,
+            },
+          },
+        },
       },
       {
         $project: {
@@ -146,8 +154,8 @@ export class FeedbackService {
             $cond: [
               { $eq: ['$total', 0] },
               0,
-              { $multiply: [{ $divide: ['$resolvedCount', '$total'] }, 100] }
-            ]
+              { $multiply: [{ $divide: ['$resolvedCount', '$total'] }, 100] },
+            ],
           },
           followUpRequired: 1,
           ratingDistribution: {
@@ -162,26 +170,28 @@ export class FeedbackService {
                       $filter: {
                         input: '$ratingDistribution',
                         as: 'item',
-                        cond: { $eq: ['$$item.rating', '$$rating'] }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+                        cond: { $eq: ['$$item.rating', '$$rating'] },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     ]);
 
-    return stats[0] || {
-      total: 0,
-      averageRating: 0,
-      resolvedCount: 0,
-      resolutionRate: 0,
-      followUpRequired: 0,
-      ratingDistribution: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }
-    };
+    return (
+      stats[0] || {
+        total: 0,
+        averageRating: 0,
+        resolvedCount: 0,
+        resolutionRate: 0,
+        followUpRequired: 0,
+        ratingDistribution: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
+      }
+    );
   }
 
   async getRecentFeedback(limit = 5): Promise<Feedback[]> {
@@ -194,17 +204,23 @@ export class FeedbackService {
       .exec();
   }
 
-  async markAsResolved(id: string, resolvedBy: string, notes?: string): Promise<Feedback> {
-    const feedback = await this.feedbackModel.findByIdAndUpdate(
-      id,
-      {
-        resolved: true,
-        resolvedAt: new Date(),
-        resolvedBy: new Types.ObjectId(resolvedBy),
-        followUpNotes: notes,
-      },
-      { new: true }
-    ).exec();
+  async markAsResolved(
+    id: string,
+    resolvedBy: string,
+    notes?: string,
+  ): Promise<Feedback> {
+    const feedback = await this.feedbackModel
+      .findByIdAndUpdate(
+        id,
+        {
+          resolved: true,
+          resolvedAt: new Date(),
+          resolvedBy: new Types.ObjectId(resolvedBy),
+          followUpNotes: notes,
+        },
+        { new: true },
+      )
+      .exec();
 
     if (!feedback) {
       throw new NotFoundException(`Feedback with ID ${id} not found`);

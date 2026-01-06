@@ -80,6 +80,19 @@ export class ActivityLog extends Document {
 
   @Prop()
   notes?: string;
+
+  // Compatibility fields for AdminService
+  @Prop()
+  action?: string;
+
+  @Prop()
+  details?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  user?: Types.ObjectId;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const ActivityLogSchema = SchemaFactory.createForClass(ActivityLog);

@@ -34,7 +34,7 @@ import { EnrollmentStatus } from './entities/enrollment.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class EnrollmentsController {
-  constructor(private readonly enrollmentsService: EnrollmentsService) { }
+  constructor(private readonly enrollmentsService: EnrollmentsService) {}
 
   @Post()
   @ApiOperation({ summary: 'Enroll in a course (free or paid with order)' })
@@ -416,5 +416,60 @@ export class EnrollmentsController {
       instructorId,
     });
   }
-}
 
+  // ==================== New Enhanced Operations ====================
+
+  @Post('admin/bulk-update-status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Bulk update enrollment status (admin)' })
+  @ApiResponse({ status: 200, description: 'Enrollments status updated' })
+  async bulkUpdateStatus(
+    @Body() body: { ids: string[]; status: EnrollmentStatus },
+  ) {
+    return this.enrollmentsService.bulkUpdateStatus(body.ids, body.status);
+  }
+
+  @Post('admin/:id/send-message')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiOperation({ summary: 'Send message to enrolled student' })
+  @ApiResponse({ status: 200, description: 'Message sent' })
+  async sendMessage(
+    @Param('id') id: string,
+    @Body() body: { subject: string; message: string },
+  ) {
+    return this.enrollmentsService.sendMessageToStudent({
+      enrollmentId: id,
+      subject: body.subject,
+      message: body.message,
+    });
+  }
+
+  @Post('admin/:id/generate-certificate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiOperation({ summary: 'Generate certificate for completed enrollment' })
+  @ApiResponse({ status: 200, description: 'Certificate generated' })
+  async generateCertificate(@Param('id') id: string) {
+    return this.enrollmentsService.generateCertificate(id);
+  }
+
+  @Get('admin/:id/audit-trail')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiOperation({ summary: 'Get enrollment audit trail' })
+  @ApiResponse({ status: 200, description: 'Audit trail data' })
+  async getAuditTrail(@Param('id') id: string) {
+    return this.enrollmentsService.getEnrollmentAuditTrail(id);
+  }
+
+  @Get('admin/:id/payment-details')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
+  @ApiOperation({ summary: 'Get enrollment payment details' })
+  @ApiResponse({ status: 200, description: 'Payment details' })
+  async getPaymentDetails(@Param('id') id: string) {
+    return this.enrollmentsService.getPaymentDetails(id);
+  }
+}

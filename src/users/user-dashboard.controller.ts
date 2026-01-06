@@ -1,14 +1,17 @@
+import { Controller, Get, UseGuards, Req } from '@nestjs/common';
 import {
-  Controller,
-  Get,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment.entity';
+import {
+  Enrollment,
+  EnrollmentStatus,
+} from '../enrollments/entities/enrollment.entity';
 import { Certificate } from '../certificates/entities/additional.entity';
 
 @ApiTags('User Dashboard')
@@ -44,7 +47,10 @@ export class UserDashboardController {
     ).length;
 
     const inProgressCourses = enrollments.filter(
-      (e) => e.progress > 0 && e.progress < 100 && e.status === EnrollmentStatus.ACTIVE,
+      (e) =>
+        e.progress > 0 &&
+        e.progress < 100 &&
+        e.status === EnrollmentStatus.ACTIVE,
     ).length;
 
     const totalHoursLearned = Math.round(
@@ -58,8 +64,12 @@ export class UserDashboardController {
     const recentActivity = enrollments
       .filter((e) => e.lastAccessedAt)
       .sort((a, b) => {
-        const dateA = a.lastAccessedAt ? new Date(a.lastAccessedAt).getTime() : 0;
-        const dateB = b.lastAccessedAt ? new Date(b.lastAccessedAt).getTime() : 0;
+        const dateA = a.lastAccessedAt
+          ? new Date(a.lastAccessedAt).getTime()
+          : 0;
+        const dateB = b.lastAccessedAt
+          ? new Date(b.lastAccessedAt).getTime()
+          : 0;
         return dateB - dateA;
       })
       .slice(0, 5)
@@ -147,4 +157,3 @@ export class UserDashboardController {
     return streak;
   }
 }
-

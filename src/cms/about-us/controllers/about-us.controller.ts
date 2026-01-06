@@ -6,15 +6,40 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseInterceptors,
   UploadedFiles,
+  UseGuards,
+  HttpException,
+  HttpStatus,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiConsumes,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../auth/guards/roles.guard';
+import { Roles } from '../../../shared/decorators/roles.decorator';
+import { Public } from '../../../shared/decorators/public.decorator';
+import { UserRole } from '../../../users/entities/user.entity';
 import { AboutUsService } from '../services/about-us.service';
 import { CreateAboutUsDto, UpdateAboutUsDto } from '../dto/about-us.dto';
 import { CloudinaryService } from '../../services/cloudinary.service';
 
+@ApiTags('CMS - About Us')
+@ApiBearerAuth('JWT-auth')
 @Controller('cms/about-us')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 export class AboutUsController {
   constructor(
     private readonly aboutUsService: AboutUsService,
@@ -22,6 +47,20 @@ export class AboutUsController {
   ) {}
 
   @Post()
+  @ApiOperation({
+    summary: 'Create About Us page',
+    description:
+      'Creates a new About Us page with header, sections, team, stats, and SEO information',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'About Us page created successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request data',
+  })
+  @ApiBody({ type: CreateAboutUsDto })
   async create(@Body() createAboutUsDto: CreateAboutUsDto) {
     try {
       const aboutUs = await this.aboutUsService.create(createAboutUsDto);
@@ -31,14 +70,25 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to create About Us page',
-      };
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to create About Us page',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
   @Get()
+  @ApiOperation({
+    summary: 'Get all About Us pages',
+    description: 'Retrieves all About Us pages from the database',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'About Us pages retrieved successfully',
+  })
   async findAll() {
     try {
       const aboutUsPages = await this.aboutUsService.findAll();
@@ -48,22 +98,36 @@ export class AboutUsController {
         data: aboutUsPages,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to fetch About Us pages',
-      };
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to fetch About Us pages',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Get('active')
+  @Public()
+  @ApiOperation({
+    summary: 'Get active About Us page (Public)',
+    description:
+      'Retrieves the currently active About Us page - accessible without authentication',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Active About Us page retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No active About Us page found',
+  })
   async findActive() {
     try {
       const aboutUs = await this.aboutUsService.findActive();
       if (!aboutUs) {
-        return {
-          success: false,
-          message: 'No active About Us page found',
-        };
+        throw new NotFoundException('No active About Us page found');
       }
       return {
         success: true,
@@ -71,14 +135,29 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to fetch active About Us page',
-      };
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to fetch active About Us page',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Get('default')
+  @ApiOperation({
+    summary: 'Get or create default About Us page',
+    description:
+      "Retrieves the default About Us page, creating one if it doesn't exist",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Default About Us page retrieved or created successfully',
+  })
   async getDefault() {
     try {
       const aboutUs = await this.aboutUsService.getOrCreateDefault();
@@ -88,22 +167,39 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to fetch default About Us page',
-      };
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to fetch default About Us page',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Get(':id')
+  @ApiOperation({
+    summary: 'Get About Us page by ID',
+    description: 'Retrieves a specific About Us page by its ID',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'About Us page ID',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'About Us page retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'About Us page not found',
+  })
   async findOne(@Param('id') id: string) {
     try {
       const aboutUs = await this.aboutUsService.findOne(id);
       if (!aboutUs) {
-        return {
-          success: false,
-          message: 'About Us page not found',
-        };
+        throw new NotFoundException('About Us page not found');
       }
       return {
         success: true,
@@ -111,14 +207,42 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to fetch About Us page',
-      };
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to fetch About Us page',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Put(':id')
+  @ApiOperation({
+    summary: 'Update About Us page',
+    description: 'Updates an existing About Us page with new data',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'About Us page ID',
+    type: String,
+  })
+  @ApiBody({ type: UpdateAboutUsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'About Us page updated successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'About Us page not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request data',
+  })
   async update(
     @Param('id') id: string,
     @Body() updateAboutUsDto: UpdateAboutUsDto,
@@ -126,10 +250,7 @@ export class AboutUsController {
     try {
       const aboutUs = await this.aboutUsService.update(id, updateAboutUsDto);
       if (!aboutUs) {
-        return {
-          success: false,
-          message: 'About Us page not found',
-        };
+        throw new NotFoundException('About Us page not found');
       }
       return {
         success: true,
@@ -137,14 +258,45 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to update About Us page',
-      };
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to update About Us page',
+        },
+        error instanceof BadRequestException
+          ? HttpStatus.BAD_REQUEST
+          : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Put(':id/upload')
+  @ApiOperation({
+    summary: 'Update About Us page with file uploads',
+    description:
+      'Updates an About Us page including image uploads for header, sections, and team members',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({
+    name: 'id',
+    description: 'About Us page ID',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'About Us page updated successfully with images',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'About Us page not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file upload or data',
+  })
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'headerImage', maxCount: 1 },
@@ -261,10 +413,7 @@ export class AboutUsController {
       const aboutUs = await this.aboutUsService.update(id, updateData);
 
       if (!aboutUs) {
-        return {
-          success: false,
-          message: 'About Us page not found',
-        };
+        throw new NotFoundException('About Us page not found');
       }
 
       return {
@@ -273,22 +422,45 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to update About Us page with upload',
-      };
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message:
+            error.message || 'Failed to update About Us page with upload',
+        },
+        error instanceof BadRequestException
+          ? HttpStatus.BAD_REQUEST
+          : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Delete(':id')
+  @ApiOperation({
+    summary: 'Delete About Us page',
+    description: 'Permanently deletes an About Us page',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'About Us page ID',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'About Us page deleted successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'About Us page not found',
+  })
   async delete(@Param('id') id: string) {
     try {
       const aboutUs = await this.aboutUsService.delete(id);
       if (!aboutUs) {
-        return {
-          success: false,
-          message: 'About Us page not found',
-        };
+        throw new NotFoundException('About Us page not found');
       }
       return {
         success: true,
@@ -296,22 +468,42 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to delete About Us page',
-      };
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to delete About Us page',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Post(':id/toggle-active')
+  @ApiOperation({
+    summary: 'Toggle About Us page active status',
+    description: 'Toggles the active/inactive status of an About Us page',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'About Us page ID',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'About Us page status toggled successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'About Us page not found',
+  })
   async toggleActive(@Param('id') id: string) {
     try {
       const aboutUs = await this.aboutUsService.toggleActive(id);
       if (!aboutUs) {
-        return {
-          success: false,
-          message: 'About Us page not found',
-        };
+        throw new NotFoundException('About Us page not found');
       }
       return {
         success: true,
@@ -319,22 +511,42 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to toggle About Us page status',
-      };
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to toggle About Us page status',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
   @Post(':id/duplicate')
+  @ApiOperation({
+    summary: 'Duplicate About Us page',
+    description: 'Creates a copy of an existing About Us page',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'About Us page ID to duplicate',
+    type: String,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'About Us page duplicated successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'About Us page not found',
+  })
   async duplicate(@Param('id') id: string) {
     try {
       const aboutUs = await this.aboutUsService.duplicate(id);
       if (!aboutUs) {
-        return {
-          success: false,
-          message: 'About Us page not found',
-        };
+        throw new NotFoundException('About Us page not found');
       }
       return {
         success: true,
@@ -342,10 +554,127 @@ export class AboutUsController {
         data: aboutUs,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to duplicate About Us page',
-      };
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to duplicate About Us page',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get(':id/export')
+  @ApiOperation({
+    summary: 'Export About Us page',
+    description: 'Exports a specific About Us page in JSON or PDF format',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'About Us page ID',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'format',
+    description: 'Export format (json or pdf)',
+    enum: ['json', 'pdf'],
+    required: true,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'About Us page exported successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'About Us page not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid export format',
+  })
+  async exportById(@Param('id') id: string, @Query('format') format: string) {
+    try {
+      const aboutUs = await this.aboutUsService.findOne(id);
+      if (!aboutUs) {
+        throw new NotFoundException('About Us page not found');
+      }
+
+      if (format === 'json') {
+        return {
+          success: true,
+          message: 'About Us page exported successfully',
+          data: aboutUs,
+        };
+      }
+
+      // For PDF format, we would need a PDF generation library
+      // This is a placeholder for now
+      throw new BadRequestException('PDF export not implemented yet');
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to export About Us page',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export all About Us pages',
+    description: 'Exports all About Us pages in JSON or PDF format',
+  })
+  @ApiQuery({
+    name: 'format',
+    description: 'Export format (json or pdf)',
+    enum: ['json', 'pdf'],
+    required: true,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'About Us pages exported successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid export format',
+  })
+  async exportAll(@Query('format') format: string) {
+    try {
+      const aboutUsPages = await this.aboutUsService.findAll();
+
+      if (format === 'json') {
+        return {
+          success: true,
+          message: 'About Us pages exported successfully',
+          data: aboutUsPages,
+        };
+      }
+
+      // For PDF format, we would need a PDF generation library
+      // This is a placeholder for now
+      throw new BadRequestException('PDF export not implemented yet');
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message || 'Failed to export About Us pages',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

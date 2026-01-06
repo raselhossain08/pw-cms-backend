@@ -57,7 +57,7 @@ export class PaymentsService {
     private couponsService: CouponsService,
     private mailService: MailService,
     private enrollmentsService: EnrollmentsService,
-  ) { }
+  ) {}
 
   async createPaymentIntent(
     createPaymentIntentDto: CreatePaymentIntentDto,
@@ -183,9 +183,8 @@ export class PaymentsService {
       }
 
       // Create Setup Intent
-      const setupIntent = await this.stripeService.createSetupIntent(
-        stripeCustomerId,
-      );
+      const setupIntent =
+        await this.stripeService.createSetupIntent(stripeCustomerId);
 
       return {
         clientSecret: setupIntent.client_secret,
@@ -336,7 +335,11 @@ export class PaymentsService {
     return methods;
   }
 
-  async addPaymentMethod(userId: string, paymentMethodId: string, isDefault?: boolean) {
+  async addPaymentMethod(
+    userId: string,
+    paymentMethodId: string,
+    isDefault?: boolean,
+  ) {
     const user = await this.userModel.findById(userId);
     if (!user) throw new NotFoundException('User not found');
 
@@ -638,23 +641,23 @@ export class PaymentsService {
       dueDate: new Date(),
       billingInfo: order.billingAddress
         ? {
-          companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
-          address: order.billingAddress.street,
-          city: order.billingAddress.city,
-          state: order.billingAddress.state,
-          zipCode: order.billingAddress.zipCode,
-          country: order.billingAddress.country,
-          taxId: '',
-        }
+            companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
+            address: order.billingAddress.street,
+            city: order.billingAddress.city,
+            state: order.billingAddress.state,
+            zipCode: order.billingAddress.zipCode,
+            country: order.billingAddress.country,
+            taxId: '',
+          }
         : {
-          companyName: 'Personal Wings',
-          address: '123 Aviation Way',
-          city: 'Sky Harbor',
-          state: 'AZ',
-          zipCode: '85034',
-          country: 'US',
-          taxId: 'TAX-123456',
-        },
+            companyName: 'Personal Wings',
+            address: '123 Aviation Way',
+            city: 'Sky Harbor',
+            state: 'AZ',
+            zipCode: '85034',
+            country: 'US',
+            taxId: 'TAX-123456',
+          },
       items: [
         {
           description: 'Course Enrollment',
@@ -1078,11 +1081,12 @@ export class PaymentsService {
       `[verifyStripeSession] Verifying session: ${sessionId} for user: ${userId}`,
     );
 
-    const session =
-      await this.stripeService.retrieveCheckoutSession(sessionId);
+    const session = await this.stripeService.retrieveCheckoutSession(sessionId);
 
     if (!session) {
-      this.logger.error(`[verifyStripeSession] Session not found: ${sessionId}`);
+      this.logger.error(
+        `[verifyStripeSession] Session not found: ${sessionId}`,
+      );
       throw new NotFoundException('Payment session not found');
     }
 
@@ -1402,27 +1406,27 @@ export class PaymentsService {
       coupon: appliedCoupon ? appliedCoupon._id.toString() : undefined,
       billingAddress: billingAddress
         ? {
-          firstName: billingAddress.firstName || firstName || '',
-          lastName: billingAddress.lastName || lastName || '',
-          email: billingAddress.email || email || '',
-          phone: billingAddress.phone || phone || '',
-          street: billingAddress.address || billingAddress.street || '',
-          city: billingAddress.city || '',
-          state: billingAddress.state || '',
-          country: billingAddress.country || '',
-          zipCode: billingAddress.zipCode || '',
-        }
+            firstName: billingAddress.firstName || firstName || '',
+            lastName: billingAddress.lastName || lastName || '',
+            email: billingAddress.email || email || '',
+            phone: billingAddress.phone || phone || '',
+            street: billingAddress.address || billingAddress.street || '',
+            city: billingAddress.city || '',
+            state: billingAddress.state || '',
+            country: billingAddress.country || '',
+            zipCode: billingAddress.zipCode || '',
+          }
         : {
-          firstName: firstName || '',
-          lastName: lastName || '',
-          email: email || '',
-          phone: phone || '',
-          street: '',
-          city: '',
-          state: '',
-          country: '',
-          zipCode: '',
-        },
+            firstName: firstName || '',
+            lastName: lastName || '',
+            email: email || '',
+            phone: phone || '',
+            street: '',
+            city: '',
+            state: '',
+            country: '',
+            zipCode: '',
+          },
     } as any);
 
     // Handle payment based on method and test mode
@@ -1635,9 +1639,7 @@ export class PaymentsService {
       } as any);
 
       const sessionId = paymentResult.sessionId || paymentResult.id;
-      this.logger.log(
-        `[processCheckout] Stripe session created: ${sessionId}`,
-      );
+      this.logger.log(`[processCheckout] Stripe session created: ${sessionId}`);
 
       // Update order with session ID and wait for confirmation
       const updatedOrder = await this.orderModel
@@ -1663,7 +1665,9 @@ export class PaymentsService {
 
       // Log course details for debugging
       if (updatedOrder.courses && updatedOrder.courses.length > 0) {
-        const courseIds = updatedOrder.courses.map((c: any) => c._id?.toString() || c.toString());
+        const courseIds = updatedOrder.courses.map(
+          (c: any) => c._id?.toString() || c.toString(),
+        );
         this.logger.log(
           `[processCheckout] Order courses: ${courseIds.join(', ')}`,
         );

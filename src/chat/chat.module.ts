@@ -30,7 +30,13 @@ import { AiBotModule } from '../ai-bot/ai-bot.module';
     AiBotModule, // Add AI bot module for AI services
   ],
   controllers: [ChatController],
-  providers: [ChatService, ChatGateway, AIChatService, ChatLoggerService, ChatAuthGuard],
+  providers: [
+    ChatService,
+    ChatGateway,
+    AIChatService,
+    ChatLoggerService,
+    ChatAuthGuard,
+  ],
   exports: [ChatService, ChatLoggerService],
 })
-export class ChatModule { }
+export class ChatModule {}

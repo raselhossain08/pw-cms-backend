@@ -37,7 +37,7 @@ export class ChatController {
   constructor(
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
-  ) { }
+  ) {}
 
   @Post('conversations')
   @UseGuards(JwtAuthGuard)
@@ -85,7 +85,8 @@ export class ChatController {
         // For authenticated users, fetch their info from the database
         const user = await this.chatService.getUserById(userId);
         if (user) {
-          userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'User';
+          userName =
+            `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'User';
           userEmail = user.email || '';
         } else {
           userName = createSupportConversationDto.name || 'User';
@@ -115,17 +116,17 @@ export class ChatController {
     const responseToken = isAuthenticated
       ? null
       : this.jwtService.sign(
-        {
-          sub: userId,
-          email: userEmail,
-          role: 'guest',
-          name: userName,
-          conversationId: conversation._id,
-        },
-        {
-          expiresIn: '10m', // Token expires in 10 minutes
-        }
-      );
+          {
+            sub: userId,
+            email: userEmail,
+            role: 'guest',
+            name: userName,
+            conversationId: conversation._id,
+          },
+          {
+            expiresIn: '10m', // Token expires in 10 minutes
+          },
+        );
 
     // Return both conversation and user ID for socket authentication
     return {
@@ -141,7 +142,12 @@ export class ChatController {
   @ApiOperation({ summary: 'Get user conversations' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'includeSupport', required: false, type: Boolean, description: 'Include all support conversations (for admin/support users)' })
+  @ApiQuery({
+    name: 'includeSupport',
+    required: false,
+    type: Boolean,
+    description: 'Include all support conversations (for admin/support users)',
+  })
   @ApiResponse({ status: 200, description: 'List of conversations' })
   async getConversations(
     @Req() req,
@@ -204,10 +210,7 @@ export class ChatController {
   @UseGuards(ChatAuthGuard) // Changed to ChatAuthGuard to support guest users
   @ApiOperation({ summary: 'Send typing indicator' })
   @ApiResponse({ status: 200, description: 'Typing indicator sent' })
-  async sendTypingIndicator(
-    @Param('id') conversationId: string,
-    @Req() req,
-  ) {
+  async sendTypingIndicator(@Param('id') conversationId: string, @Req() req) {
     return this.chatService.sendTypingIndicator(conversationId, req.user.id);
   }
 
@@ -215,10 +218,7 @@ export class ChatController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Join conversation' })
   @ApiResponse({ status: 200, description: 'Joined conversation successfully' })
-  async joinConversation(
-    @Param('id') conversationId: string,
-    @Req() req,
-  ) {
+  async joinConversation(@Param('id') conversationId: string, @Req() req) {
     return this.chatService.joinConversation(conversationId, req.user.id);
   }
 
@@ -322,7 +322,13 @@ export class ChatController {
   })
   async uploadFile(
     @Req() req,
-    @Body() body: { conversationId: string; fileName: string; fileType: string; fileSize: number }
+    @Body()
+    body: {
+      conversationId: string;
+      fileName: string;
+      fileType: string;
+      fileSize: number;
+    },
   ) {
     // This endpoint handles file metadata - actual file upload would be handled separately
     // In a real implementation, you would use Multer for file uploads
@@ -331,12 +337,36 @@ export class ChatController {
       fileName: body.fileName,
       fileType: body.fileType,
       fileSize: body.fileSize,
-      userId: req.user.id
+      userId: req.user.id,
     });
   }
 
-  @Options()
+  @Post('conversations/:id/assign')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Assign an agent to a conversation' })
+  @ApiResponse({
+    status: 200,
+    description: 'Agent assigned successfully',
+  })
+  async assignAgent(
+    @Param('id') conversationId: string,
+    @Body() body: { agentId: string },
+  ) {
+    return this.chatService.assignAgent(conversationId, body.agentId);
+  }
 
+  @Post('conversations/:id/resolve')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Mark a conversation as resolved' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversation marked as resolved',
+  })
+  async markResolved(@Param('id') conversationId: string, @Req() req) {
+    return this.chatService.markResolved(conversationId, req.user.id);
+  }
+
+  @Options()
   @ApiOperation({
     summary: 'CORS preflight for SSE connections',
   })
@@ -346,7 +376,10 @@ export class ChatController {
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, Last-Event-ID');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, Cache-Control, Last-Event-ID',
+    );
     res.setHeader('Access-Control-Max-Age', '86400');
     res.status(200).send();
   }
@@ -366,7 +399,8 @@ export class ChatController {
     // Verify authentication - token can come from header or query param
     let userId: string;
     try {
-      const token = tokenParam || req.headers.authorization?.replace('Bearer ', '');
+      const token =
+        tokenParam || req.headers.authorization?.replace('Bearer ', '');
       if (!token) {
         res.status(401).json({ message: 'Unauthorized: No token provided' });
         return;
@@ -408,7 +442,9 @@ export class ChatController {
     const heartbeatInterval = setInterval(() => {
       try {
         if (!res.writableEnded && !res.destroyed) {
-          res.write(`event: heartbeat\ndata: {\"timestamp\":${Date.now()}}\n\n`);
+          res.write(
+            `event: heartbeat\ndata: {\"timestamp\":${Date.now()}}\n\n`,
+          );
         } else {
           clearInterval(heartbeatInterval);
         }

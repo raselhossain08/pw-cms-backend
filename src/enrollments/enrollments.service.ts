@@ -19,7 +19,7 @@ export class EnrollmentsService {
   constructor(
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
-  ) { }
+  ) {}
 
   async enroll(
     createEnrollmentDto: CreateEnrollmentDto,
@@ -104,7 +104,8 @@ export class EnrollmentsService {
         .find(filter)
         .populate({
           path: 'course',
-          select: 'title slug description thumbnail price level type status duration rating reviewCount studentCount instructor category totalLessons',
+          select:
+            'title slug description thumbnail price level type status duration rating reviewCount studentCount instructor category totalLessons',
           populate: {
             path: 'instructor',
             select: 'firstName lastName email avatar',
@@ -162,7 +163,8 @@ export class EnrollmentsService {
 
     // Get total lessons from the course
     const course = enrollment.course as any;
-    const totalLessons = course?.totalLessons || enrollment.completedLessons.size;
+    const totalLessons =
+      course?.totalLessons || enrollment.completedLessons.size;
 
     if (totalLessons > 0) {
       enrollment.progress = Math.round((completedCount / totalLessons) * 100);
@@ -288,7 +290,7 @@ export class EnrollmentsService {
       averageProgress:
         enrollments.length > 0
           ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-          enrollments.length
+            enrollments.length
           : 0,
     };
 
@@ -837,8 +839,7 @@ export class EnrollmentsService {
     // Get enrollments with populated course data
     const sortOptions: any = {};
     if (filters?.sortBy) {
-      sortOptions[filters.sortBy] =
-        filters.sortOrder === 'desc' ? -1 : 1;
+      sortOptions[filters.sortBy] = filters.sortOrder === 'desc' ? -1 : 1;
     } else {
       sortOptions.purchaseDate = -1; // Default: newest first
     }
@@ -954,14 +955,12 @@ export class EnrollmentsService {
   /**
    * Get purchase analytics for admin/instructor
    */
-  async getPurchaseAnalytics(
-    filters?: {
-      startDate?: Date;
-      endDate?: Date;
-      courseId?: string;
-      instructorId?: string;
-    },
-  ): Promise<{
+  async getPurchaseAnalytics(filters?: {
+    startDate?: Date;
+    endDate?: Date;
+    courseId?: string;
+    instructorId?: string;
+  }): Promise<{
     totalRevenue: number;
     totalPurchases: number;
     averageOrderValue: number;
@@ -1050,5 +1049,265 @@ export class EnrollmentsService {
       topCourses,
     };
   }
-}
 
+  // ==================== Additional Admin Operations ====================
+
+  /**
+   * Bulk update enrollment status
+   */
+  async bulkUpdateStatus(
+    ids: string[],
+    status: EnrollmentStatus,
+  ): Promise<{ modifiedCount: number }> {
+    const result = await this.enrollmentModel.updateMany(
+      { _id: { $in: ids } },
+      { $set: { status, updatedAt: new Date() } },
+    );
+
+    return { modifiedCount: result.modifiedCount };
+  }
+
+  /**
+   * Send message/email to student
+   * Note: This is a placeholder. Integrate with your email service (Nodemailer, SendGrid, etc.)
+   */
+  async sendMessageToStudent(data: {
+    enrollmentId: string;
+    subject: string;
+    message: string;
+  }): Promise<{ success: boolean; message: string }> {
+    const enrollment = await this.enrollmentModel
+      .findById(data.enrollmentId)
+      .populate('student', 'email firstName lastName')
+      .populate('course', 'title');
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    const student = enrollment.student as any;
+    const course = enrollment.course as any;
+
+    // Log the message attempt (in production, integrate with your email service)
+    console.log('[EnrollmentsService] Sending email:', {
+      to: student.email,
+      subject: data.subject,
+      message: data.message,
+      studentName: `${student.firstName} ${student.lastName}`,
+      courseName: course.title,
+    });
+
+    // Add note to enrollment
+    enrollment.notes.push(
+      `Email sent: ${data.subject} - ${new Date().toISOString()}`,
+    );
+    await enrollment.save();
+
+    // TODO: Integrate with actual email service
+    // Example:
+    // await this.emailService.send({
+    //   to: student.email,
+    //   subject: data.subject,
+    //   html: data.message,
+    // });
+
+    return {
+      success: true,
+      message: 'Email sent successfully (placeholder)',
+    };
+  }
+
+  /**
+   * Generate certificate for completed enrollment
+   * Note: This is a placeholder. Integrate with your certificate generation service
+   */
+  async generateCertificate(enrollmentId: string): Promise<{
+    success: boolean;
+    certificateId?: string;
+    certificateUrl?: string;
+  }> {
+    const enrollment = await this.enrollmentModel
+      .findById(enrollmentId)
+      .populate('student', 'firstName lastName email')
+      .populate('course', 'title instructor');
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    if (enrollment.status !== EnrollmentStatus.COMPLETED) {
+      throw new BadRequestException(
+        'Certificate can only be generated for completed enrollments',
+      );
+    }
+
+    if (enrollment.certificate) {
+      throw new BadRequestException('Certificate already exists');
+    }
+
+    const student = enrollment.student as any;
+    const course = enrollment.course as any;
+
+    // Log certificate generation (in production, integrate with certificate service)
+    console.log('[EnrollmentsService] Generating certificate:', {
+      studentName: `${student.firstName} ${student.lastName}`,
+      courseName: course.title,
+      completedAt: enrollment.completedAt,
+    });
+
+    // TODO: Integrate with actual certificate generation service
+    // Example:
+    // const certificate = await this.certificateService.generate({
+    //   studentName: `${student.firstName} ${student.lastName}`,
+    //   courseName: course.title,
+    //   completedAt: enrollment.completedAt,
+    //   certificateNumber: `CERT-${Date.now()}`,
+    // });
+    //
+    // enrollment.certificate = certificate.id;
+    // await enrollment.save();
+
+    // Placeholder certificate ID
+    const certificateId = `CERT-${Date.now()}-${enrollmentId.substring(0, 8)}`;
+    enrollment.notes.push(
+      `Certificate generated: ${certificateId} - ${new Date().toISOString()}`,
+    );
+    await enrollment.save();
+
+    return {
+      success: true,
+      certificateId,
+      certificateUrl: `/certificates/${certificateId}`,
+    };
+  }
+
+  /**
+   * Get enrollment audit trail/history
+   */
+  async getEnrollmentAuditTrail(enrollmentId: string): Promise<
+    Array<{
+      action: string;
+      timestamp: Date;
+      user: string;
+      details: string;
+      changes?: any;
+    }>
+  > {
+    const enrollment = await this.enrollmentModel
+      .findById(enrollmentId)
+      .populate('student', 'firstName lastName email')
+      .populate('course', 'title');
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    // Build audit trail from enrollment data
+    const auditTrail: Array<{
+      action: string;
+      timestamp: Date;
+      user: string;
+      details: string;
+      changes?: any;
+    }> = [];
+
+    // Creation
+    auditTrail.push({
+      action: 'Enrollment Created',
+      timestamp: (enrollment as any).createdAt as Date,
+      user: 'System',
+      details: `Student enrolled in ${(enrollment.course as any).title}`,
+    });
+
+    // Last accessed
+    if (enrollment.lastAccessedAt) {
+      auditTrail.push({
+        action: 'Course Accessed',
+        timestamp: enrollment.lastAccessedAt,
+        user: `${(enrollment.student as any).firstName} ${(enrollment.student as any).lastName}`,
+        details: 'Student accessed the course',
+      });
+    }
+
+    // Completed
+    if (enrollment.completedAt) {
+      auditTrail.push({
+        action: 'Course Completed',
+        timestamp: enrollment.completedAt,
+        user: `${(enrollment.student as any).firstName} ${(enrollment.student as any).lastName}`,
+        details: `Course completed with ${enrollment.progress}% progress`,
+      });
+    }
+
+    // Status changes (from notes)
+    enrollment.notes.forEach((note) => {
+      if (
+        note.includes('Cancelled') ||
+        note.includes('Email sent') ||
+        note.includes('Certificate')
+      ) {
+        auditTrail.push({
+          action: note.split(':')[0],
+          timestamp: (enrollment as any).updatedAt as Date,
+          user: 'Admin',
+          details: note,
+        });
+      }
+    });
+
+    // Sort by timestamp descending
+    return auditTrail.sort(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+    );
+  }
+
+  /**
+   * Get payment details for enrollment
+   */
+  async getPaymentDetails(enrollmentId: string): Promise<{
+    orderId?: string;
+    amount: number;
+    currency: string;
+    status: string;
+    paymentMethod?: string;
+    transactionId?: string;
+    paymentDate?: Date;
+    accessType: string;
+  }> {
+    const enrollment = await this.enrollmentModel
+      .findById(enrollmentId)
+      .populate('order')
+      .populate('course', 'price');
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    const course = enrollment.course as any;
+    const order = enrollment.order as any;
+
+    // If no order, it's a free course
+    if (!order) {
+      return {
+        amount: 0,
+        currency: 'USD',
+        status: 'free',
+        accessType: 'free',
+        paymentDate: (enrollment as any).createdAt as Date,
+      };
+    }
+
+    // Return order payment details
+    return {
+      orderId: order._id || order,
+      amount: order.totalAmount || course.price || 0,
+      currency: order.currency || 'USD',
+      status: order.paymentStatus || 'completed',
+      paymentMethod: order.paymentMethod || 'unknown',
+      transactionId: order.paymentIntentId || order.transactionId,
+      paymentDate:
+        order.paidAt || ((enrollment as any).createdAt as Date) || new Date(),
+      accessType: 'paid',
+    };
+  }
+}

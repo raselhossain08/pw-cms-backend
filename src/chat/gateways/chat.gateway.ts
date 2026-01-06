@@ -25,7 +25,9 @@ import { MessageType } from '../entities/message.entity';
   namespace: '/chat',
   transports: ['websocket', 'polling'],
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+export class ChatGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   @WebSocketServer()
   server: Server;
 
@@ -36,7 +38,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     private chatService: ChatService,
     private aiChatService: AIChatService,
     private chatLoggerService: ChatLoggerService,
-  ) { }
+  ) {}
 
   afterInit(server: Server) {
     this.logger.log('WebSocket Gateway initialized');
@@ -82,7 +84,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
           const actualToken = token.replace('Bearer ', '');
           const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
 
-          this.logger.debug(`Attempting to verify token with secret length: ${jwtSecret.length}`);
+          this.logger.debug(
+            `Attempting to verify token with secret length: ${jwtSecret.length}`,
+          );
 
           const payload = await jwtService.verifyAsync(actualToken, {
             secret: jwtSecret,
@@ -118,12 +122,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         // Check if this is a support/admin user requesting all support conversations
         // You can add role check here if you have user roles
         // For now, we'll check if query param is passed
-        const includeAllSupport = client.handshake.query.includeSupport === 'true';
+        const includeAllSupport =
+          client.handshake.query.includeSupport === 'true';
 
         let conversations;
         if (includeAllSupport) {
           // Fetch all support conversations for dashboard
-          this.logger.log(`Fetching all support conversations for admin user ${userId}`);
+          this.logger.log(
+            `Fetching all support conversations for admin user ${userId}`,
+          );
           conversations = await this.chatService.getAllSupportConversations();
         } else {
           // Fetch only user's own conversations

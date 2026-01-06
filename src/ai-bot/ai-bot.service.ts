@@ -50,18 +50,73 @@ export class AiBotService {
     const startTime = Date.now();
 
     // Get or create conversation
-    let conversation = sessionId
-      ? await this.botConversationModel.findOne({ sessionId, userId }).exec()
-      : null;
+    let conversation: any;
+    let isNewConversation = false;
+
+    if (sessionId) {
+      // First, check if conversation exists by sessionId only (since it's unique)
+      const existingConversation = await this.botConversationModel
+        .findOne({ sessionId })
+        .exec();
+
+      // If conversation exists but belongs to different user, generate new sessionId
+      if (
+        existingConversation &&
+        existingConversation.userId.toString() !== userId.toString()
+      ) {
+        console.warn(
+          `SessionId ${sessionId} belongs to different user. Creating new session.`,
+        );
+        conversation = null;
+      } else {
+        conversation = existingConversation;
+      }
+    }
 
     if (!conversation) {
+      // Create new conversation
+      isNewConversation = true;
+      const newSessionId = sessionId && !conversation ? sessionId : uuidv4();
+
       conversation = new this.botConversationModel({
         userId,
-        sessionId: sessionId || uuidv4(),
+        sessionId: newSessionId,
         status: ConversationStatus.ACTIVE,
         lastActiveAt: new Date(),
         context: context || {},
       });
+
+      // Save immediately to avoid race conditions
+      try {
+        await conversation.save();
+      } catch (error) {
+        // If duplicate key error, fetch the existing conversation
+        if (error.code === 11000) {
+          console.log(
+            `Conversation with sessionId ${newSessionId} already exists. Fetching existing...`,
+          );
+          const existingConv = await this.botConversationModel
+            .findOne({ sessionId: newSessionId })
+            .exec();
+
+          if (!existingConv) {
+            throw new BadRequestException(
+              'Failed to create or retrieve conversation',
+            );
+          }
+
+          // Verify user owns this conversation
+          if (existingConv.userId.toString() !== userId.toString()) {
+            throw new BadRequestException(
+              'Conversation belongs to different user',
+            );
+          }
+
+          conversation = existingConv;
+        } else {
+          throw error;
+        }
+      }
     }
 
     // Detect intent and confidence
@@ -107,7 +162,39 @@ export class AiBotService {
         };
       }
 
-      await conversation.save();
+      // Save conversation (handle duplicate key error gracefully)
+      try {
+        await conversation.save();
+      } catch (error) {
+        if (error.code === 11000) {
+          // If duplicate key error during save, try to update existing
+          console.log(
+            'Duplicate key error on save, updating existing conversation',
+          );
+          conversation = await this.botConversationModel.findOneAndUpdate(
+            { sessionId: conversation.sessionId },
+            {
+              $push: {
+                messages: {
+                  $each: conversation.messages.slice(-2), // Add the last 2 messages (user + bot)
+                },
+              },
+              $set: {
+                lastActiveAt: conversation.lastActiveAt,
+                context: conversation.context,
+                status: conversation.status,
+              },
+            },
+            { new: true, upsert: false },
+          );
+
+          if (!conversation) {
+            throw new BadRequestException('Failed to update conversation');
+          }
+        } else {
+          throw error;
+        }
+      }
 
       // Get user info for logging
       const user = await this.userModel
@@ -295,6 +382,154 @@ export class AiBotService {
     return { intent: BotIntent.GENERAL_QUESTION, confidence: 0.5 };
   }
 
+  private getQuickRepliesForAction(action: string): string[] {
+    const adminActions = {
+      get_all_users: ['Users today', 'Users this week', 'Platform analytics'],
+      get_users_registered_today: [
+        'Users this week',
+        'All users',
+        'Platform analytics',
+      ],
+      get_users_registered_week: [
+        'Users today',
+        'Users this month',
+        'Platform analytics',
+      ],
+      get_users_registered_month: [
+        'Users today',
+        'All users',
+        'Platform analytics',
+      ],
+      get_platform_analytics: ['Revenue report', 'System health', 'All orders'],
+      get_revenue_report: ['Platform analytics', 'All orders', 'System health'],
+      get_system_health: ['Platform analytics', 'All users', 'All courses'],
+      get_all_orders: [
+        'Pending orders',
+        'Revenue report',
+        'Platform analytics',
+      ],
+      get_pending_orders: [
+        'All orders',
+        'Revenue report',
+        'Platform analytics',
+      ],
+      get_all_courses: ['Create course', 'All users', 'Platform analytics'],
+      get_all_blogs: ['Create blog', 'All courses', 'Platform analytics'],
+      create_course: ['All courses', 'Platform analytics', 'Main menu'],
+      create_blog: ['All blogs', 'Create another', 'Main menu'],
+    };
+
+    return adminActions[action] || ['Main menu', 'Help', 'Show analytics'];
+  }
+
+  private formatAdminResult(action: string, result: any): string {
+    if (!result) return 'No data available.';
+
+    // Format based on action type
+    switch (action) {
+      case 'get_all_users':
+      case 'get_users_registered_today':
+      case 'get_users_registered_week':
+      case 'get_users_registered_month':
+        if (result.users && result.users.length > 0) {
+          const userList = result.users
+            .slice(0, 10)
+            .map(
+              (u: any, i: number) =>
+                `${i + 1}. ${u.firstName || ''} ${u.lastName || ''} - ${u.email} (${u.role || 'user'}) - Joined: ${new Date(u.createdAt).toLocaleDateString()}`,
+            )
+            .join('\n');
+          return `📊 **Found ${result.count || result.users.length} user(s)**\n\n${userList}${result.users.length > 10 ? '\n\n_Showing first 10 results_' : ''}`;
+        }
+        return `No users found matching your criteria.`;
+
+      case 'get_platform_analytics':
+        return (
+          `📊 **Platform Analytics** (${result.period})\n\n` +
+          `👥 Total Users: ${result.totalUsers}\n` +
+          `🆕 New Users: ${result.newUsers}\n` +
+          `📚 Total Courses: ${result.totalCourses}\n` +
+          `🛒 Total Orders: ${result.totalOrders}\n` +
+          `💰 Revenue: $${result.revenue?.toFixed(2) || '0.00'}`
+        );
+
+      case 'get_revenue_report':
+        return (
+          `💰 **Revenue Report** (${result.period})\n\n` +
+          `📊 Total Orders: ${result.totalOrders}\n` +
+          `💵 Total Revenue: $${result.totalRevenue?.toFixed(2) || '0.00'}\n` +
+          `📈 Average Order Value: $${result.averageOrderValue?.toFixed(2) || '0.00'}`
+        );
+
+      case 'get_system_health':
+        return (
+          `✅ **System Health Check**\n\n` +
+          `Status: ${result.status}\n` +
+          `Database: ${result.database}\n\n` +
+          `**Collections:**\n` +
+          `👥 Users: ${result.collections?.users || 0}\n` +
+          `📚 Courses: ${result.collections?.courses || 0}\n` +
+          `🛒 Orders: ${result.collections?.orders || 0}\n` +
+          `📖 Enrollments: ${result.collections?.enrollments || 0}`
+        );
+
+      case 'get_all_orders':
+        if (result.orders && result.orders.length > 0) {
+          const orderList = result.orders
+            .slice(0, 10)
+            .map(
+              (o: any, i: number) =>
+                `${i + 1}. Order #${o._id?.toString().substring(0, 8)} - $${o.total} (${o.status}) - User: ${o.user?.email || 'N/A'}`,
+            )
+            .join('\n');
+          return `🛒 **Found ${result.count} order(s)** | Total Revenue: $${result.totalRevenue?.toFixed(2) || '0.00'}\n\n${orderList}${result.orders.length > 10 ? '\n\n_Showing first 10 results_' : ''}`;
+        }
+        return `No orders found.`;
+
+      case 'get_pending_orders':
+        if (result.orders && result.orders.length > 0) {
+          const orderList = result.orders
+            .map(
+              (o: any, i: number) =>
+                `${i + 1}. Order #${o._id?.toString().substring(0, 8)} - $${o.total} (${o.status}) - User: ${o.user?.email || 'N/A'}`,
+            )
+            .join('\n');
+          return `⏳ **Found ${result.count} pending order(s)**\n\n${orderList}`;
+        }
+        return `No pending orders at the moment. All clear! ✅`;
+
+      case 'get_all_courses':
+        if (result.courses && result.courses.length > 0) {
+          const courseList = result.courses
+            .slice(0, 10)
+            .map(
+              (c: any, i: number) =>
+                `${i + 1}. ${c.title} - $${c.price} (${c.status}) - Instructor: ${c.instructor?.firstName || 'N/A'}`,
+            )
+            .join('\n');
+          return `📚 **Found ${result.count} course(s)**\n\n${courseList}${result.courses.length > 10 ? '\n\n_Showing first 10 results_' : ''}`;
+        }
+        return `No courses found.`;
+
+      case 'get_all_blogs':
+        if (result.blogs && result.blogs.length > 0) {
+          const blogList = result.blogs
+            .slice(0, 10)
+            .map(
+              (b: any, i: number) =>
+                `${i + 1}. ${b.title} - ${new Date(b.createdAt).toLocaleDateString()}`,
+            )
+            .join('\n');
+          return `📝 **Found ${result.count} blog post(s)**\n\n${blogList}${result.blogs.length > 10 ? '\n\n_Showing first 10 results_' : ''}`;
+        }
+        return `No blog posts found.`;
+
+      default:
+        if (result.message) return result.message;
+        return JSON.stringify(result, null, 2);
+    }
+  }
+
   private async generateResponse(
     intent: BotIntent,
     message: string,
@@ -315,12 +550,16 @@ export class AiBotService {
       );
 
       if (actionResult && actionResult.success !== false) {
+        // Format admin results properly
+        const formattedMessage = this.formatAdminResult(
+          actionRequest.action,
+          actionResult,
+        );
+
         return {
-          message:
-            actionResult.message ||
-            `✅ Action "${actionRequest.action}" completed successfully!`,
+          message: formattedMessage,
           responseType: ResponseType.TEXT,
-          quickReplies: ['View result', 'Create another', 'Main menu'],
+          quickReplies: this.getQuickRepliesForAction(actionRequest.action),
           actions: [],
           contextUpdate: {
             lastAction: actionRequest.action,
@@ -330,6 +569,7 @@ export class AiBotService {
       } else {
         return {
           message:
+            actionResult?.message ||
             actionResult?.error ||
             `❌ Failed to execute action "${actionRequest.action}". Please try again.`,
           responseType: ResponseType.TEXT,
@@ -883,6 +1123,115 @@ export class AiBotService {
   ): { action: string; data?: any } | null {
     const lowerMessage = message.toLowerCase();
 
+    // ============================================
+    // SUPER ADMIN - USER MANAGEMENT PATTERNS
+    // ============================================
+
+    // Get all users
+    if (
+      lowerMessage.match(
+        /show.*all.*users?|list.*all.*users?|get.*all.*users?|view.*all.*users?|all users/i,
+      )
+    ) {
+      return { action: 'get_all_users', data: {} };
+    }
+
+    // Users registered today
+    if (
+      lowerMessage.match(
+        /users?.*(registered|signed up).*today|today.*users?.*registered|new users today/i,
+      )
+    ) {
+      return { action: 'get_users_registered_today', data: {} };
+    }
+
+    // Users registered this week
+    if (
+      lowerMessage.match(
+        /users?.*(registered|signed up).*(this week|past week|last 7 days)|this week.*users?.*registered/i,
+      )
+    ) {
+      return { action: 'get_users_registered_week', data: {} };
+    }
+
+    // Users registered this month
+    if (
+      lowerMessage.match(
+        /users?.*(registered|signed up).*(this month|past month)|this month.*users?.*registered/i,
+      )
+    ) {
+      return { action: 'get_users_registered_month', data: {} };
+    }
+
+    // ============================================
+    // SUPER ADMIN - ANALYTICS & REPORTS
+    // ============================================
+
+    // Platform analytics
+    if (
+      lowerMessage.match(
+        /platform.*analytics|system.*analytics|show.*analytics|dashboard.*stats|platform.*stats/i,
+      )
+    ) {
+      let period = 'month';
+      if (lowerMessage.includes('today')) period = 'today';
+      else if (lowerMessage.includes('week')) period = 'week';
+      return { action: 'get_platform_analytics', data: { period } };
+    }
+
+    // Revenue report
+    if (
+      lowerMessage.match(
+        /revenue.*report|sales.*report|show.*revenue|total.*revenue|earnings/i,
+      )
+    ) {
+      const daysMatch = message.match(/(\d+)\s*days?/i);
+      const days = daysMatch ? parseInt(daysMatch[1]) : 30;
+      return { action: 'get_revenue_report', data: { days } };
+    }
+
+    // System health
+    if (
+      lowerMessage.match(
+        /system.*health|system.*status|health.*check|database.*status/i,
+      )
+    ) {
+      return { action: 'get_system_health', data: {} };
+    }
+
+    // ============================================
+    // SUPER ADMIN - ORDER MANAGEMENT
+    // ============================================
+
+    // Get all orders
+    if (
+      lowerMessage.match(
+        /show.*all.*orders?|list.*all.*orders?|get.*all.*orders?|view.*all.*orders?|all orders/i,
+      )
+    ) {
+      return { action: 'get_all_orders', data: {} };
+    }
+
+    // Pending orders
+    if (
+      lowerMessage.match(/pending.*orders?|orders?.*pending|show.*pending/i)
+    ) {
+      return { action: 'get_pending_orders', data: {} };
+    }
+
+    // ============================================
+    // SUPER ADMIN - COURSE MANAGEMENT
+    // ============================================
+
+    // Get all courses (admin)
+    if (
+      lowerMessage.match(
+        /show.*all.*courses?|list.*all.*courses?|get.*all.*courses?|view.*all.*courses?|all courses/i,
+      )
+    ) {
+      return { action: 'get_all_courses', data: {} };
+    }
+
     // Course creation patterns
     if (
       lowerMessage.match(/create.*course|make.*course|new course|add course/i)
@@ -916,27 +1265,6 @@ export class AiBotService {
       };
     }
 
-    // Blog creation patterns
-    if (
-      lowerMessage.match(
-        /create.*blog|write.*blog|new blog|post.*blog|publish.*blog/i,
-      )
-    ) {
-      const titleMatch =
-        message.match(/(?:title|about)[: ]*([^,\.\n]+)/i) ||
-        message.match(/blog (?:about|on) ([^,\.\n]+)/i);
-      const contentMatch = message.match(/(?:content|write)[: ]*([^,\.\n]+)/i);
-
-      return {
-        action: 'create_blog',
-        data: {
-          title: titleMatch ? titleMatch[1].trim() : 'New Blog Post',
-          content: contentMatch ? contentMatch[1].trim() : message,
-          excerpt: message.substring(0, 150),
-        },
-      };
-    }
-
     // Update course patterns
     if (
       lowerMessage.match(
@@ -959,6 +1287,40 @@ export class AiBotService {
         action: 'delete_course',
         data: {
           courseId: courseIdMatch ? courseIdMatch[1] : null,
+        },
+      };
+    }
+
+    // ============================================
+    // SUPER ADMIN - BLOG MANAGEMENT
+    // ============================================
+
+    // Get all blog posts
+    if (
+      lowerMessage.match(
+        /show.*all.*blogs?|list.*all.*blogs?|get.*all.*blogs?|view.*all.*blogs?|all blogs/i,
+      )
+    ) {
+      return { action: 'get_all_blogs', data: {} };
+    }
+
+    // Blog creation patterns
+    if (
+      lowerMessage.match(
+        /create.*blog|write.*blog|new blog|post.*blog|publish.*blog/i,
+      )
+    ) {
+      const titleMatch =
+        message.match(/(?:title|about)[: ]*([^,\.\n]+)/i) ||
+        message.match(/blog (?:about|on) ([^,\.\n]+)/i);
+      const contentMatch = message.match(/(?:content|write)[: ]*([^,\.\n]+)/i);
+
+      return {
+        action: 'create_blog',
+        data: {
+          title: titleMatch ? titleMatch[1].trim() : 'New Blog Post',
+          content: contentMatch ? contentMatch[1].trim() : message,
+          excerpt: message.substring(0, 150),
         },
       };
     }
@@ -1143,6 +1505,10 @@ export class AiBotService {
     actionData?: any,
   ): Promise<any> {
     try {
+      // Check if user is super admin for admin actions
+      const user = await this.userModel.findById(userId).select('role').exec();
+      const isSuperAdmin = user?.role === 'super_admin';
+
       switch (action) {
         case 'search_courses':
           return await this.botActionsService.searchCourses(query);
@@ -1185,13 +1551,122 @@ export class AiBotService {
         case 'search_everything':
           return await this.botActionsService.searchEverything(query, userId);
 
-        // ADMIN ACTIONS - Course Management
+        // ============================================
+        // SUPER ADMIN ACTIONS - USER MANAGEMENT
+        // ============================================
+
+        case 'get_all_users':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getAllUsers(actionData);
+
+        case 'get_users_registered_today':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getUsersRegisteredToday();
+
+        case 'get_users_registered_week':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getUsersRegisteredThisWeek();
+
+        case 'get_users_registered_month':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getUsersRegisteredThisMonth();
+
+        // ============================================
+        // SUPER ADMIN ACTIONS - ANALYTICS
+        // ============================================
+
+        case 'get_platform_analytics':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getPlatformAnalytics(
+            actionData?.period,
+          );
+
+        case 'get_revenue_report':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getRevenueReport(
+            actionData?.days,
+          );
+
+        case 'get_system_health':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getSystemHealth();
+
+        // ============================================
+        // SUPER ADMIN ACTIONS - ORDER MANAGEMENT
+        // ============================================
+
+        case 'get_all_orders':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getAllOrders(actionData);
+
+        case 'get_pending_orders':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getPendingOrdersAdmin();
+
+        // ============================================
+        // SUPER ADMIN ACTIONS - COURSE MANAGEMENT
+        // ============================================
+
+        case 'get_all_courses':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getAllCourses(actionData);
+
         case 'create_course':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
           const courseData =
             actionData || conversation.context?.courseData || {};
           return await this.botActionsService.createCourse(courseData, userId);
 
         case 'update_course':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
           const updateCourseData =
             actionData || conversation.context?.updateCourseData || {};
           const updateCourseId = updateCourseData.courseId || query;
@@ -1202,28 +1677,44 @@ export class AiBotService {
           );
 
         case 'delete_course':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
           const deleteCourseId = actionData?.courseId || query;
           return await this.botActionsService.deleteCourse(
             deleteCourseId,
             userId,
           );
 
-        case 'get_all_courses_admin':
-          return await this.botActionsService.getAllCoursesAdmin(
-            actionData || {},
-          );
+        // ============================================
+        // SUPER ADMIN ACTIONS - BLOG MANAGEMENT
+        // ============================================
 
-        // ADMIN ACTIONS - Blog Management
+        case 'get_all_blogs':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
+          return await this.botActionsService.getAllBlogPosts(actionData);
+
         case 'create_blog':
+          if (!isSuperAdmin)
+            return {
+              success: false,
+              message: 'Access denied. Super admin privileges required.',
+            };
           const blogData = actionData || conversation.context?.blogData || {};
-          return await this.botActionsService.createBlog(blogData);
+          return await this.botActionsService.createBlogPost(blogData);
 
         default:
           return null;
       }
     } catch (error) {
       console.error(`Action execution error (${action}):`, error);
-      return null;
+      return { success: false, error: error.message };
     }
   }
 

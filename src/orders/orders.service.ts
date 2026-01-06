@@ -22,7 +22,7 @@ export class OrdersService {
     private usersService: UsersService,
     private notificationsService: NotificationsService,
     private couponsService: CouponsService,
-  ) { }
+  ) {}
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
     // Generate order number explicitly to ensure it's always set

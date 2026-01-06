@@ -220,4 +220,4 @@ import { AiBotGateway } from './ai-bot/ai-bot.gateway';
     // ChatGateway is provided in ChatModule, not here
   ],
 })
-export class AppModule { }
+export class AppModule {}

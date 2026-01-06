@@ -27,7 +27,7 @@ export class AnalyticsService {
     private usersService: UsersService,
     private ordersService: OrdersService,
     private chatService: ChatService,
-  ) { }
+  ) {}
 
   async trackEvent(
     eventData: Partial<AnalyticsEvent>,
@@ -525,9 +525,9 @@ export class AnalyticsService {
     const averageCompletion =
       lessonsCount > 0
         ? Math.round(
-          lessons.reduce((sum, l) => sum + (l?.averageScore || 0), 0) /
-          lessonsCount,
-        )
+            lessons.reduce((sum, l) => sum + (l?.averageScore || 0), 0) /
+              lessonsCount,
+          )
         : 0;
     return { totalViews, totalCompletions, averageCompletion, lessonsCount };
   }
@@ -857,14 +857,14 @@ export class AnalyticsService {
       activeUsers,
       fileUploads,
       responseTimes,
-      chatSessions
+      chatSessions,
     ] = await Promise.all([
       this.getTotalMessages(period),
       this.getTotalConversations(period),
       this.getActiveChatUsers(period),
       this.getFileUploadStats(period),
       this.getAverageResponseTime(period),
-      this.getChatSessionMetrics(period)
+      this.getChatSessionMetrics(period),
     ]);
 
     return {
@@ -874,40 +874,40 @@ export class AnalyticsService {
         activeUsers,
         fileUploads: fileUploads.total,
         avgResponseTime: responseTimes.avgResponseTime,
-        avgSessionDuration: chatSessions.avgSessionDuration
+        avgSessionDuration: chatSessions.avgSessionDuration,
       },
       charts: {
         messageVolume: await this.getMessageVolumeChart(period),
         userActivity: await this.getUserActivityChart(period),
         fileTypes: fileUploads.byType,
-        responseTimes: responseTimes.hourlyBreakdown
+        responseTimes: responseTimes.hourlyBreakdown,
       },
       metrics: {
         engagementRate: await this.getChatEngagementRate(period),
         satisfactionScore: await this.getSatisfactionScore(period),
-        resolutionRate: await this.getResolutionRate(period)
-      }
+        resolutionRate: await this.getResolutionRate(period),
+      },
     };
   }
 
   async getTotalMessages(period: AnalyticsPeriod): Promise<number> {
     const dateRange = this.getDateRange(period);
     return this.chatService.countMessages({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
   }
 
   async getTotalConversations(period: AnalyticsPeriod): Promise<number> {
     const dateRange = this.getDateRange(period);
     return this.chatService.countConversations({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
   }
 
   async getActiveChatUsers(period: AnalyticsPeriod): Promise<number> {
     const dateRange = this.getDateRange(period);
     const activeUsers = await this.chatService.getActiveUsers({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
     return activeUsers.length;
   }
@@ -915,7 +915,7 @@ export class AnalyticsService {
   async getFileUploadStats(period: AnalyticsPeriod) {
     const dateRange = this.getDateRange(period);
     const uploads = await this.chatService.getFileUploads({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
 
     const byType = uploads.reduce((acc, upload) => {
@@ -927,46 +927,56 @@ export class AnalyticsService {
     return {
       total: uploads.length,
       byType,
-      totalSize: uploads.reduce((sum, upload) => sum + (upload.fileSize || 0), 0)
+      totalSize: uploads.reduce(
+        (sum, upload) => sum + (upload.fileSize || 0),
+        0,
+      ),
     };
   }
 
   async getAverageResponseTime(period: AnalyticsPeriod) {
     const dateRange = this.getDateRange(period);
     const responseData = await this.chatService.getResponseTimes({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
 
     const hourlyBreakdown = Array.from({ length: 24 }, (_, hour) => ({
       hour,
-      avgResponseTime: responseData
-        .filter(data => new Date(data.createdAt).getHours() === hour)
-        .reduce((sum, data) => sum + data.responseTime, 0) / 24 || 0
+      avgResponseTime:
+        responseData
+          .filter((data) => new Date(data.createdAt).getHours() === hour)
+          .reduce((sum, data) => sum + data.responseTime, 0) / 24 || 0,
     }));
 
     return {
-      avgResponseTime: responseData.reduce((sum, data) => sum + data.responseTime, 0) / responseData.length || 0,
-      hourlyBreakdown
+      avgResponseTime:
+        responseData.reduce((sum, data) => sum + data.responseTime, 0) /
+          responseData.length || 0,
+      hourlyBreakdown,
     };
   }
 
   async getChatSessionMetrics(period: AnalyticsPeriod) {
     const dateRange = this.getDateRange(period);
     const sessions = await this.chatService.getChatSessions({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
 
     return {
       totalSessions: sessions.length,
-      avgSessionDuration: sessions.reduce((sum, session) => sum + session.duration, 0) / sessions.length || 0,
-      avgMessagesPerSession: sessions.reduce((sum, session) => sum + session.messageCount, 0) / sessions.length || 0
+      avgSessionDuration:
+        sessions.reduce((sum, session) => sum + session.duration, 0) /
+          sessions.length || 0,
+      avgMessagesPerSession:
+        sessions.reduce((sum, session) => sum + session.messageCount, 0) /
+          sessions.length || 0,
     };
   }
 
   async getMessageVolumeChart(period: AnalyticsPeriod) {
     const dateRange = this.getDateRange(period);
     const messages = await this.chatService.getMessageVolume({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
 
     return this.formatChartData(messages, period);
@@ -975,7 +985,7 @@ export class AnalyticsService {
   async getUserActivityChart(period: AnalyticsPeriod) {
     const dateRange = this.getDateRange(period);
     const activity = await this.chatService.getUserActivity({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
 
     return this.formatChartData(activity, period);
@@ -985,7 +995,7 @@ export class AnalyticsService {
     const dateRange = this.getDateRange(period);
     const [activeUsers, totalUsers] = await Promise.all([
       this.getActiveChatUsers(period),
-      this.usersService.count({})
+      this.usersService.count({}),
     ]);
 
     return totalUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
@@ -994,7 +1004,7 @@ export class AnalyticsService {
   async getSatisfactionScore(period: AnalyticsPeriod): Promise<number> {
     const dateRange = this.getDateRange(period);
     const feedback = await this.chatService.getFeedbackRatings({
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
 
     return feedback.length > 0
@@ -1006,12 +1016,14 @@ export class AnalyticsService {
     const dateRange = this.getDateRange(period);
     const resolvedConversations = await this.chatService.countConversations({
       status: 'resolved',
-      createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      createdAt: { $gte: dateRange.start, $lte: dateRange.end },
     });
 
     const totalConversations = await this.getTotalConversations(period);
 
-    return totalConversations > 0 ? (resolvedConversations / totalConversations) * 100 : 0;
+    return totalConversations > 0
+      ? (resolvedConversations / totalConversations) * 100
+      : 0;
   }
 
   async trackChatEvent(eventData: {
@@ -1028,8 +1040,8 @@ export class AnalyticsService {
       metadata: {
         ...eventData.metadata,
         conversationId: eventData.conversationId,
-        messageId: eventData.messageId
-      }
+        messageId: eventData.messageId,
+      },
     });
   }
 }

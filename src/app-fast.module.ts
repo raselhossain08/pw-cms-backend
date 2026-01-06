@@ -40,8 +40,14 @@ import { SystemConfigModule } from './system-config/system-config.module';
         // Performance optimizations
         maxPoolSize: configService.get<number>('MONGODB_MAX_POOL_SIZE', 20),
         minPoolSize: configService.get<number>('MONGODB_MIN_POOL_SIZE', 2),
-        socketTimeoutMS: configService.get<number>('MONGODB_SOCKET_TIMEOUT', 45000),
-        connectTimeoutMS: configService.get<number>('MONGODB_CONNECT_TIMEOUT', 10000),
+        socketTimeoutMS: configService.get<number>(
+          'MONGODB_SOCKET_TIMEOUT',
+          45000,
+        ),
+        connectTimeoutMS: configService.get<number>(
+          'MONGODB_CONNECT_TIMEOUT',
+          10000,
+        ),
         serverSelectionTimeoutMS: 5000,
         heartbeatFrequencyMS: 10000,
         retryWrites: true,
@@ -84,4 +90,3 @@ import { SystemConfigModule } from './system-config/system-config.module';
   providers: [],
 })
 export class AppFastModule {}
-

@@ -100,6 +100,29 @@ export class Conversation extends Document {
   })
   @Prop()
   supportCategory: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'Assigned agent ID for support conversations',
+    required: false,
+  })
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  assignedAgent: Types.ObjectId;
+
+  @ApiProperty({
+    example: 'pending',
+    description: 'Support conversation status',
+    required: false,
+  })
+  @Prop({ default: 'pending' })
+  supportStatus: string; // pending, active, resolved, closed
+
+  @ApiProperty({
+    description: 'When the conversation was resolved',
+    required: false,
+  })
+  @Prop()
+  resolvedAt: Date;
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

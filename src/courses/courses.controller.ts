@@ -35,7 +35,7 @@ import { CourseAccessGuard } from './guards/course-access.guard';
 @ApiTags('Courses')
 @Controller('courses')
 export class CoursesController {
-  constructor(private readonly coursesService: CoursesService) { }
+  constructor(private readonly coursesService: CoursesService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -63,7 +63,13 @@ export class CoursesController {
     @Query('level') level?: string,
     @Query('status') status?: CourseStatus,
   ) {
-    const result = await this.coursesService.findAll(page, limit, search, level, status);
+    const result = await this.coursesService.findAll(
+      page,
+      limit,
+      search,
+      level,
+      status,
+    );
     return {
       success: true,
       data: {
@@ -95,11 +101,11 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get personalized course recommendations' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({ status: 200, description: 'List of recommended courses' })
-  async getRecommendations(
-    @Req() req,
-    @Query('limit') limit: number = 10,
-  ) {
-    const recommendations = await this.coursesService.getRecommendations(req.user.id, limit);
+  async getRecommendations(@Req() req, @Query('limit') limit: number = 10) {
+    const recommendations = await this.coursesService.getRecommendations(
+      req.user.id,
+      limit,
+    );
     return {
       success: true,
       data: recommendations,
@@ -109,15 +115,27 @@ export class CoursesController {
   @Get('compare')
   @Public()
   @ApiOperation({ summary: 'Compare multiple courses side-by-side' })
-  @ApiQuery({ name: 'ids', required: true, type: String, description: 'Comma-separated course IDs' })
+  @ApiQuery({
+    name: 'ids',
+    required: true,
+    type: String,
+    description: 'Comma-separated course IDs',
+  })
   @ApiResponse({ status: 200, description: 'Comparison data for courses' })
   async compareCourses(@Query('ids') ids: string) {
-    const courseIds = ids.split(',').map(id => id.trim()).filter(Boolean);
+    const courseIds = ids
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
     if (courseIds.length < 2) {
-      throw new BadRequestException('At least 2 course IDs are required for comparison');
+      throw new BadRequestException(
+        'At least 2 course IDs are required for comparison',
+      );
     }
     if (courseIds.length > 5) {
-      throw new BadRequestException('Maximum 5 courses can be compared at once');
+      throw new BadRequestException(
+        'Maximum 5 courses can be compared at once',
+      );
     }
     return this.coursesService.compareCourses(courseIds);
   }
@@ -341,7 +359,12 @@ export class CoursesController {
     @Body() createLessonDto: CreateLessonDto,
     @Req() req,
   ) {
-    return this.coursesService.createLesson(id, createLessonDto, req.user.id, req.user.role);
+    return this.coursesService.createLesson(
+      id,
+      createLessonDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get(':id/lessons')
@@ -350,7 +373,11 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get course lessons (requires enrollment)' })
   @ApiResponse({ status: 200, description: 'List of course lessons' })
   async getCourseLessons(@Param('id') id: string, @Req() req) {
-    const lessons = await this.coursesService.getCourseLessons(id, req.user.id, req.user.role);
+    const lessons = await this.coursesService.getCourseLessons(
+      id,
+      req.user.id,
+      req.user.role,
+    );
     return {
       success: true,
       data: {

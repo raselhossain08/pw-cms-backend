@@ -221,6 +221,322 @@ export class BotActionsService {
     };
   }
 
+  // ============================================
+  // SUPER ADMIN ACTIONS
+  // ============================================
+
+  // Admin - User Management
+  async getAllUsers(filters?: {
+    role?: string;
+    limit?: number;
+    skip?: number;
+    search?: string;
+    registeredAfter?: Date;
+    registeredBefore?: Date;
+  }): Promise<any> {
+    const query: any = {};
+
+    if (filters?.role) {
+      query.role = filters.role;
+    }
+
+    if (filters?.search) {
+      const searchRegex = new RegExp(filters.search, 'i');
+      query.$or = [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { email: searchRegex },
+      ];
+    }
+
+    if (filters?.registeredAfter || filters?.registeredBefore) {
+      query.createdAt = {};
+      if (filters.registeredAfter)
+        query.createdAt.$gte = filters.registeredAfter;
+      if (filters.registeredBefore)
+        query.createdAt.$lte = filters.registeredBefore;
+    }
+
+    const users = await this.userModel
+      .find(query)
+      .select('firstName lastName email role avatar createdAt lastLogin')
+      .limit(filters?.limit || 50)
+      .skip(filters?.skip || 0)
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const total = await this.userModel.countDocuments(query);
+
+    return {
+      users,
+      total,
+      showing: users.length,
+    };
+  }
+
+  async getUsersRegisteredToday(): Promise<any> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const users = await this.userModel
+      .find({ createdAt: { $gte: today } })
+      .select('firstName lastName email role createdAt')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return {
+      count: users.length,
+      users,
+      date: today.toISOString(),
+    };
+  }
+
+  async getUsersRegisteredThisWeek(): Promise<any> {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const users = await this.userModel
+      .find({ createdAt: { $gte: weekAgo } })
+      .select('firstName lastName email role createdAt')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return {
+      count: users.length,
+      users,
+      period: '7 days',
+    };
+  }
+
+  async getUsersRegisteredThisMonth(): Promise<any> {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const users = await this.userModel
+      .find({ createdAt: { $gte: monthStart } })
+      .select('firstName lastName email role createdAt')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return {
+      count: users.length,
+      users,
+      period: 'this month',
+    };
+  }
+
+  // Admin - Course Management
+  async getAllCourses(filters?: {
+    status?: string;
+    category?: string;
+    limit?: number;
+  }): Promise<any> {
+    const query: any = {};
+    if (filters?.status) query.status = filters.status;
+    if (filters?.category) query.category = filters.category;
+
+    const courses = await this.courseModel
+      .find(query)
+      .populate('instructor', 'firstName lastName')
+      .limit(filters?.limit || 50)
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return {
+      courses,
+      count: courses.length,
+    };
+  }
+
+  // Note: Use the existing createCourse, updateCourse, deleteCourse methods below
+  // They include all required fields, slug generation, and proper permission checks
+
+  // Admin - Order Management
+  async getAllOrders(filters?: {
+    status?: string;
+    limit?: number;
+    dateFrom?: Date;
+    dateTo?: Date;
+  }): Promise<any> {
+    const query: any = {};
+
+    if (filters?.status) {
+      query.status = filters.status;
+    }
+
+    if (filters?.dateFrom || filters?.dateTo) {
+      query.createdAt = {};
+      if (filters.dateFrom) query.createdAt.$gte = filters.dateFrom;
+      if (filters.dateTo) query.createdAt.$lte = filters.dateTo;
+    }
+
+    const orders = await this.orderModel
+      .find(query)
+      .populate('user', 'firstName lastName email')
+      .populate('courses', 'title price')
+      .limit(filters?.limit || 50)
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const totalRevenue = orders.reduce(
+      (sum, order) => sum + (order.total || 0),
+      0,
+    );
+
+    return {
+      orders,
+      count: orders.length,
+      totalRevenue,
+    };
+  }
+
+  async getPendingOrdersAdmin(): Promise<any> {
+    const orders = await this.orderModel
+      .find({ status: { $in: ['pending', 'processing'] } })
+      .populate('user', 'firstName lastName email')
+      .populate('courses', 'title')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return {
+      orders,
+      count: orders.length,
+    };
+  }
+
+  // Admin - Analytics
+  async getPlatformAnalytics(period?: string): Promise<any> {
+    let dateFilter: Date;
+    const now = new Date();
+
+    switch (period) {
+      case 'today':
+        dateFilter = new Date(now.setHours(0, 0, 0, 0));
+        break;
+      case 'week':
+        dateFilter = new Date(now.setDate(now.getDate() - 7));
+        break;
+      case 'month':
+        dateFilter = new Date(now.setDate(now.getDate() - 30));
+        break;
+      default:
+        dateFilter = new Date(now.setDate(now.getDate() - 30));
+    }
+
+    const [totalUsers, newUsers, totalCourses, totalOrders, totalRevenue] =
+      await Promise.all([
+        this.userModel.countDocuments(),
+        this.userModel.countDocuments({ createdAt: { $gte: dateFilter } }),
+        this.courseModel.countDocuments(),
+        this.orderModel.countDocuments({ createdAt: { $gte: dateFilter } }),
+        this.orderModel.aggregate([
+          { $match: { createdAt: { $gte: dateFilter }, status: 'completed' } },
+          { $group: { _id: null, total: { $sum: '$total' } } },
+        ]),
+      ]);
+
+    const revenue = totalRevenue[0]?.total || 0;
+
+    return {
+      period: period || 'last 30 days',
+      totalUsers,
+      newUsers,
+      totalCourses,
+      totalOrders,
+      revenue,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  async getRevenueReport(days: number = 30): Promise<any> {
+    const dateFrom = new Date();
+    dateFrom.setDate(dateFrom.getDate() - days);
+
+    const orders = await this.orderModel
+      .find({
+        createdAt: { $gte: dateFrom },
+        status: 'completed',
+      })
+      .select('total createdAt')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const totalRevenue = orders.reduce(
+      (sum, order) => sum + (order.total || 0),
+      0,
+    );
+    const averageOrderValue =
+      orders.length > 0 ? totalRevenue / orders.length : 0;
+
+    return {
+      period: `Last ${days} days`,
+      totalOrders: orders.length,
+      totalRevenue,
+      averageOrderValue: Math.round(averageOrderValue * 100) / 100,
+      orders: orders.slice(0, 10), // Return only top 10
+    };
+  }
+
+  // Admin - Blog Management
+  async createBlogPost(blogData: any): Promise<any> {
+    try {
+      const blog = new this.blogModel({
+        ...blogData,
+        createdAt: new Date(),
+      });
+
+      await blog.save();
+
+      return {
+        success: true,
+        blog,
+        message: `Blog post "${blogData.title}" created successfully!`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  async getAllBlogPosts(filters?: { limit?: number }): Promise<any> {
+    const blogs = await this.blogModel
+      .find()
+      .limit(filters?.limit || 50)
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return {
+      blogs,
+      count: blogs.length,
+    };
+  }
+
+  // Admin - System Health
+  async getSystemHealth(): Promise<any> {
+    const [userCount, courseCount, orderCount, enrollmentCount] =
+      await Promise.all([
+        this.userModel.countDocuments(),
+        this.courseModel.countDocuments(),
+        this.orderModel.countDocuments(),
+        this.enrollmentModel.countDocuments(),
+      ]);
+
+    return {
+      status: 'healthy',
+      database: 'connected',
+      collections: {
+        users: userCount,
+        courses: courseCount,
+        orders: orderCount,
+        enrollments: enrollmentCount,
+      },
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   // Helper Actions
   async canEnrollInCourse(userId: string, courseId: string): Promise<any> {
     const enrollment = await this.enrollmentModel

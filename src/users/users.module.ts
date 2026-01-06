@@ -5,8 +5,14 @@ import { UsersController } from './users.controller';
 import { UserDashboardController } from './user-dashboard.controller';
 import { User, UserSchema } from './entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
-import { Enrollment, EnrollmentSchema } from '../enrollments/entities/enrollment.entity';
-import { Certificate, CertificateSchema } from '../certificates/entities/additional.entity';
+import {
+  Enrollment,
+  EnrollmentSchema,
+} from '../enrollments/entities/enrollment.entity';
+import {
+  Certificate,
+  CertificateSchema,
+} from '../certificates/entities/additional.entity';
 
 @Module({
   imports: [
@@ -21,4 +27,4 @@ import { Certificate, CertificateSchema } from '../certificates/entities/additio
   providers: [UsersService],
   exports: [UsersService],
 })
-export class UsersModule { }
+export class UsersModule {}

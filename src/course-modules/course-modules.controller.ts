@@ -72,7 +72,13 @@ export class CourseModulesController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
   ) {
-    return this.modulesService.searchModules({ query, status, courseId, page, limit });
+    return this.modulesService.searchModules({
+      query,
+      status,
+      courseId,
+      page,
+      limit,
+    });
   }
 
   @Get('export/:format')
@@ -87,7 +93,12 @@ export class CourseModulesController {
     @Query('courseId') courseId?: string,
     @Req() req?: any,
   ) {
-    return this.modulesService.exportModules(format, courseId, req.user.id, req.user.role);
+    return this.modulesService.exportModules(
+      format,
+      courseId,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get('course/:courseId')

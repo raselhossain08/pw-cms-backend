@@ -73,6 +73,9 @@ export class Quiz extends Document {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ type: [{ type: Object }], default: [] })
+  submissions: any[];
 }
 
 export const QuizSchema = SchemaFactory.createForClass(Quiz);

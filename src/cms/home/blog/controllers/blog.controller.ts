@@ -29,12 +29,44 @@ export class BlogController {
   constructor(
     private readonly blogService: BlogService,
     @InjectModel(User.name) private userModel: Model<User>,
-  ) { }
+  ) {}
 
   @Get()
   async getBlog() {
     const blog = await this.blogService.findOne();
-    return blog;
+    return { data: blog };
+  }
+
+  @Get('export')
+  async export(
+    @Query('format') format: 'json' | 'pdf' = 'json',
+    @Res() res: Response,
+  ) {
+    try {
+      const result = await this.blogService.export(format);
+
+      if (format === 'pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="blog_${new Date().toISOString().split('T')[0]}.pdf"`,
+        );
+        return res.send(result);
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="blog_${new Date().toISOString().split('T')[0]}.json"`,
+      );
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to export blog',
+        data: null,
+      });
+    }
   }
 
   @Get(':slug')
@@ -49,7 +81,7 @@ export class BlogController {
       throw new NotFoundException('Blog post not found');
     }
 
-    return blogPost;
+    return { data: blogPost };
   }
 
   @Patch()
@@ -91,27 +123,32 @@ export class BlogController {
     }
 
     const blog = await this.blogService.update(updateBlogDto, files);
-    return blog;
+    return { data: blog, message: 'Blog updated successfully' };
   }
 
   @Patch('toggle-active')
   async toggleActive() {
     const blog = await this.blogService.toggleActive();
-    return blog;
+    return {
+      data: blog,
+      message: `Blog is now ${blog.isActive ? 'active' : 'inactive'}`,
+    };
   }
 
   @Post(':slug/view')
   async trackView(@Param('slug') slug: string) {
     const result = await this.blogService.incrementView(slug);
-    return { views: result.views };
+    return { data: { views: result.views } };
   }
 
   @Post(':slug/like')
   async toggleLike(@Param('slug') slug: string, @Req() req: any) {
     const result = await this.blogService.toggleLike(slug, req.user?.userId);
     return {
-      likes: result.likes,
-      isLiked: result.isLiked,
+      data: {
+        likes: result.likes,
+        isLiked: result.isLiked,
+      },
     };
   }
 
@@ -119,15 +156,17 @@ export class BlogController {
   async getLikeStatus(@Param('slug') slug: string, @Req() req: any) {
     const result = await this.blogService.getLikeStatus(slug, req.user?.userId);
     return {
-      likes: result.likes,
-      isLiked: result.isLiked,
+      data: {
+        likes: result.likes,
+        isLiked: result.isLiked,
+      },
     };
   }
 
   @Get(':slug/comments')
   async getComments(@Param('slug') slug: string) {
     const comments = await this.blogService.getComments(slug);
-    return comments;
+    return { data: comments };
   }
 
   @Post(':slug/comments')
@@ -144,7 +183,10 @@ export class BlogController {
     }
 
     // Fetch user data from database
-    const user = await this.userModel.findById(userId).select('firstName lastName email').exec();
+    const user = await this.userModel
+      .findById(userId)
+      .select('firstName lastName email')
+      .exec();
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -157,7 +199,7 @@ export class BlogController {
       userEmail: user.email,
     });
 
-    return comment;
+    return { data: comment, message: 'Comment added successfully' };
   }
 
   @Delete(':slug/comments/:commentId')
@@ -168,44 +210,12 @@ export class BlogController {
     @Req() req: any,
   ) {
     await this.blogService.deleteComment(slug, commentId, req.user?.userId);
-    return { deleted: true };
+    return { data: { deleted: true }, message: 'Comment deleted successfully' };
   }
 
   @Post(':slug/duplicate')
   async duplicateBlogPost(@Param('slug') slug: string) {
     const duplicated = await this.blogService.duplicateBlogPost(slug);
-    return duplicated;
-  }
-
-  @Get('export')
-  async export(
-    @Query('format') format: 'json' | 'pdf' = 'json',
-    @Res() res: Response,
-  ) {
-    try {
-      const result = await this.blogService.export(format);
-
-      if (format === 'pdf') {
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="blog_${new Date().toISOString().split('T')[0]}.pdf"`,
-        );
-        return res.send(result);
-      }
-
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="blog_${new Date().toISOString().split('T')[0]}.json"`,
-      );
-      return res.json(result);
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to export blog',
-        data: null,
-      });
-    }
+    return { data: duplicated, message: 'Blog post duplicated successfully' };
   }
 }

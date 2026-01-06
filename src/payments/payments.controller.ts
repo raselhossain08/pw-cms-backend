@@ -24,7 +24,7 @@ import { ProcessPaymentDto } from './dto/process-payment.dto';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) { }
+  constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('create-intent')
   @ApiOperation({ summary: 'Create payment intent' })
@@ -189,7 +189,7 @@ import { GuestCheckoutDto } from './dto/guest-checkout.dto';
 @ApiTags('Guest Payments')
 @Controller('payments/guest')
 export class GuestPaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) { }
+  constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('checkout')
   @ApiOperation({ summary: 'Guest checkout - creates user if not exists' })

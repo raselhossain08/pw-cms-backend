@@ -84,6 +84,9 @@ export class UploadsService {
         uploadedBy: new Types.ObjectId(userId),
         description: uploadFileDto.description,
         tags: uploadFileDto.tags || [],
+        altText: uploadFileDto.altText,
+        caption: uploadFileDto.caption,
+        folder: uploadFileDto.folder,
         metadata: this.extractMetadata(uploadResult, file.mimetype),
         visibility: uploadFileDto.visibility || 'public',
         processedAt: new Date(),
@@ -653,6 +656,154 @@ export class UploadsService {
         createdAt: (file as any).createdAt?.toISOString(),
         updatedAt: (file as any).updatedAt?.toISOString(),
       })),
+    };
+  }
+
+  // Folder Management Methods
+  async getFolders(userId: string) {
+    const folders = await this.fileModel.aggregate([
+      {
+        $match: {
+          uploadedBy: new Types.ObjectId(userId),
+          folder: { $exists: true, $nin: [null, ''] },
+        },
+      },
+      {
+        $group: {
+          _id: '$folder',
+          fileCount: { $sum: 1 },
+          totalSize: { $sum: '$size' },
+          lastUpdated: { $max: '$updatedAt' },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    // Add "Uncategorized" folder for files without a folder
+    const uncategorizedCount = await this.fileModel.countDocuments({
+      uploadedBy: new Types.ObjectId(userId),
+      $or: [{ folder: { $exists: false } }, { folder: null }, { folder: '' }],
+    });
+
+    if (uncategorizedCount > 0) {
+      const uncategorizedStats = await this.fileModel.aggregate([
+        {
+          $match: {
+            uploadedBy: new Types.ObjectId(userId),
+            $or: [
+              { folder: { $exists: false } },
+              { folder: null },
+              { folder: '' },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalSize: { $sum: '$size' },
+            lastUpdated: { $max: '$updatedAt' },
+          },
+        },
+      ]);
+
+      folders.unshift({
+        _id: 'Uncategorized',
+        fileCount: uncategorizedCount,
+        totalSize: uncategorizedStats[0]?.totalSize || 0,
+        lastUpdated: uncategorizedStats[0]?.lastUpdated || new Date(),
+      });
+    }
+
+    return folders.map((folder) => ({
+      name: folder._id,
+      fileCount: folder.fileCount,
+      totalSize: folder.totalSize,
+      lastUpdated: folder.lastUpdated,
+    }));
+  }
+
+  async getFilesByFolder(
+    userId: string,
+    folderName: string,
+    page: number = 1,
+    limit: number = 20,
+  ) {
+    const skip = (page - 1) * limit;
+
+    const query: any = { uploadedBy: new Types.ObjectId(userId) };
+
+    if (folderName === 'Uncategorized') {
+      query.$or = [
+        { folder: { $exists: false } },
+        { folder: null },
+        { folder: '' },
+      ];
+    } else {
+      query.folder = folderName;
+    }
+
+    const [files, total] = await Promise.all([
+      this.fileModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.fileModel.countDocuments(query),
+    ]);
+
+    return {
+      files,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      folder: folderName,
+    };
+  }
+
+  async bulkMoveToFolder(
+    fileIds: string[],
+    folder: string,
+    userId: string,
+    userRole: string,
+  ) {
+    const filter =
+      userRole === 'super-admin' || userRole === 'admin'
+        ? { _id: { $in: fileIds.map((id) => new Types.ObjectId(id)) } }
+        : {
+            _id: { $in: fileIds.map((id) => new Types.ObjectId(id)) },
+            uploadedBy: new Types.ObjectId(userId),
+          };
+
+    const result = await this.fileModel.updateMany(filter, {
+      $set: { folder },
+    });
+
+    return {
+      success: true,
+      updated: result.modifiedCount,
+      message: `Moved ${result.modifiedCount} file(s) to ${folder}`,
+    };
+  }
+
+  async deleteFolder(folderName: string, userId: string) {
+    // Check if folder is empty
+    const filesInFolder = await this.fileModel.countDocuments({
+      uploadedBy: new Types.ObjectId(userId),
+      folder: folderName,
+    });
+
+    if (filesInFolder > 0) {
+      throw new BadRequestException(
+        'Cannot delete folder with files. Move or delete files first.',
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Folder deleted successfully',
     };
   }
 }

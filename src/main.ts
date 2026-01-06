@@ -107,12 +107,12 @@ async function bootstrap() {
       'Last-Event-ID',
     ],
     exposedHeaders: [
-      'X-Total-Count', 
-      'X-Page', 
+      'X-Total-Count',
+      'X-Page',
       'X-Limit',
       'Content-Type',
       'Cache-Control',
-      'Connection'
+      'Connection',
     ],
     maxAge: 86400, // 24 hours
   });

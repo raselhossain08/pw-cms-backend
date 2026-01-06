@@ -219,6 +219,22 @@ export class User extends Document {
   @Prop({ select: false })
   apiKey: string;
 
+  @ApiProperty({ description: 'Is user active', required: false })
+  @Prop({ default: true })
+  isActive: boolean;
+
+  @ApiProperty({ description: 'Instructor specialization', required: false })
+  @Prop()
+  specialization: string;
+
+  @ApiProperty({ description: 'Instructor experience', required: false })
+  @Prop()
+  experience: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+
+
   // Virtuals
   fullName: string;
 }

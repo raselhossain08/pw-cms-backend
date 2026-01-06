@@ -58,6 +58,16 @@ export class EventsController {
       { name: 'events[7][image]', maxCount: 1 },
       { name: 'events[8][image]', maxCount: 1 },
       { name: 'events[9][image]', maxCount: 1 },
+      { name: 'events[10][image]', maxCount: 1 },
+      { name: 'events[11][image]', maxCount: 1 },
+      { name: 'events[12][image]', maxCount: 1 },
+      { name: 'events[13][image]', maxCount: 1 },
+      { name: 'events[14][image]', maxCount: 1 },
+      { name: 'events[15][image]', maxCount: 1 },
+      { name: 'events[16][image]', maxCount: 1 },
+      { name: 'events[17][image]', maxCount: 1 },
+      { name: 'events[18][image]', maxCount: 1 },
+      { name: 'events[19][image]', maxCount: 1 },
     ]),
   )
   async uploadMedia(
@@ -65,17 +75,7 @@ export class EventsController {
     @Body() body: any,
   ) {
     // Parse events array from FormData
-    const events: Array<{
-      id: number;
-      title: string;
-      image: string;
-      date: string;
-      time: string;
-      venue: string;
-      location: string;
-      slug: string;
-      description?: string;
-    }> = [];
+    const events: Array<any> = [];
 
     let eventIndex = 0;
     while (body[`events[${eventIndex}][title]`]) {
@@ -90,16 +90,76 @@ export class EventsController {
         imageUrl = result.url;
       }
 
+      // Parse nested JSON data
+      let trainingContent = [];
+      let learningPoints = [];
+      let faqs = [];
+      let instructors = [];
+      let relatedEvents = [];
+
+      try {
+        if (body[`events[${eventIndex}][trainingContent]`]) {
+          trainingContent = JSON.parse(
+            body[`events[${eventIndex}][trainingContent]`],
+          );
+        }
+      } catch (e) {
+        console.error('Failed to parse trainingContent:', e);
+      }
+
+      try {
+        if (body[`events[${eventIndex}][learningPoints]`]) {
+          learningPoints = JSON.parse(
+            body[`events[${eventIndex}][learningPoints]`],
+          );
+        }
+      } catch (e) {
+        console.error('Failed to parse learningPoints:', e);
+      }
+
+      try {
+        if (body[`events[${eventIndex}][faqs]`]) {
+          faqs = JSON.parse(body[`events[${eventIndex}][faqs]`]);
+        }
+      } catch (e) {
+        console.error('Failed to parse faqs:', e);
+      }
+
+      try {
+        if (body[`events[${eventIndex}][instructors]`]) {
+          instructors = JSON.parse(body[`events[${eventIndex}][instructors]`]);
+        }
+      } catch (e) {
+        console.error('Failed to parse instructors:', e);
+      }
+
+      try {
+        if (body[`events[${eventIndex}][relatedEvents]`]) {
+          relatedEvents = JSON.parse(
+            body[`events[${eventIndex}][relatedEvents]`],
+          );
+        }
+      } catch (e) {
+        console.error('Failed to parse relatedEvents:', e);
+      }
+
       events.push({
         id: parseInt(body[`events[${eventIndex}][id]`]) || eventIndex + 1,
-        title: body[`events[${eventIndex}][title]`],
-        image: imageUrl,
-        date: body[`events[${eventIndex}][date]`],
-        time: body[`events[${eventIndex}][time]`],
-        venue: body[`events[${eventIndex}][venue]`],
-        location: body[`events[${eventIndex}][location]`],
-        slug: body[`events[${eventIndex}][slug]`],
+        title: body[`events[${eventIndex}][title]`] || '',
+        image: imageUrl || '',
+        date: body[`events[${eventIndex}][date]`] || '',
+        time: body[`events[${eventIndex}][time]`] || '',
+        venue: body[`events[${eventIndex}][venue]`] || '',
+        location: body[`events[${eventIndex}][location]`] || '',
+        slug: body[`events[${eventIndex}][slug]`] || '',
         description: body[`events[${eventIndex}][description]`] || '',
+        price: parseFloat(body[`events[${eventIndex}][price]`]) || 0,
+        videoUrl: body[`events[${eventIndex}][videoUrl]`] || '',
+        trainingContent,
+        learningPoints,
+        faqs,
+        instructors,
+        relatedEvents,
       });
       eventIndex++;
     }
@@ -114,9 +174,9 @@ export class EventsController {
 
     // Construct DTO
     const dto: UpdateEventsDto = {
-      title: body.title,
-      subtitle: body.subtitle,
-      events,
+      title: body.title || '',
+      subtitle: body.subtitle || '',
+      events: events as any,
       seo,
       isActive: body.isActive === 'true' || body.isActive === true,
     };

@@ -22,7 +22,7 @@ export class CourseModulesService {
     @InjectModel(CourseModule.name) private moduleModel: Model<CourseModule>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
     @InjectModel(Lesson.name) private lessonModel: Model<Lesson>,
-  ) { }
+  ) {}
 
   async create(
     dto: CreateCourseModuleDto,
@@ -42,13 +42,15 @@ export class CourseModulesService {
     // If order not provided, get the next order number
     let order = dto.order;
     if (!order) {
-      const existingModules = await this.moduleModel.find({ course: dto.courseId });
+      const existingModules = await this.moduleModel.find({
+        course: dto.courseId,
+      });
       order = existingModules.length + 1;
     }
 
     // Handle multiple courses support
-    const coursesArray = dto.courseIds 
-      ? dto.courseIds.map(id => new Types.ObjectId(id))
+    const coursesArray = dto.courseIds
+      ? dto.courseIds.map((id) => new Types.ObjectId(id))
       : [new Types.ObjectId(dto.courseId)];
 
     const module = new this.moduleModel({
@@ -66,17 +68,19 @@ export class CourseModulesService {
     await this.courseModel.findByIdAndUpdate(
       dto.courseId,
       { $addToSet: { modules: savedModule._id } },
-      { new: true }
+      { new: true },
     );
 
     // If there are additional courses, add the module to them as well
     if (dto.courseIds && dto.courseIds.length > 1) {
-      const additionalCourseIds = dto.courseIds.filter(id => id !== dto.courseId);
+      const additionalCourseIds = dto.courseIds.filter(
+        (id) => id !== dto.courseId,
+      );
       for (const courseId of additionalCourseIds) {
         await this.courseModel.findByIdAndUpdate(
           courseId,
           { $addToSet: { modules: savedModule._id } },
-          { new: true }
+          { new: true },
         );
       }
     }
@@ -153,37 +157,43 @@ export class CourseModulesService {
 
     // Transform courseId to course field for Mongoose
     const updateData: any = { ...dto };
-    
+
     if (dto.courseId) {
       const courseIdObj = new Types.ObjectId(dto.courseId);
       updateData.course = courseIdObj;
 
       // Handle courseIds if provided (for multi-course modules)
       if ((dto as any).courseIds && Array.isArray((dto as any).courseIds)) {
-        const courseIdsObjs = (dto as any).courseIds.map((cid: string) => new Types.ObjectId(cid));
+        const courseIdsObjs = (dto as any).courseIds.map(
+          (cid: string) => new Types.ObjectId(cid),
+        );
         updateData.courses = courseIdsObjs;
-        
+
         // Update all affected courses' modules arrays
-        const oldCourseIds = (module.courses || []).map(c => c.toString());
+        const oldCourseIds = (module.courses || []).map((c) => c.toString());
         const newCourseIds = (dto as any).courseIds;
-        
+
         // Remove module from courses it no longer belongs to
-        const coursesToRemove = oldCourseIds.filter((oid: string) => !newCourseIds.includes(oid));
+        const coursesToRemove = oldCourseIds.filter(
+          (oid: string) => !newCourseIds.includes(oid),
+        );
         for (const courseId of coursesToRemove) {
           await this.courseModel.findByIdAndUpdate(
             courseId,
             { $pull: { modules: module._id } },
-            { new: true }
+            { new: true },
           );
         }
-        
+
         // Add module to new courses
-        const coursesToAdd = newCourseIds.filter((nid: string) => !oldCourseIds.includes(nid));
+        const coursesToAdd = newCourseIds.filter(
+          (nid: string) => !oldCourseIds.includes(nid),
+        );
         for (const courseId of coursesToAdd) {
           await this.courseModel.findByIdAndUpdate(
             courseId,
             { $addToSet: { modules: module._id } },
-            { new: true }
+            { new: true },
           );
         }
       } else {
@@ -191,12 +201,12 @@ export class CourseModulesService {
         const existingCourses = module.courses || [];
         if (!existingCourses.some((c) => c.toString() === dto.courseId)) {
           updateData.courses = [...existingCourses, courseIdObj];
-          
+
           // Add module to the new course
           await this.courseModel.findByIdAndUpdate(
             dto.courseId,
             { $addToSet: { modules: module._id } },
-            { new: true }
+            { new: true },
           );
         }
       }

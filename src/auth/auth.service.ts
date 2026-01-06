@@ -42,7 +42,7 @@ export class AuthService {
     private loginAttemptModel: Model<LoginAttempt>,
     @InjectModel(SecurityLog.name)
     private securityLogModel: Model<SecurityLog>,
-  ) { }
+  ) {}
 
   async register(
     registerDto: RegisterDto,

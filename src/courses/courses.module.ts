@@ -10,7 +10,10 @@ import {
 } from '../enrollments/entities/enrollment.entity';
 import { CourseAccessGuard } from './guards/course-access.guard';
 import { EnrollmentsModule } from '../enrollments/enrollments.module';
-import { CourseModule as CourseModuleEntity, CourseModuleSchema } from '../course-modules/entities/course-module.entity';
+import {
+  CourseModule as CourseModuleEntity,
+  CourseModuleSchema,
+} from '../course-modules/entities/course-module.entity';
 
 @Module({
   imports: [
@@ -25,4 +28,4 @@ import { CourseModule as CourseModuleEntity, CourseModuleSchema } from '../cours
   providers: [CoursesService, CourseAccessGuard],
   exports: [CoursesService, CourseAccessGuard],
 })
-export class CoursesModule { }
+export class CoursesModule {}

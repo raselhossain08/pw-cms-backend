@@ -43,7 +43,7 @@ export class AiBotController {
   @Get('history')
   @UseGuards(JwtAuthGuard)
   getHistory(@Request() req, @Query('sessionId') sessionId?: string) {
-    return this.aiBotService.getConversationHistory(req.user.userId, sessionId);
+    return this.aiBotService.getConversationHistory(req.user.id, sessionId);
   }
 
   @Get('status')

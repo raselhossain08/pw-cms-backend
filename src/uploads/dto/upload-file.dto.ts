@@ -56,4 +56,31 @@ export class UploadFileDto {
   @IsString()
   @IsOptional()
   visibility?: string;
+
+  @ApiProperty({
+    example: 'Image showing students in classroom',
+    description: 'Alt text for accessibility',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  altText?: string;
+
+  @ApiProperty({
+    example: 'Students learning together',
+    description: 'Image caption',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  caption?: string;
+
+  @ApiProperty({
+    example: 'Course Materials',
+    description: 'Folder name for organization',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  folder?: string;
 }

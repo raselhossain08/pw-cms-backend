@@ -22,16 +22,17 @@ const hpp = require('hpp');
 
 async function bootstrap() {
   console.time('🚀 Bootstrap Time');
-  
+
   // Create app with minimal logging for faster startup
   const app = await NestFactory.create(AppModule, {
-    logger: process.env.NODE_ENV === 'production' 
-      ? ['error', 'warn'] 
-      : ['error', 'warn', 'log'],
+    logger:
+      process.env.NODE_ENV === 'production'
+        ? ['error', 'warn']
+        : ['error', 'warn', 'log'],
     bodyParser: true,
     abortOnError: false, // Don't abort on non-critical errors during startup
   });
-  
+
   const configService = app.get(ConfigService);
 
   // Increase body size limits for large file uploads
@@ -51,16 +52,18 @@ async function bootstrap() {
   app.use(hpp());
 
   // 3. Response Compression (with optimized settings)
-  app.use(compression({
-    level: 6, // Balance between speed and compression ratio
-    threshold: 1024, // Only compress responses > 1KB
-    filter: (req, res) => {
-      if (req.headers['x-no-compression']) {
-        return false;
-      }
-      return compression.filter(req, res);
-    },
-  }));
+  app.use(
+    compression({
+      level: 6, // Balance between speed and compression ratio
+      threshold: 1024, // Only compress responses > 1KB
+      filter: (req, res) => {
+        if (req.headers['x-no-compression']) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    }),
+  );
 
   // ============ OPTIMIZED INTERCEPTORS ============
   // Get ActivityLogsService for filter and interceptor
@@ -76,9 +79,7 @@ async function bootstrap() {
   );
 
   // Only add essential interceptors
-  const interceptors: any[] = [
-    new ResponseInterceptor(),
-  ];
+  const interceptors: any[] = [new ResponseInterceptor()];
 
   // Add rate limiting only in production
   if (process.env.NODE_ENV === 'production') {
@@ -130,12 +131,12 @@ async function bootstrap() {
       'Last-Event-ID',
     ],
     exposedHeaders: [
-      'X-Total-Count', 
-      'X-Page', 
+      'X-Total-Count',
+      'X-Page',
       'X-Limit',
       'Content-Type',
       'Cache-Control',
-      'Connection'
+      'Connection',
     ],
     maxAge: 86400, // 24 hours
   });
@@ -250,11 +251,16 @@ async function bootstrap() {
           return {
             logo: typeof logo === 'string' ? JSON.parse(logo) : logo,
             cta: typeof cta === 'string' ? JSON.parse(cta) : cta,
-            userMenu: typeof userMenu === 'string' ? JSON.parse(userMenu) : userMenu,
+            userMenu:
+              typeof userMenu === 'string' ? JSON.parse(userMenu) : userMenu,
             navigation: {
-              menuItems: typeof navigation === 'string' ? JSON.parse(navigation) : navigation || [],
+              menuItems:
+                typeof navigation === 'string'
+                  ? JSON.parse(navigation)
+                  : navigation || [],
             },
-            topBar: typeof topBar === 'string' ? JSON.parse(topBar) : topBar || {},
+            topBar:
+              typeof topBar === 'string' ? JSON.parse(topBar) : topBar || {},
           };
         });
         res.json({ success: true, message: 'OK', data });
@@ -305,8 +311,7 @@ async function bootstrap() {
   console.log(`🏷️  Environment: ${nodeEnv}`);
 }
 
-bootstrap().catch(err => {
+bootstrap().catch((err) => {
   console.error('❌ Failed to start server:', err);
   process.exit(1);
 });
-

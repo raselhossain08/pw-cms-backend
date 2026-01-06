@@ -3,7 +3,11 @@ import { Document, Types } from 'mongoose';
 import { CourseModule } from '../../course-modules/entities/course-module.entity';
 import { Lesson } from '../../courses/entities/lesson.entity';
 
-@Schema({ timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } })
+@Schema({
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
+})
 export class Certificate extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   student: Types.ObjectId;
@@ -150,6 +154,9 @@ export class Assignment extends Document {
 
   @Prop({ type: [String], default: [] })
   attachments: string[];
+
+  @Prop({ type: [{ type: Object }], default: [] })
+  submissions: any[];
 }
 
 export const AssignmentSchema = SchemaFactory.createForClass(Assignment);

@@ -151,7 +151,10 @@ export class UsersController {
   @Delete('me')
   @ApiOperation({ summary: 'Delete my account' })
   @ApiResponse({ status: 200, description: 'Account deleted' })
-  async removeMe(@Req() req, @Body() body?: { confirmation?: string; reason?: string }) {
+  async removeMe(
+    @Req() req,
+    @Body() body?: { confirmation?: string; reason?: string },
+  ) {
     const uid = req.user?.id || req.user?.userId;
     // Optional: Add confirmation check here if needed
     if (body?.confirmation && body.confirmation !== 'DELETE') {

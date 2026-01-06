@@ -8,8 +8,9 @@ export class ChatLoggerService {
   private readonly logger = new Logger(ChatLoggerService.name);
 
   constructor(
-    @InjectModel(ChatEventLog.name) private readonly chatLogModel: Model<ChatEventLog>,
-  ) { }
+    @InjectModel(ChatEventLog.name)
+    private readonly chatLogModel: Model<ChatEventLog>,
+  ) {}
 
   async logMessage(
     conversationId: string,
@@ -190,7 +191,7 @@ export class ChatLoggerService {
     const totalResponses = logs.length;
     const averageConfidence =
       logs.reduce((sum, log) => sum + (log.metadata?.confidence || 0), 0) /
-      totalResponses || 0;
+        totalResponses || 0;
 
     const intentCounts = logs.reduce((acc, log) => {
       const intent = log.metadata?.intent || 'unknown';
@@ -219,7 +220,10 @@ export class ChatLoggerService {
     };
   }
 
-  async getSatisfactionMetrics(dateRange: { startDate: Date; endDate: Date }): Promise<{ averageRating: number }> {
+  async getSatisfactionMetrics(dateRange: {
+    startDate: Date;
+    endDate: Date;
+  }): Promise<{ averageRating: number }> {
     // Placeholder implementation - in future this should query a satisfaction/feedback collection
     return { averageRating: 0 };
   }

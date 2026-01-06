@@ -465,4 +465,97 @@ export class UploadsController {
       });
     }
   }
+
+  @Get('folders')
+  @ApiOperation({ summary: 'Get all folders' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of folders with file counts',
+  })
+  async getFolders(@Req() req) {
+    return this.uploadsService.getFolders(req.user.id);
+  }
+
+  @Get('folder/:folderName')
+  @ApiOperation({ summary: 'Get files by folder name' })
+  @ApiParam({
+    name: 'folderName',
+    description: 'Folder name',
+    example: 'Course Materials',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Files in the folder',
+  })
+  async getFilesByFolder(
+    @Param('folderName') folderName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Req() req,
+  ) {
+    return this.uploadsService.getFilesByFolder(
+      req.user.id,
+      folderName,
+      page,
+      limit,
+    );
+  }
+
+  @Post('bulk-move-to-folder')
+  @ApiOperation({ summary: 'Move multiple files to a folder' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['fileIds', 'folder'],
+      properties: {
+        fileIds: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        folder: {
+          type: 'string',
+          description: 'Target folder name',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Files moved successfully',
+  })
+  async bulkMoveToFolder(
+    @Body() body: { fileIds: string[]; folder: string },
+    @Req() req,
+  ) {
+    return this.uploadsService.bulkMoveToFolder(
+      body.fileIds,
+      body.folder,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Delete('folder/:folderName')
+  @ApiOperation({ summary: 'Delete an empty folder' })
+  @ApiParam({
+    name: 'folderName',
+    description: 'Folder name',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Folder deleted successfully',
+  })
+  async deleteFolder(@Param('folderName') folderName: string, @Req() req) {
+    return this.uploadsService.deleteFolder(folderName, req.user.id);
+  }
 }

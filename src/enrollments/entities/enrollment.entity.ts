@@ -74,7 +74,10 @@ export class Enrollment extends Document {
   @Prop({ default: 0 })
   amountPaid: number;
 
-  @Prop({ enum: ['pending', 'completed', 'failed', 'refunded'], default: 'completed' })
+  @Prop({
+    enum: ['pending', 'completed', 'failed', 'refunded'],
+    default: 'completed',
+  })
   paymentStatus: string;
 
   @Prop()

@@ -19,7 +19,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
   // ==================== INTEGRATIONS MANAGEMENT ====================
   @Get('integrations')
@@ -51,37 +51,6 @@ export class AdminController {
     return this.adminService.getSystemHealth();
   }
 
-  // ==================== USER MANAGEMENT ====================
-  @Get('users')
-  getAllUsers(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('role') role?: string,
-    @Query('status') status?: string,
-    @Query('search') search?: string,
-  ) {
-    return this.adminService.getAllUsers({ page, limit, role, status, search });
-  }
-
-  @Get('users/:id')
-  getUserDetails(@Param('id') id: string) {
-    return this.adminService.getUserDetails(id);
-  }
-
-  @Patch('users/:id/status')
-  updateUserStatus(@Param('id') id: string, @Body('status') status: string) {
-    return this.adminService.updateUserStatus(id, status);
-  }
-
-  @Patch('users/:id/role')
-  updateUserRole(@Param('id') id: string, @Body('role') role: string) {
-    return this.adminService.updateUserRole(id, role);
-  }
-
-  @Delete('users/:id')
-  deleteUser(@Param('id') id: string) {
-    return this.adminService.deleteUser(id);
-  }
 
   // ==================== COURSE MANAGEMENT ====================
   @Get('courses')
@@ -309,29 +278,6 @@ export class AdminController {
     return this.adminService.bulkDeleteUsers(userIds);
   }
 
-  // ==================== INSTRUCTOR MANAGEMENT ====================
-  @Get('instructors/pending')
-  getPendingInstructors(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-  ) {
-    return this.adminService.getPendingInstructors(page, limit);
-  }
-
-  @Post('instructors/:id/approve')
-  approveInstructor(@Param('id') id: string) {
-    return this.adminService.approveInstructor(id);
-  }
-
-  @Post('instructors/:id/reject')
-  rejectInstructor(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.adminService.rejectInstructor(id, reason);
-  }
-
-  @Get('instructors/:id/stats')
-  getInstructorStats(@Param('id') id: string) {
-    return this.adminService.getInstructorStats(id);
-  }
 
   // ==================== CONTENT MODERATION ====================
   @Get('content/flagged')
@@ -382,10 +328,6 @@ export class AdminController {
   }
 
   // ==================== EXPORT ====================
-  @Get('export/users')
-  exportUsers(@Query('role') role?: string, @Query('status') status?: string) {
-    return this.adminService.exportUsers({ role, status });
-  }
 
   @Get('export/orders')
   exportOrders(
@@ -422,5 +364,265 @@ export class AdminController {
   @Delete('security/whitelist-ip/:ip')
   removeFromWhitelist(@Param('ip') ip: string) {
     return this.adminService.removeFromWhitelist(ip);
+  }
+
+  // ==================== INSTRUCTOR MANAGEMENT ====================
+
+  @Get('instructors/pending')
+  getPendingInstructors(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.adminService.getPendingInstructors(page, limit);
+  }
+
+  @Get('instructors/:id/stats')
+  getInstructorStats(@Param('id') id: string) {
+    return this.adminService.getInstructorStats(id);
+  }
+
+  @Post('instructors/:id/approve')
+  approveInstructor(@Param('id') id: string) {
+    return this.adminService.approveInstructor(id);
+  }
+
+  @Post('instructors/:id/reject')
+  rejectInstructor(@Param('id') id: string, @Body('reason') reason: string) {
+    return this.adminService.rejectInstructor(id, reason);
+  }
+
+  @Post('instructors/bulk-delete')
+  bulkDeleteInstructors(@Body('ids') ids: string[]) {
+    return this.adminService.bulkDeleteInstructors(ids);
+  }
+
+  @Post('instructors/bulk-status')
+  bulkUpdateInstructorStatus(
+    @Body('ids') ids: string[],
+    @Body('status') status: string,
+  ) {
+    return this.adminService.bulkUpdateInstructorStatus(ids, status);
+  }
+
+  @Get('instructors/export')
+  exportInstructors(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('specialization') specialization?: string,
+    @Query('experience') experience?: string,
+  ) {
+    return this.adminService.exportInstructors({
+      search,
+      status,
+      specialization,
+      experience,
+    });
+  }
+
+  @Get('instructors/analytics')
+  getInstructorAnalytics(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getInstructorAnalytics(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('instructors/performance-tiers')
+  getInstructorPerformanceTiers() {
+    return this.adminService.getInstructorPerformanceTiers();
+  }
+
+  // ==================== STUDENT MANAGEMENT ====================
+
+  @Get('students/stats')
+  getStudentStats() {
+    return this.adminService.getStudentStats();
+  }
+
+  @Get('students/:id/progress')
+  getStudentProgress(@Param('id') id: string) {
+    return this.adminService.getStudentProgress(id);
+  }
+
+  @Get('students/:id/stats')
+  getStudentDetailedStats(@Param('id') id: string) {
+    return this.adminService.getStudentDetailedStats(id);
+  }
+
+  @Post('students/bulk-delete')
+  bulkDeleteStudents(@Body('ids') ids: string[]) {
+    return this.adminService.bulkDeleteStudents(ids);
+  }
+
+  @Post('students/bulk-status')
+  bulkUpdateStudentStatus(
+    @Body('ids') ids: string[],
+    @Body('status') status: string,
+  ) {
+    return this.adminService.bulkUpdateStudentStatus(ids, status);
+  }
+
+  @Get('students/export')
+  exportStudents(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('course') course?: string,
+    @Query('country') country?: string,
+  ) {
+    return this.adminService.exportStudents({
+      search,
+      status,
+      course,
+      country,
+    });
+  }
+
+  @Post('students/import')
+  importStudents(
+    @Body('students') students: any[],
+    @Body('sendWelcomeEmail') sendWelcomeEmail: boolean = false,
+  ) {
+    return this.adminService.importStudents(students, sendWelcomeEmail);
+  }
+
+  @Post('students/broadcast')
+  sendBroadcastToStudents(
+    @Body('subject') subject: string,
+    @Body('message') message: string,
+    @Body('studentIds') studentIds?: string[],
+    @Body('courseId') courseId?: string,
+  ) {
+    return this.adminService.sendBroadcastToStudents({
+      subject,
+      message,
+      studentIds,
+      courseId,
+    });
+  }
+
+  @Post('students/:id/message')
+  sendMessageToStudent(
+    @Param('id') id: string,
+    @Body('subject') subject: string,
+    @Body('message') message: string,
+    @Body('type') type: 'email' | 'notification' | 'both' = 'email',
+  ) {
+    return this.adminService.sendMessageToStudent(id, subject, message, type);
+  }
+
+  @Get('students/analytics')
+  getStudentAnalytics(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getStudentAnalytics(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('students/performance-tiers')
+  getStudentPerformanceTiers() {
+    return this.adminService.getStudentPerformanceTiers();
+  }
+
+  // ==================== USER MANAGEMENT ====================
+
+  @Get('users')
+  getAllUsers(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Query('role') role?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getAllUsers({ page, limit, role, status, search });
+  }
+
+  @Get('users/stats')
+  getUsersStats() {
+    return this.adminService.getUsersStats();
+  }
+
+  @Get('users/analytics')
+  getUserAnalytics(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getUserAnalytics(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('users/:id/activity')
+  getUserActivity(@Param('id') id: string, @Query('limit') limit: number = 50) {
+    return this.adminService.getUserActivity(id, limit);
+  }
+
+  @Get('users/:id/details')
+  getUserDetails(@Param('id') id: string) {
+    return this.adminService.getUserDetails(id);
+  }
+
+  @Post('users/bulk-activate')
+  bulkActivateUsers(@Body('ids') ids: string[]) {
+    return this.adminService.bulkActivateUsers(ids);
+  }
+
+  @Post('users/bulk-deactivate')
+  bulkDeactivateUsers(@Body('ids') ids: string[]) {
+    return this.adminService.bulkDeactivateUsers(ids);
+  }
+
+
+  @Post('users/:id/send-verification-email')
+  sendVerificationEmail(@Param('id') id: string) {
+    return this.adminService.sendVerificationEmail(id);
+  }
+
+  @Post('users/:id/reset-password')
+  resetUserPassword(
+    @Param('id') id: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.adminService.resetUserPassword(id, newPassword);
+  }
+
+  @Get('users/export')
+  exportUsers(
+    @Query('role') role?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.exportUsers({ role, status, search });
+  }
+
+  @Get('users/role-distribution')
+  getRoleDistribution() {
+    return this.adminService.getRoleDistribution();
+  }
+
+  @Get('users/activity-summary')
+  getActivitySummary(@Query('days') days: number = 30) {
+    return this.adminService.getActivitySummary(days);
+  }
+
+  @Patch('users/:id/status')
+  updateUserStatus(@Param('id') id: string, @Body('status') status: string) {
+    return this.adminService.updateUserStatus(id, status);
+  }
+
+  @Patch('users/:id/role')
+  updateUserRole(@Param('id') id: string, @Body('role') role: string) {
+    return this.adminService.updateUserRole(id, role);
+  }
+
+  @Delete('users/:id')
+  deleteUser(@Param('id') id: string) {
+    return this.adminService.deleteUser(id);
   }
 }

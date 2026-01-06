@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, FilterQuery } from 'mongoose';
 import { Quiz, QuizQuestion } from './entities/quiz.entity';
 import {
   QuizSubmission,
@@ -16,6 +16,21 @@ import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { Lesson } from '../courses/entities/lesson.entity';
+
+export interface QuizStats {
+  totalAttempts: number;
+  averageScore: number;
+  passedCount: number;
+  failedCount: number;
+  averageTime: number;
+  completionRate: number;
+}
+
+type QuizDuplicationData = Omit<Quiz, '_id' | 'createdAt' | 'updatedAt'> & {
+  _id?: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
 
 @Injectable()
 export class QuizzesService {
@@ -37,7 +52,7 @@ export class QuizzesService {
     const totalPoints = questions.reduce((sum, q) => sum + q.points, 0);
 
     // Add IDs to questions
-    const questionsWithIds: QuizQuestion[] = questions.map((q, index) => ({
+    const questionsWithIds: QuizQuestion[] = questions.map((q, _) => ({
       ...q,
       id: new Types.ObjectId().toString(),
     }));
@@ -114,7 +129,7 @@ export class QuizzesService {
     const { courseId, lessonId, page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
 
-    const filter: any = { isActive: true };
+    const filter: FilterQuery<Quiz> = { isActive: true };
     if (courseId) filter.course = courseId;
     if (lessonId) filter.lesson = lessonId;
 
@@ -147,8 +162,14 @@ export class QuizzesService {
     // Hide correct answers unless user is instructor
     if (userId && quiz.instructor.toString() !== userId) {
       quiz.questions = quiz.questions.map((q) => {
-        const { correctAnswer, explanation, ...question } = q;
-        return question as any;
+        /* eslint-disable @typescript-eslint/no-unused-vars */
+        const {
+          correctAnswer: _correctAnswer,
+          explanation: _explanation,
+          ...question
+        } = q;
+        /* eslint-enable @typescript-eslint/no-unused-vars */
+        return question as Omit<QuizQuestion, 'correctAnswer' | 'explanation'>;
       });
     }
 
@@ -178,7 +199,7 @@ export class QuizzesService {
       quiz.totalPoints = totalPoints;
       quiz.questions = updateQuizDto.questions.map((q) => ({
         ...q,
-        id: q['id'] || new Types.ObjectId().toString(),
+        id: (q as QuizQuestion).id || new Types.ObjectId().toString(),
       })) as QuizQuestion[];
     }
 
@@ -280,7 +301,10 @@ export class QuizzesService {
         return { ...answer, isCorrect: false, pointsEarned: 0 };
       }
 
-      const isCorrect = this.checkAnswer(answer.answer, question.correctAnswer);
+      const isCorrect = this.checkAnswer(
+        answer.answer ?? '',
+        question.correctAnswer ?? '',
+      );
       const pointsEarned = isCorrect ? question.points : 0;
 
       return {
@@ -311,7 +335,7 @@ export class QuizzesService {
 
   private checkAnswer(
     userAnswer: string | string[],
-    correctAnswer: any,
+    correctAnswer: string | string[],
   ): boolean {
     if (Array.isArray(correctAnswer)) {
       if (!Array.isArray(userAnswer)) return false;
@@ -341,7 +365,9 @@ export class QuizzesService {
       throw new NotFoundException('Submission not found');
     }
 
-    if (submission.student['_id'].toString() !== userId) {
+    if (
+      (submission.student as { _id: Types.ObjectId })._id.toString() !== userId
+    ) {
       throw new ForbiddenException('Not your submission');
     }
 
@@ -355,7 +381,7 @@ export class QuizzesService {
     limit: number = 10,
   ): Promise<{ submissions: QuizSubmission[]; total: number }> {
     const skip = (page - 1) * limit;
-    const filter: any = { student: userId };
+    const filter: FilterQuery<QuizSubmission> = { student: userId };
     if (quizId) filter.quiz = quizId;
 
     const [submissions, total] = await Promise.all([
@@ -376,7 +402,11 @@ export class QuizzesService {
     quizId: string,
     page: number = 1,
     limit: number = 10,
-  ): Promise<{ submissions: QuizSubmission[]; total: number; stats: any }> {
+  ): Promise<{
+    submissions: QuizSubmission[];
+    total: number;
+    stats: QuizStats;
+  }> {
     const skip = (page - 1) * limit;
 
     const [submissions, total, stats] = await Promise.all([
@@ -402,8 +432,8 @@ export class QuizzesService {
     return { submissions, total, stats };
   }
 
-  async getQuizStats(quizId: string): Promise<any> {
-    const stats = await this.submissionModel.aggregate([
+  async getQuizStats(quizId: string): Promise<QuizStats> {
+    const stats = await this.submissionModel.aggregate<QuizStats>([
       {
         $match: {
           quiz: new Types.ObjectId(quizId),
@@ -424,15 +454,24 @@ export class QuizzesService {
       },
     ]);
 
-    return (
-      stats[0] || {
-        totalAttempts: 0,
-        averageScore: 0,
-        passedCount: 0,
-        failedCount: 0,
-        averageTime: 0,
-      }
-    );
+    const stat = stats[0] || {
+      totalAttempts: 0,
+      averageScore: 0,
+      passedCount: 0,
+      failedCount: 0,
+      averageTime: 0,
+    };
+
+    // Calculate completion rate (passed attempts / total attempts * 100)
+    const completionRate =
+      stat.totalAttempts > 0
+        ? (stat.passedCount / stat.totalAttempts) * 100
+        : 0;
+
+    return {
+      ...stat,
+      completionRate,
+    };
   }
 
   async toggleStatus(id: string, instructorId: string): Promise<Quiz> {
@@ -470,10 +509,12 @@ export class QuizzesService {
     duplicatedData.isActive = false;
 
     // Generate new IDs for questions
-    duplicatedData.questions = duplicatedData.questions.map((q: any) => ({
-      ...q,
-      id: new Types.ObjectId().toString(),
-    }));
+    duplicatedData.questions = duplicatedData.questions.map(
+      (q: QuizQuestion) => ({
+        ...q,
+        id: new Types.ObjectId().toString(),
+      }),
+    );
 
     const duplicatedQuiz = new this.quizModel(duplicatedData);
     return await duplicatedQuiz.save();
@@ -519,5 +560,130 @@ export class QuizzesService {
     );
 
     return { updated: quizzes.length };
+  }
+
+  async exportQuizzes(
+    format: 'csv' | 'xlsx' | 'pdf',
+    options: { courseId?: string; userId?: string },
+  ): Promise<any> {
+    const filter: FilterQuery<Quiz> = {};
+
+    if (options.courseId) {
+      filter.course = new Types.ObjectId(options.courseId);
+    }
+
+    if (options.userId) {
+      filter.instructor = new Types.ObjectId(options.userId);
+    }
+
+    const quizzes = await this.quizModel
+      .find(filter)
+      .populate('course', 'title')
+      .populate('instructor', 'firstName lastName email')
+      .lean();
+
+    if (format === 'csv') {
+      return this.exportToCSV(quizzes);
+    } else if (format === 'xlsx') {
+      return this.exportToExcel(quizzes);
+    } else if (format === 'pdf') {
+      return this.exportToPDF(quizzes);
+    }
+  }
+
+  private exportToCSV(quizzes: any[]): string {
+    const headers = [
+      'Title',
+      'Description',
+      'Course',
+      'Instructor',
+      'Questions',
+      'Duration (min)',
+      'Passing Score (%)',
+      'Total Points',
+      'Attempts Allowed',
+      'Status',
+      'Created At',
+    ].join(',');
+
+    const rows = quizzes.map((quiz) => {
+      const course = typeof quiz.course === 'object' ? quiz.course?.title : '';
+      const instructor =
+        typeof quiz.instructor === 'object'
+          ? `${quiz.instructor?.firstName} ${quiz.instructor?.lastName}`
+          : '';
+
+      return [
+        `"${quiz.title || ''}"`,
+        `"${(quiz.description || '').replace(/"/g, '""')}"`,
+        `"${course}"`,
+        `"${instructor}"`,
+        quiz.questions?.length || 0,
+        quiz.duration || 0,
+        quiz.passingScore || 0,
+        quiz.totalPoints || 0,
+        quiz.attemptsAllowed || 0,
+        quiz.isActive ? 'Active' : 'Inactive',
+        quiz.createdAt ? new Date(quiz.createdAt).toLocaleDateString() : '',
+      ].join(',');
+    });
+
+    return [headers, ...rows].join('\n');
+  }
+
+  private exportToExcel(quizzes: any[]): any {
+    const data = quizzes.map((quiz) => {
+      const course = typeof quiz.course === 'object' ? quiz.course?.title : '';
+      const instructor =
+        typeof quiz.instructor === 'object'
+          ? `${quiz.instructor?.firstName} ${quiz.instructor?.lastName}`
+          : '';
+
+      return {
+        Title: quiz.title || '',
+        Description: quiz.description || '',
+        Course: course,
+        Instructor: instructor,
+        Questions: quiz.questions?.length || 0,
+        'Duration (min)': quiz.duration || 0,
+        'Passing Score (%)': quiz.passingScore || 0,
+        'Total Points': quiz.totalPoints || 0,
+        'Attempts Allowed': quiz.attemptsAllowed || 0,
+        Status: quiz.isActive ? 'Active' : 'Inactive',
+        'Created At': quiz.createdAt
+          ? new Date(quiz.createdAt).toLocaleDateString()
+          : '',
+      };
+    });
+
+    return { data, filename: 'quizzes' };
+  }
+
+  private exportToPDF(quizzes: any[]): any {
+    const data = quizzes.map((quiz) => {
+      const course = typeof quiz.course === 'object' ? quiz.course?.title : '';
+      const instructor =
+        typeof quiz.instructor === 'object'
+          ? `${quiz.instructor?.firstName} ${quiz.instructor?.lastName}`
+          : '';
+
+      return {
+        title: quiz.title || '',
+        description: quiz.description || '',
+        course,
+        instructor,
+        questions: quiz.questions?.length || 0,
+        duration: quiz.duration || 0,
+        passingScore: quiz.passingScore || 0,
+        totalPoints: quiz.totalPoints || 0,
+        attemptsAllowed: quiz.attemptsAllowed || 0,
+        status: quiz.isActive ? 'Active' : 'Inactive',
+        createdAt: quiz.createdAt
+          ? new Date(quiz.createdAt).toLocaleDateString()
+          : '',
+      };
+    });
+
+    return { data, type: 'quizzes' };
   }
 }

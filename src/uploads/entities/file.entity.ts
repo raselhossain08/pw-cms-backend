@@ -92,6 +92,30 @@ export class File extends Document {
   @Prop([String])
   tags: string[];
 
+  @ApiProperty({
+    example: 'Course image showing students',
+    description: 'Alt text for accessibility (SEO)',
+    required: false,
+  })
+  @Prop()
+  altText: string;
+
+  @ApiProperty({
+    example: 'Students learning in classroom',
+    description: 'Image caption',
+    required: false,
+  })
+  @Prop()
+  caption: string;
+
+  @ApiProperty({
+    example: 'Course Materials',
+    description: 'Folder name for organization',
+    required: false,
+  })
+  @Prop()
+  folder: string;
+
   @ApiProperty({ type: Object, description: 'File metadata', required: false })
   @Prop({ type: Object })
   metadata: {
@@ -101,6 +125,10 @@ export class File extends Document {
     pages: number;
     format: string;
     compression: string;
+    exif?: any;
+    colorSpace?: string;
+    bitRate?: number;
+    codec?: string;
   };
 
   @ApiProperty({

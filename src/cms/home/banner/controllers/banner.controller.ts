@@ -279,7 +279,9 @@ export class BannerController {
   }
 
   @Get('export')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Export banners' })
+  @ApiResponse({ status: 200, description: 'Banners exported successfully' })
   async export(
     @Query('format') format: 'json' | 'pdf' = 'json',
     @Query('ids') ids: string | string[] | undefined,
