@@ -14,7 +14,7 @@ export class TestimonialsService {
     @InjectModel(Testimonials.name)
     private testimonialsModel: Model<Testimonials>,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   async create(
     createTestimonialsDto: CreateTestimonialsDto,
@@ -32,16 +32,57 @@ export class TestimonialsService {
   async update(
     updateTestimonialsDto: UpdateTestimonialsDto,
   ): Promise<Testimonials> {
-    const testimonials = await this.testimonialsModel.findOne().exec();
+    try {
+      let testimonials = await this.testimonialsModel.findOne().exec();
 
-    if (!testimonials) {
-      // If no testimonials exist, create a new one
-      const newTestimonials = new this.testimonialsModel(updateTestimonialsDto);
-      return newTestimonials.save();
+      if (!testimonials) {
+        // If no testimonials exist, create a new one
+        console.log('Creating new testimonials document');
+        testimonials = new this.testimonialsModel(updateTestimonialsDto);
+      } else {
+        // Update existing document - only update provided fields
+        console.log('Updating existing testimonials document');
+        if (updateTestimonialsDto.title !== undefined) {
+          testimonials.title = updateTestimonialsDto.title;
+        }
+        if (updateTestimonialsDto.subtitle !== undefined) {
+          testimonials.subtitle = updateTestimonialsDto.subtitle;
+        }
+        if (updateTestimonialsDto.description !== undefined) {
+          testimonials.description = updateTestimonialsDto.description;
+        }
+        if (updateTestimonialsDto.testimonials !== undefined) {
+          // Map testimonials and provide defaults for optional fields
+          testimonials.testimonials = updateTestimonialsDto.testimonials.map(
+            (t) => ({
+              name: t.name || '',
+              position: t.position || '',
+              company: t.company || '',
+              avatar: t.avatar || '',
+              rating: t.rating || 5,
+              comment: t.comment || '',
+              fallback: t.fallback || '',
+            }),
+          );
+        }
+        if (updateTestimonialsDto.seo !== undefined) {
+          // Provide defaults for optional SEO fields
+          testimonials.seo = {
+            title: updateTestimonialsDto.seo.title || '',
+            description: updateTestimonialsDto.seo.description || '',
+            keywords: updateTestimonialsDto.seo.keywords || '',
+            ogImage: updateTestimonialsDto.seo.ogImage || '',
+          };
+        }
+      }
+
+      const saved = await testimonials.save();
+      console.log('Testimonials saved successfully');
+      return saved;
+    } catch (error) {
+      console.error('Error in update service:', error);
+      throw error;
     }
-
-    Object.assign(testimonials, updateTestimonialsDto);
-    return testimonials.save();
   }
 
   async uploadImage(file: Express.Multer.File): Promise<string> {

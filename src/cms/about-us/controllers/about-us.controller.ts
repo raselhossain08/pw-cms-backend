@@ -44,7 +44,7 @@ export class AboutUsController {
   constructor(
     private readonly aboutUsService: AboutUsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({
@@ -111,37 +111,27 @@ export class AboutUsController {
   @Get('active')
   @Public()
   @ApiOperation({
-    summary: 'Get active About Us page (Public)',
+    summary: 'Get About Us page (Public)',
     description:
-      'Retrieves the currently active About Us page - accessible without authentication',
+      'Retrieves the About Us page or creates a default one if it doesn\'t exist - accessible without authentication',
   })
   @ApiResponse({
     status: 200,
-    description: 'Active About Us page retrieved successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'No active About Us page found',
+    description: 'About Us page retrieved successfully',
   })
   async findActive() {
     try {
-      const aboutUs = await this.aboutUsService.findActive();
-      if (!aboutUs) {
-        throw new NotFoundException('No active About Us page found');
-      }
+      const aboutUs = await this.aboutUsService.getOrCreateDefault();
       return {
         success: true,
-        message: 'Active About Us page fetched successfully',
+        message: 'About Us page fetched successfully',
         data: aboutUs,
       };
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       throw new HttpException(
         {
           success: false,
-          message: error.message || 'Failed to fetch active About Us page',
+          message: error.message || 'Failed to fetch About Us page',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -351,11 +341,6 @@ export class AboutUsController {
           typeof body.seo === 'string' ? JSON.parse(body.seo) : body.seo;
       }
 
-      if (body.isActive !== undefined) {
-        updateData.isActive =
-          body.isActive === 'true' || body.isActive === true;
-      }
-
       // Handle header image upload if provided
       if (files?.headerImage && files.headerImage[0]) {
         const imageUrl = await this.cloudinaryService.uploadImage(
@@ -475,92 +460,6 @@ export class AboutUsController {
         {
           success: false,
           message: error.message || 'Failed to delete About Us page',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  @Post(':id/toggle-active')
-  @ApiOperation({
-    summary: 'Toggle About Us page active status',
-    description: 'Toggles the active/inactive status of an About Us page',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'About Us page ID',
-    type: String,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'About Us page status toggled successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'About Us page not found',
-  })
-  async toggleActive(@Param('id') id: string) {
-    try {
-      const aboutUs = await this.aboutUsService.toggleActive(id);
-      if (!aboutUs) {
-        throw new NotFoundException('About Us page not found');
-      }
-      return {
-        success: true,
-        message: `About Us page ${aboutUs.isActive ? 'activated' : 'deactivated'} successfully`,
-        data: aboutUs,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new HttpException(
-        {
-          success: false,
-          message: error.message || 'Failed to toggle About Us page status',
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  @Post(':id/duplicate')
-  @ApiOperation({
-    summary: 'Duplicate About Us page',
-    description: 'Creates a copy of an existing About Us page',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'About Us page ID to duplicate',
-    type: String,
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'About Us page duplicated successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'About Us page not found',
-  })
-  async duplicate(@Param('id') id: string) {
-    try {
-      const aboutUs = await this.aboutUsService.duplicate(id);
-      if (!aboutUs) {
-        throw new NotFoundException('About Us page not found');
-      }
-      return {
-        success: true,
-        message: 'About Us page duplicated successfully',
-        data: aboutUs,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new HttpException(
-        {
-          success: false,
-          message: error.message || 'Failed to duplicate About Us page',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );

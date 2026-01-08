@@ -36,7 +36,7 @@ export class OverviewService {
     private termsConditionsModel: Model<TermsConditions>,
     @InjectModel(TopBar.name) private topBarModel: Model<TopBar>,
     @InjectModel(Footer.name) private footerModel: Model<Footer>,
-  ) {}
+  ) { }
 
   async getStats() {
     const [
@@ -80,8 +80,8 @@ export class OverviewService {
         },
         events: {
           total: events.length > 0 ? events[0]?.events?.length || 0 : 0,
-          active: events.filter((e) => e.isActive).length,
-          inactive: events.filter((e) => !e.isActive).length,
+          active: events.length > 0 ? events[0]?.events?.length || 0 : 0,
+          inactive: 0,
         },
         testimonials: {
           total:
@@ -96,12 +96,12 @@ export class OverviewService {
           published:
             blogs.length > 0
               ? blogs[0]?.blogs?.filter((b: any) => b.status === 'published')
-                  ?.length || 0
+                ?.length || 0
               : 0,
           draft:
             blogs.length > 0
               ? blogs[0]?.blogs?.filter((b: any) => b.status === 'draft')
-                  ?.length || 0
+                ?.length || 0
               : 0,
         },
         aboutSection: {
@@ -186,7 +186,7 @@ export class OverviewService {
         href: '/cms/home/events',
         icon: 'Calendar',
         status:
-          events.length > 0 && events[0]?.isActive
+          events.length > 0 && (events[0]?.events?.length || 0) > 0
             ? 'active'
             : events.length > 0
               ? 'inactive'

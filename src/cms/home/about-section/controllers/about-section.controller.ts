@@ -48,7 +48,7 @@ export class AboutSectionController {
   constructor(
     private readonly aboutSectionService: AboutSectionService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   @Get()
   @Public()
@@ -313,7 +313,26 @@ export class AboutSectionController {
   ) {
     try {
       this.logger.log('Processing about section upload with media');
+      this.logger.log(`Body type: ${typeof body}, Is object: ${body && typeof body === 'object'}`);
+      this.logger.log(`Body constructor: ${body?.constructor?.name}`);
+      this.logger.log(`Full body: ${JSON.stringify(body, null, 2)}`);
+      this.logger.log(`FormData keys: ${JSON.stringify(Object.keys(body))}`);
 
+      // Log all highlights keys
+      const highlightKeys = Object.keys(body).filter(k => k.startsWith('highlights['));
+      this.logger.log(`Highlight keys: ${highlightKeys.join(', ')}`);
+
+      // Log all stats keys
+      const statKeys = Object.keys(body).filter(k => k.startsWith('stats['));
+      this.logger.log(`Stat keys: ${statKeys.join(', ')}`);
+
+      // Log sample values
+      if (highlightKeys.length > 0) {
+        this.logger.log(`Sample highlight value [highlights[0][icon]]: ${body['highlights[0][icon]']}`);
+      }
+      if (statKeys.length > 0) {
+        this.logger.log(`Sample stat value [stats[0][value]]: ${body['stats[0][value]']}`);
+      }
       // Validate file if provided
       if (files?.image?.[0]) {
         const file = files.image[0];
@@ -359,42 +378,85 @@ export class AboutSectionController {
         }
       }
 
-      // Parse highlights array from FormData
-      const highlights: Array<{ icon: string; label: string; text: string }> =
-        [];
-      let highlightIndex = 0;
-      while (body[`highlights[${highlightIndex}][icon]`]) {
-        highlights.push({
-          icon: body[`highlights[${highlightIndex}][icon]`],
-          label: body[`highlights[${highlightIndex}][label]`],
-          text: body[`highlights[${highlightIndex}][text]`],
-        });
-        highlightIndex++;
-      }
+      // Parse highlights array - body parser auto-parses FormData into structured objects
+      let highlights: Array<{ icon: string; label: string; text: string }> = [];
 
-      // Parse stats array from FormData
-      const stats: Array<{ value: number; suffix: string; label: string }> = [];
-      let statIndex = 0;
-      while (body[`stats[${statIndex}][value]`]) {
-        const value = parseInt(body[`stats[${statIndex}][value]`]);
-        if (isNaN(value)) {
-          throw new BadRequestException(
-            `Invalid stat value at index ${statIndex}`,
-          );
+      // Check if highlights is already parsed as an array (modern body parser)
+      if (Array.isArray(body.highlights)) {
+        this.logger.log(`Using pre-parsed highlights array with ${body.highlights.length} items`);
+        highlights = body.highlights.map((h: any) => ({
+          icon: h.icon || '',
+          label: h.label || '',
+          text: h.text || '',
+        }));
+      }
+      // Fallback: Check for old FormData indexed format
+      else if (body['highlights[0][icon]']) {
+        this.logger.log('Using indexed FormData format for highlights');
+        let highlightIndex = 0;
+        while (body[`highlights[${highlightIndex}][icon]`]) {
+          highlights.push({
+            icon: body[`highlights[${highlightIndex}][icon]`],
+            label: body[`highlights[${highlightIndex}][label]`],
+            text: body[`highlights[${highlightIndex}][text]`],
+          });
+          highlightIndex++;
         }
-        stats.push({
-          value,
-          suffix: body[`stats[${statIndex}][suffix]`] || '',
-          label: body[`stats[${statIndex}][label]`],
-        });
-        statIndex++;
       }
+      this.logger.log(`Parsed ${highlights.length} highlights`);
 
-      // Parse CTA from FormData
-      const cta = {
-        label: body['cta[label]'] || '',
-        link: body['cta[link]'] || '',
-      };
+      // Parse stats array - body parser auto-parses FormData into structured objects
+      let stats: Array<{ value: number; suffix: string; label: string }> = [];
+
+      // Check if stats is already parsed as an array (modern body parser)
+      if (Array.isArray(body.stats)) {
+        this.logger.log(`Using pre-parsed stats array with ${body.stats.length} items`);
+        stats = body.stats.map((s: any) => {
+          const value = typeof s.value === 'number' ? s.value : parseInt(s.value);
+          if (isNaN(value)) {
+            throw new BadRequestException(`Invalid stat value: ${s.value}`);
+          }
+          return {
+            value,
+            suffix: s.suffix || '',
+            label: s.label || '',
+          };
+        });
+      }
+      // Fallback: Check for old FormData indexed format
+      else if (body['stats[0][value]']) {
+        this.logger.log('Using indexed FormData format for stats');
+        let statIndex = 0;
+        while (body[`stats[${statIndex}][value]`]) {
+          const value = parseInt(body[`stats[${statIndex}][value]`]);
+          if (isNaN(value)) {
+            throw new BadRequestException(`Invalid stat value at index ${statIndex}`);
+          }
+          stats.push({
+            value,
+            suffix: body[`stats[${statIndex}][suffix]`] || '',
+            label: body[`stats[${statIndex}][label]`],
+          });
+          statIndex++;
+        }
+      }
+      this.logger.log(`Parsed ${stats.length} stats`);
+
+      // Parse CTA - check if already parsed or use indexed format
+      let cta: { label: string; link: string };
+      if (body.cta && typeof body.cta === 'object') {
+        this.logger.log('Using pre-parsed CTA object');
+        cta = {
+          label: body.cta.label || '',
+          link: body.cta.link || '',
+        };
+      } else {
+        this.logger.log('Using indexed FormData format for CTA');
+        cta = {
+          label: body['cta[label]'] || '',
+          link: body['cta[link]'] || '',
+        };
+      }
 
       // Validate required fields
       if (!body.title || !body.subtitle || !body.description) {
@@ -403,19 +465,32 @@ export class AboutSectionController {
         );
       }
 
-      // Parse SEO metadata from FormData
+      // Parse SEO metadata - check if already parsed or use indexed format
       let seo:
         | {
-            title: string;
-            description: string;
-            keywords: string;
-            ogImage: string;
-            ogTitle: string;
-            ogDescription: string;
-            canonicalUrl: string;
-          }
+          title: string;
+          description: string;
+          keywords: string;
+          ogImage: string;
+          ogTitle: string;
+          ogDescription: string;
+          canonicalUrl: string;
+        }
         | undefined = undefined;
-      if (body['seo[title]']) {
+
+      if (body.seo && typeof body.seo === 'object') {
+        this.logger.log('Using pre-parsed SEO object');
+        seo = {
+          title: body.seo.title || '',
+          description: body.seo.description || '',
+          keywords: body.seo.keywords || '',
+          ogImage: body.seo.ogImage || '',
+          ogTitle: body.seo.ogTitle || '',
+          ogDescription: body.seo.ogDescription || '',
+          canonicalUrl: body.seo.canonicalUrl || '',
+        };
+      } else if (body['seo[title]']) {
+        this.logger.log('Using indexed FormData format for SEO');
         seo = {
           title: body['seo[title]'],
           description: body['seo[description]'],
@@ -441,10 +516,14 @@ export class AboutSectionController {
         isActive: body.isActive === 'true' || body.isActive === true,
       };
 
+      this.logger.log(`Creating DTO with highlights: ${JSON.stringify(highlights)}`);
+      this.logger.log(`Creating DTO with stats: ${JSON.stringify(stats)}`);
       this.logger.log('Upserting about section with parsed data');
       const result =
         await this.aboutSectionService.upsertAboutSection(createDto);
 
+      this.logger.log(`Service returned highlights: ${JSON.stringify(result.highlights)}`);
+      this.logger.log(`Service returned stats: ${JSON.stringify(result.stats)}`);
       this.logger.log('About section updated successfully with media');
       return {
         success: true,

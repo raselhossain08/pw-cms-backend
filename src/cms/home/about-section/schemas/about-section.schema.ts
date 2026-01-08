@@ -15,10 +15,10 @@ export class Highlight {
 
 @Schema({ _id: false })
 export class CTA {
-  @Prop({ required: true })
+  @Prop({ required: false })
   label: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   link: string;
 }
 
@@ -78,7 +78,7 @@ export class AboutSection extends Document {
   @Prop({ type: [Highlight], default: [] })
   highlights: Highlight[];
 
-  @Prop({ type: CTA, required: true })
+  @Prop({ type: CTA, required: false })
   cta: CTA;
 
   @Prop({ type: [Stat], default: [] })

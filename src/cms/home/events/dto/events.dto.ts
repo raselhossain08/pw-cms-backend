@@ -224,11 +224,6 @@ export class CreateEventsDto {
   @ValidateNested()
   @Type(() => SeoMetaDto)
   seo?: SeoMetaDto;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
 }
 
-export class UpdateEventsDto extends PartialType(CreateEventsDto) {}
+export class UpdateEventsDto extends PartialType(CreateEventsDto) { }

@@ -22,7 +22,7 @@ export class AboutSectionService {
   constructor(
     @InjectModel(AboutSection.name)
     private aboutSectionModel: Model<AboutSection>,
-  ) {}
+  ) { }
 
   /**
    * Cache helper methods
@@ -110,6 +110,8 @@ export class AboutSectionService {
       }
 
       this.logger.log(`Upserting about section with id: ${id}`);
+      this.logger.log(`DTO highlights count: ${dto.highlights?.length || 0}`);
+      this.logger.log(`DTO stats count: ${dto.stats?.length || 0}`);
       const updated = await this.aboutSectionModel
         .findOneAndUpdate(
           { id },
@@ -121,6 +123,9 @@ export class AboutSectionService {
       if (!updated) {
         throw new InternalServerErrorException('About Section upsert failed');
       }
+
+      this.logger.log(`Updated highlights count: ${updated.highlights?.length || 0}`);
+      this.logger.log(`Updated stats count: ${updated.stats?.length || 0}`);
 
       // Clear cache after successful update
       this.clearCache(`about-section:${id}`);

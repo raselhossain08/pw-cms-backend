@@ -6,19 +6,32 @@ import { CreateEventsDto, UpdateEventsDto } from '../dto/events.dto';
 
 @Injectable()
 export class EventsService {
-  constructor(@InjectModel(Events.name) private eventsModel: Model<Events>) {}
+  constructor(@InjectModel(Events.name) private eventsModel: Model<Events>) { }
 
   /**
-   * Get active events section (Public)
+   * Get events section (Public)
    */
   async getEvents(): Promise<Events> {
-    const events = await this.eventsModel
-      .findOne({ isActive: true })
+    let events = await this.eventsModel
+      .findOne()
       .select('-__v')
       .lean();
 
     if (!events) {
-      throw new NotFoundException('Events section not found');
+      // Create initial events document if it doesn't exist
+      const initialEvents = new this.eventsModel({
+        title: 'Upcoming Events',
+        subtitle: 'Join our aviation community',
+        events: [],
+        seo: {
+          title: 'Events',
+          description: 'Join our upcoming aviation events and training sessions',
+          keywords: 'aviation events, pilot training, aviation community',
+          ogImage: '',
+        },
+      });
+      await initialEvents.save();
+      events = await this.eventsModel.findOne().select('-__v').lean();
     }
 
     return events as any;
@@ -28,37 +41,58 @@ export class EventsService {
    * Update events section (Admin)
    */
   async updateEvents(dto: UpdateEventsDto): Promise<Events> {
-    const events = await this.eventsModel.findOne({ isActive: true });
+    console.log('=== Service: updateEvents called ===');
+    console.log('DTO events count:', dto.events?.length || 0);
+    console.log('DTO events:', JSON.stringify(dto.events, null, 2));
+    console.log('DTO first event:', dto.events?.[0]);
+
+    let events = await this.eventsModel.findOne();
 
     if (!events) {
-      throw new NotFoundException('Events section not found');
+      console.log('No existing events document, creating new one');
+      // Create initial document if it doesn't exist
+      events = new this.eventsModel({
+        title: dto.title || 'Upcoming Events',
+        subtitle: dto.subtitle || 'Join our aviation community',
+        events: dto.events || [],
+        seo: dto.seo || {
+          title: 'Events',
+          description: 'Join our upcoming aviation events and training sessions',
+          keywords: 'aviation events, pilot training, aviation community',
+          ogImage: '',
+        },
+      });
+    } else {
+      console.log('Updating existing events document');
+      console.log('Before update - events count:', events.events?.length || 0);
+      // Update fields
+      if (dto.title !== undefined) events.title = dto.title;
+      if (dto.subtitle !== undefined) events.subtitle = dto.subtitle;
+      if (dto.events !== undefined) {
+        console.log('Setting events array with', dto.events.length, 'events');
+        events.events = dto.events as any;
+      }
+      if (dto.seo !== undefined) events.seo = dto.seo as any;
+      console.log('After assignment - events count:', events.events?.length || 0);
     }
 
-    // Update fields
-    if (dto.title !== undefined) events.title = dto.title;
-    if (dto.subtitle !== undefined) events.subtitle = dto.subtitle;
-    if (dto.events !== undefined) events.events = dto.events as any;
-    if (dto.seo !== undefined) events.seo = dto.seo as any;
-    if (dto.isActive !== undefined) events.isActive = dto.isActive;
+    console.log('=== About to save ===');
+    console.log('Events to save:', events.events);
 
-    await events.save();
-    return events;
-  }
-
-  /**
-   * Toggle active status (Admin)
-   */
-  async toggleActive(): Promise<Events> {
-    const events = await this.eventsModel.findOne();
-
-    if (!events) {
-      throw new NotFoundException('Events section not found');
+    try {
+      const savedEvents = await events.save();
+      console.log('=== Service: Saved successfully ===');
+      console.log('Saved events count:', savedEvents.events?.length || 0);
+      console.log('Saved events:', JSON.stringify(savedEvents.events, null, 2));
+      console.log('Saved first event:', savedEvents.events?.[0]);
+      return savedEvents;
+    } catch (error) {
+      console.error('=== Service: Save FAILED ===');
+      console.error('Error:', error);
+      console.error('Error message:', error.message);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      throw error;
     }
-
-    events.isActive = !events.isActive;
-    await events.save();
-
-    return events;
   }
 
   /**
@@ -74,34 +108,6 @@ export class EventsService {
 
     // Create new
     const events = new this.eventsModel(dto);
-    await events.save();
-    return events;
-  }
-
-  /**
-   * Duplicate an event
-   */
-  async duplicateEvent(slug: string): Promise<Events> {
-    const events = await this.eventsModel.findOne();
-
-    if (!events) {
-      throw new NotFoundException('Events section not found');
-    }
-
-    const event = events.events.find((e) => e.slug === slug);
-    if (!event) {
-      throw new NotFoundException('Event not found');
-    }
-
-    // Create a duplicate with a new slug
-    const duplicatedEvent = {
-      ...JSON.parse(JSON.stringify(event)),
-      slug: `${event.slug}-copy-${Date.now()}`,
-      title: `${event.title} (Copy)`,
-      id: Math.max(...events.events.map((e) => e.id || 0), 0) + 1,
-    };
-
-    events.events.push(duplicatedEvent);
     await events.save();
     return events;
   }

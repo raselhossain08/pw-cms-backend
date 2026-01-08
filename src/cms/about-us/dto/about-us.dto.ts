@@ -184,10 +184,6 @@ export class CreateAboutUsDto {
   @ValidateNested()
   @Type(() => SeoMetaDto)
   seo: SeoMetaDto;
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
 }
 
-export class UpdateAboutUsDto extends PartialType(CreateAboutUsDto) {}
+export class UpdateAboutUsDto extends PartialType(CreateAboutUsDto) { }

@@ -65,25 +65,25 @@ export class Event {
   @Prop({ required: true })
   id: number;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   title: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   image: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   date: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   time: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   venue: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   location: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   slug: string;
 
   @Prop({ default: '' })
@@ -145,9 +145,6 @@ export class Events extends Document {
 
   @Prop({ type: SeoMetaSubSchema })
   seo: SeoMeta;
-
-  @Prop({ default: true })
-  isActive: boolean;
 }
 
 export const EventsSchema = SchemaFactory.createForClass(Events);

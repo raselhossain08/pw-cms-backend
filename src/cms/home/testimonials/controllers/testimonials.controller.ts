@@ -29,7 +29,7 @@ import {
 @ApiTags('Testimonials')
 @Controller('cms/home/testimonials')
 export class TestimonialsController {
-  constructor(private readonly testimonialsService: TestimonialsService) {}
+  constructor(private readonly testimonialsService: TestimonialsService) { }
 
   @Get()
   @ApiOperation({ summary: 'Get testimonials' })
@@ -103,45 +103,78 @@ export class TestimonialsController {
     @UploadedFiles() files: { [key: string]: Express.Multer.File[] },
   ) {
     try {
-      const updateDto: UpdateTestimonialsDto = {
-        title: body.title,
-        subtitle: body.subtitle,
-        description: body.description,
-        isActive: body.isActive === 'true',
-      };
+      console.log('Received update request');
+      console.log('Body:', body);
+      console.log('Files:', Object.keys(files || {}));
+
+      const updateDto: UpdateTestimonialsDto = {};
+
+      // Only add fields that are provided
+      if (body.title !== undefined && body.title !== null) {
+        updateDto.title = body.title;
+      }
+      if (body.subtitle !== undefined && body.subtitle !== null) {
+        updateDto.subtitle = body.subtitle;
+      }
+      if (body.description !== undefined && body.description !== null) {
+        updateDto.description = body.description;
+      }
 
       // Parse testimonials from form data
       if (body.testimonials) {
-        const testimonials = JSON.parse(body.testimonials);
+        try {
+          const testimonials = JSON.parse(body.testimonials);
+          console.log('Parsed testimonials:', testimonials.length);
 
-        // Upload new avatar images
-        for (let i = 0; i < testimonials.length; i++) {
-          const avatarKey = `avatar_${i}`;
-          if (files[avatarKey] && files[avatarKey][0]) {
-            const imageUrl = await this.testimonialsService.uploadImage(
-              files[avatarKey][0],
-            );
-            testimonials[i].avatar = imageUrl;
+          // Upload new avatar images
+          if (files && Object.keys(files).length > 0) {
+            for (let i = 0; i < testimonials.length; i++) {
+              const avatarKey = `avatar_${i}`;
+              if (files[avatarKey] && files[avatarKey][0]) {
+                console.log(`Uploading avatar for index ${i}`);
+                const imageUrl = await this.testimonialsService.uploadImage(
+                  files[avatarKey][0],
+                );
+                testimonials[i].avatar = imageUrl;
+              }
+            }
           }
-        }
 
-        updateDto.testimonials = testimonials;
+          updateDto.testimonials = testimonials;
+        } catch (parseError) {
+          console.error('Error parsing testimonials:', parseError);
+          throw new HttpException(
+            'Invalid testimonials data format',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
       }
 
       // Parse and update SEO
       if (body.seo) {
-        updateDto.seo = JSON.parse(body.seo);
+        try {
+          updateDto.seo = JSON.parse(body.seo);
+        } catch (parseError) {
+          console.error('Error parsing SEO:', parseError);
+          // Continue without SEO if it fails
+        }
       }
 
+      console.log('Calling service update with:', updateDto);
       const result = await this.testimonialsService.update(updateDto);
+      console.log('Update successful');
+
       return {
         success: true,
         data: result,
+        message: 'Testimonials updated successfully',
       };
     } catch (error) {
+      console.error('Error updating testimonials:', error);
+      console.error('Error stack:', error.stack);
       throw new HttpException(
-        'Failed to update testimonials',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        error.message || 'Failed to update testimonials',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

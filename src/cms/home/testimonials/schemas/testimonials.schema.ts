@@ -3,22 +3,22 @@ import { Document } from 'mongoose';
 
 @Schema({ _id: false })
 export class Testimonial {
-  @Prop({ required: true })
+  @Prop({ default: '' })
   name: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   position: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   company: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   avatar: string;
 
-  @Prop({ required: true, min: 1, max: 5 })
+  @Prop({ default: 5, min: 1, max: 5 })
   rating: number;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   comment: string;
 
   @Prop({ default: '' })
@@ -46,10 +46,10 @@ export const SeoMetaSchema = SchemaFactory.createForClass(SeoMeta);
 
 @Schema({ timestamps: true })
 export class Testimonials extends Document {
-  @Prop({ required: true })
+  @Prop({ default: '' })
   title: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   subtitle: string;
 
   @Prop({ default: '' })

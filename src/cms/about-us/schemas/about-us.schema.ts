@@ -137,9 +137,6 @@ export class AboutUs extends Document {
 
   @Prop({ type: SeoMeta, required: true })
   seo: SeoMeta;
-
-  @Prop({ default: true })
-  isActive: boolean;
 }
 
 export const AboutUsSchema = SchemaFactory.createForClass(AboutUs);

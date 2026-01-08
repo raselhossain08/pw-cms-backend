@@ -29,15 +29,15 @@ class HighlightDto {
 }
 
 class CTADto {
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  label: string;
+  label?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  link: string;
+  link?: string;
 }
 
 class StatDto {
@@ -124,10 +124,11 @@ export class CreateAboutSectionDto {
   @Type(() => HighlightDto)
   highlights: HighlightDto[];
 
-  @ApiProperty({ type: CTADto })
+  @ApiPropertyOptional({ type: CTADto })
+  @IsOptional()
   @ValidateNested()
   @Type(() => CTADto)
-  cta: CTADto;
+  cta?: CTADto;
 
   @ApiPropertyOptional({ type: [StatDto] })
   @IsOptional()

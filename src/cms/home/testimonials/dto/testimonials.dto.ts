@@ -34,31 +34,37 @@ export class SeoMetaDto {
 }
 
 export class TestimonialDto {
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  position: string;
+  position?: string;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  company: string;
+  company?: string;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  avatar: string;
+  avatar?: string;
 
-  @ApiProperty({ minimum: 1, maximum: 5 })
+  @ApiProperty({ minimum: 1, maximum: 5, required: false, default: 5 })
+  @IsOptional()
   @IsNumber()
   @Min(1)
   @Max(5)
-  rating: number;
+  rating?: number;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  comment: string;
+  comment?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

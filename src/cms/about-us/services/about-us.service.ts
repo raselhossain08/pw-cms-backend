@@ -9,7 +9,7 @@ export class AboutUsService {
   constructor(
     @InjectModel(AboutUs.name)
     private aboutUsModel: Model<AboutUs>,
-  ) {}
+  ) { }
 
   async create(createAboutUsDto: CreateAboutUsDto): Promise<AboutUs> {
     const createdAboutUs = new this.aboutUsModel(createAboutUsDto);
@@ -18,10 +18,6 @@ export class AboutUsService {
 
   async findAll(): Promise<AboutUs[]> {
     return this.aboutUsModel.find().exec();
-  }
-
-  async findActive(): Promise<AboutUs | null> {
-    return this.aboutUsModel.findOne({ isActive: true }).exec();
   }
 
   async findOne(id: string): Promise<AboutUs | null> {
@@ -98,61 +94,9 @@ export class AboutUsService {
         ogImage: '',
         canonicalUrl: 'https://personalwings.com/about-us',
       },
-      isActive: true,
     };
 
     const createdAboutUs = new this.aboutUsModel(defaultAboutUs);
     return createdAboutUs.save();
-  }
-
-  async toggleActive(id: string): Promise<AboutUs | null> {
-    const aboutUs = await this.aboutUsModel.findById(id).exec();
-    if (!aboutUs) {
-      return null;
-    }
-    aboutUs.isActive = !aboutUs.isActive;
-    return aboutUs.save();
-  }
-
-  async duplicate(id: string): Promise<AboutUs | null> {
-    const original = await this.aboutUsModel.findById(id).exec();
-    if (!original) {
-      return null;
-    }
-
-    // Create a copy with modified title
-    const duplicatedData: CreateAboutUsDto = {
-      headerSection: {
-        ...original.headerSection,
-        title: `${original.headerSection.title} (Copy)`,
-      },
-      sections: original.sections.map((section) => ({
-        ...section,
-        id: `${section.id}-copy`,
-      })),
-      teamSection: original.teamSection
-        ? {
-            ...original.teamSection,
-            members: original.teamSection.members?.map((member) => ({
-              ...member,
-              id: `${member.id}-copy`,
-            })),
-          }
-        : undefined,
-      statsSection: original.statsSection
-        ? { ...original.statsSection }
-        : undefined,
-      seo: {
-        ...original.seo,
-        title: `${original.seo.title} (Copy)`,
-        canonicalUrl: original.seo.canonicalUrl
-          ? `${original.seo.canonicalUrl}-copy`
-          : undefined,
-      },
-      isActive: false, // Duplicated pages start as inactive
-    };
-
-    const duplicated = new this.aboutUsModel(duplicatedData);
-    return duplicated.save();
   }
 }
