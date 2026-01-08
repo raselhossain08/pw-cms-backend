@@ -10,7 +10,7 @@ export class BlogService {
   constructor(
     @InjectModel(Blog.name) private blogModel: Model<BlogDocument>,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   async create(createBlogDto: CreateBlogDto): Promise<Blog> {
     const blog = new this.blogModel(createBlogDto);
@@ -47,69 +47,78 @@ export class BlogService {
     updateBlogDto: UpdateBlogDto,
     images?: { [key: string]: Express.Multer.File[] },
   ): Promise<Blog> {
-    // Always find the same document - get the first blog document
-    // This ensures we're always updating the same container
-    let blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
+    try {
+      // Always find the same document - get the first blog document
+      // This ensures we're always updating the same container
+      let blog = await this.blogModel.findOne().sort({ createdAt: 1 }).exec();
 
-    if (!blog) {
-      // If no document exists, create one
-      blog = new this.blogModel({
-        ...(updateBlogDto as CreateBlogDto),
-        isActive:
-          updateBlogDto.isActive !== undefined ? updateBlogDto.isActive : true,
-      });
-    } else {
-      // Update existing document - ensure we're working with the same one
+      if (!blog) {
+        // If no document exists, create one
+        console.log('Creating new blog document');
+        blog = new this.blogModel(updateBlogDto as CreateBlogDto);
+      } else {
+        // Update existing document - ensure we're working with the same one
+        console.log('Updating existing blog document');
 
-      // Manually update fields to ensure proper assignment
-      if (updateBlogDto.title !== undefined) blog.title = updateBlogDto.title;
-      if (updateBlogDto.subtitle !== undefined)
-        blog.subtitle = updateBlogDto.subtitle;
-      if (updateBlogDto.description !== undefined)
-        blog.description = updateBlogDto.description;
-      if (updateBlogDto.isActive !== undefined)
-        blog.isActive = updateBlogDto.isActive;
+        // Manually update fields to ensure proper assignment
+        if (updateBlogDto.title !== undefined) blog.title = updateBlogDto.title;
+        if (updateBlogDto.subtitle !== undefined)
+          blog.subtitle = updateBlogDto.subtitle;
+        if (updateBlogDto.description !== undefined)
+          blog.description = updateBlogDto.description;
 
-      // Deep update for blogs array - cast to any to avoid type mismatch
-      // IMPORTANT: This replaces the entire array, so make sure frontend sends all posts
-      if (updateBlogDto.blogs !== undefined) {
-        blog.blogs = updateBlogDto.blogs as any;
+        // Deep update for blogs array
+        if (updateBlogDto.blogs !== undefined) {
+          console.log('Updating blogs array, count:', updateBlogDto.blogs.length);
+          console.log('Blog titles:', updateBlogDto.blogs.map(b => b.title));
+
+          // Properly mark the array as modified for Mongoose
+          blog.blogs = updateBlogDto.blogs as any;
+          blog.markModified('blogs');
+        }
+
+        // Deep update for seo object
+        if (updateBlogDto.seo !== undefined) {
+          blog.seo = updateBlogDto.seo as any;
+        }
       }
 
-      // Deep update for seo object - cast to any to avoid type mismatch
-      if (updateBlogDto.seo !== undefined) {
-        blog.seo = updateBlogDto.seo as any;
-      }
-    }
-
-    // Handle image uploads if provided
-    if (images) {
-      for (const [key, files] of Object.entries(images)) {
-        if (files && files.length > 0) {
-          // Handle blog post images
-          const imageMatch = key.match(/^image_(\d+)$/);
-          if (imageMatch) {
-            const index = parseInt(imageMatch[1], 10);
-            const result = await this.uploadImage(files[0]);
-            if (blog.blogs && blog.blogs[index]) {
-              blog.blogs[index].image = result.url;
+      // Handle image uploads if provided
+      if (images) {
+        for (const [key, files] of Object.entries(images)) {
+          if (files && files.length > 0) {
+            // Handle blog post images
+            const imageMatch = key.match(/^image_(\\d+)$/);
+            if (imageMatch) {
+              const index = parseInt(imageMatch[1], 10);
+              const result = await this.uploadImage(files[0]);
+              if (blog.blogs && blog.blogs[index]) {
+                blog.blogs[index].image = result.url;
+              }
             }
-          }
 
-          // Handle author avatars
-          const avatarMatch = key.match(/^avatar_(\d+)$/);
-          if (avatarMatch) {
-            const index = parseInt(avatarMatch[1], 10);
-            const result = await this.uploadImage(files[0]);
-            if (blog.blogs && blog.blogs[index] && blog.blogs[index].author) {
-              blog.blogs[index].author.avatar = result.url;
+            // Handle author avatars
+            const avatarMatch = key.match(/^avatar_(\\d+)$/);
+            if (avatarMatch) {
+              const index = parseInt(avatarMatch[1], 10);
+              const result = await this.uploadImage(files[0]);
+              if (blog.blogs && blog.blogs[index] && blog.blogs[index].author) {
+                blog.blogs[index].author.avatar = result.url;
+              }
             }
           }
         }
       }
-    }
 
-    return blog.save();
+      const saved = await blog.save();
+      console.log('Blog saved successfully');
+      console.log('Saved blogs count:', saved.blogs?.length || 0);
+      console.log('Saved blog titles:', saved.blogs?.map(b => b.title) || []);
+      return saved;
+    } catch (error) {
+      console.error('Error in blog service update:', error);
+      throw error;
+    }
   }
 
   async toggleActive(): Promise<Blog> {

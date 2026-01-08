@@ -29,12 +29,12 @@ export class BlogController {
   constructor(
     private readonly blogService: BlogService,
     @InjectModel(User.name) private userModel: Model<User>,
-  ) {}
+  ) { }
 
   @Get()
   async getBlog() {
     const blog = await this.blogService.findOne();
-    return { data: blog };
+    return blog;
   }
 
   @Get('export')
@@ -81,7 +81,7 @@ export class BlogController {
       throw new NotFoundException('Blog post not found');
     }
 
-    return { data: blogPost };
+    return blogPost;
   }
 
   @Patch()
@@ -114,41 +114,51 @@ export class BlogController {
     @UploadedFiles()
     files?: { [key: string]: Express.Multer.File[] },
   ) {
-    // Parse JSON strings back to objects if needed
-    if (typeof updateBlogDto.blogs === 'string') {
-      updateBlogDto.blogs = JSON.parse(updateBlogDto.blogs as any);
-    }
-    if (typeof updateBlogDto.seo === 'string') {
-      updateBlogDto.seo = JSON.parse(updateBlogDto.seo as any);
-    }
+    try {
+      console.log('Received blog update request');
+      console.log('Files:', Object.keys(files || {}));
+      console.log('Raw updateBlogDto:', JSON.stringify(updateBlogDto, null, 2));
+      console.log('updateBlogDto.blogs type:', typeof updateBlogDto.blogs);
+      console.log('updateBlogDto.blogs value:', updateBlogDto.blogs);
 
-    const blog = await this.blogService.update(updateBlogDto, files);
-    return { data: blog, message: 'Blog updated successfully' };
+      // Parse JSON strings back to objects if needed
+      if (typeof updateBlogDto.blogs === 'string') {
+        console.log('Parsing blogs string...');
+        updateBlogDto.blogs = JSON.parse(updateBlogDto.blogs as any);
+      }
+      if (typeof updateBlogDto.seo === 'string') {
+        updateBlogDto.seo = JSON.parse(updateBlogDto.seo as any);
+      }
+
+      console.log('Parsed blogs count:', updateBlogDto.blogs?.length || 0);
+
+      const blog = await this.blogService.update(updateBlogDto, files);
+      console.log('Blog updated successfully');
+      return blog;
+    } catch (error) {
+      console.error('Error updating blog:', error);
+      throw error;
+    }
   }
 
   @Patch('toggle-active')
   async toggleActive() {
     const blog = await this.blogService.toggleActive();
-    return {
-      data: blog,
-      message: `Blog is now ${blog.isActive ? 'active' : 'inactive'}`,
-    };
+    return blog;
   }
 
   @Post(':slug/view')
   async trackView(@Param('slug') slug: string) {
     const result = await this.blogService.incrementView(slug);
-    return { data: { views: result.views } };
+    return { views: result.views };
   }
 
   @Post(':slug/like')
   async toggleLike(@Param('slug') slug: string, @Req() req: any) {
     const result = await this.blogService.toggleLike(slug, req.user?.userId);
     return {
-      data: {
-        likes: result.likes,
-        isLiked: result.isLiked,
-      },
+      likes: result.likes,
+      isLiked: result.isLiked,
     };
   }
 
@@ -156,17 +166,15 @@ export class BlogController {
   async getLikeStatus(@Param('slug') slug: string, @Req() req: any) {
     const result = await this.blogService.getLikeStatus(slug, req.user?.userId);
     return {
-      data: {
-        likes: result.likes,
-        isLiked: result.isLiked,
-      },
+      likes: result.likes,
+      isLiked: result.isLiked,
     };
   }
 
   @Get(':slug/comments')
   async getComments(@Param('slug') slug: string) {
     const comments = await this.blogService.getComments(slug);
-    return { data: comments };
+    return comments;
   }
 
   @Post(':slug/comments')
@@ -199,7 +207,7 @@ export class BlogController {
       userEmail: user.email,
     });
 
-    return { data: comment, message: 'Comment added successfully' };
+    return comment;
   }
 
   @Delete(':slug/comments/:commentId')
@@ -210,12 +218,12 @@ export class BlogController {
     @Req() req: any,
   ) {
     await this.blogService.deleteComment(slug, commentId, req.user?.userId);
-    return { data: { deleted: true }, message: 'Comment deleted successfully' };
+    return { deleted: true };
   }
 
   @Post(':slug/duplicate')
   async duplicateBlogPost(@Param('slug') slug: string) {
     const duplicated = await this.blogService.duplicateBlogPost(slug);
-    return { data: duplicated, message: 'Blog post duplicated successfully' };
+    return duplicated;
   }
 }
