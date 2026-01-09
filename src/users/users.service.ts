@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<User>) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Check if user already exists
@@ -200,11 +200,21 @@ export class UsersService {
   }
 
   async getInstructors(): Promise<any[]> {
-    return await this.userModel
-      .find({ role: UserRole.INSTRUCTOR, status: UserStatus.ACTIVE })
+    // Return all instructors (including inactive) for course assignment dropdown
+    // This ensures courses with inactive instructors can still be viewed/edited
+    const instructors = await this.userModel
+      .find({ role: UserRole.INSTRUCTOR })
       .select('-password -refreshToken -passwordResetToken')
+      .sort({ status: -1, firstName: 1 }) // Active first, then by name
       .lean()
       .exec();
+
+    console.log(`📋 getInstructors() returning ${instructors.length} instructors`);
+    instructors.forEach((i: any) => {
+      console.log(`   - ${i._id}: ${i.firstName} ${i.lastName} (${i.email}) - Status: ${i.status}`);
+    });
+
+    return instructors;
   }
 
   async getInstructorBySlug(slug: string): Promise<any> {
@@ -268,7 +278,7 @@ export class UsersService {
     const avgRating =
       courses.length > 0
         ? courses.reduce((sum, course) => sum + (course.rating || 0), 0) /
-          courses.length
+        courses.length
         : 0;
 
     // Format lessons as duration string
@@ -590,18 +600,18 @@ export class UsersService {
     const overallProgress =
       totalEnrollments > 0
         ? Math.round(
-            enrollments.reduce(
-              (sum: number, e: any) => sum + (e.progress || 0),
-              0,
-            ) / totalEnrollments,
-          )
+          enrollments.reduce(
+            (sum: number, e: any) => sum + (e.progress || 0),
+            0,
+          ) / totalEnrollments,
+        )
         : 0;
     const avgQuizScore =
       quizScores.length > 0
         ? Math.round(
-            quizScores.reduce((sum, q: any) => sum + q.avgScore, 0) /
-              quizScores.length,
-          )
+          quizScores.reduce((sum, q: any) => sum + q.avgScore, 0) /
+          quizScores.length,
+        )
         : 0;
     const totalTimeSpent = enrollments.reduce(
       (sum: number, e: any) => sum + (e.totalTimeSpent || 0),
@@ -631,9 +641,9 @@ export class UsersService {
         timeSpent: e.totalTimeSpent || 0,
         certificate: e.certificate
           ? {
-              certificateNumber: e.certificate.certificateNumber,
-              issuedAt: e.certificate.issuedAt,
-            }
+            certificateNumber: e.certificate.certificateNumber,
+            issuedAt: e.certificate.issuedAt,
+          }
           : null,
       })),
       quizzes: quizScores.map((q: any) => ({

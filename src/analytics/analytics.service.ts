@@ -27,7 +27,7 @@ export class AnalyticsService {
     private usersService: UsersService,
     private ordersService: OrdersService,
     private chatService: ChatService,
-  ) {}
+  ) { }
 
   async trackEvent(
     eventData: Partial<AnalyticsEvent>,
@@ -404,13 +404,69 @@ export class AnalyticsService {
   }
 
   private getPeriodLabel(period: AnalyticsPeriod, index: number): string {
-    // Implementation for generating period labels
-    return `Label ${index}`;
+    // Generate proper labels based on period type (Day/Week/Month/Year)
+    const now = new Date();
+
+    switch (period) {
+      case AnalyticsPeriod.DAY:
+        // Return hour labels (0-23)
+        return `${index}:00`;
+
+      case AnalyticsPeriod.WEEK:
+        // Return day names
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const date = new Date();
+        date.setDate(now.getDate() - (6 - index));
+        return days[date.getDay()];
+
+      case AnalyticsPeriod.MONTH:
+        // Return day numbers (1-30)
+        const monthDate = new Date();
+        monthDate.setDate(now.getDate() - (29 - index));
+        return monthDate.getDate().toString();
+
+      case AnalyticsPeriod.YEAR:
+        // Return month names
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthIndex = (now.getMonth() - (11 - index) + 12) % 12;
+        return months[monthIndex];
+
+      default:
+        return `Day ${index + 1}`;
+    }
   }
 
   private getDataIndex(item: any, period: AnalyticsPeriod): number {
-    // Implementation for determining data index based on period
-    return 0;
+    if (!item.createdAt && !item.date && !item._id) {
+      return -1;
+    }
+
+    const itemDate = new Date(item.createdAt || item.date || item._id);
+    const now = new Date();
+
+    switch (period) {
+      case AnalyticsPeriod.DAY:
+        // Return hour index (0-23)
+        return itemDate.getHours();
+
+      case AnalyticsPeriod.WEEK:
+        // Return day index (0-6)
+        const daysDiff = Math.floor((now.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+        return 6 - daysDiff;
+
+      case AnalyticsPeriod.MONTH:
+        // Return day index (0-29)
+        const monthDaysDiff = Math.floor((now.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+        return 29 - monthDaysDiff;
+
+      case AnalyticsPeriod.YEAR:
+        // Return month index (0-11)
+        const monthsDiff = (now.getFullYear() - itemDate.getFullYear()) * 12 + (now.getMonth() - itemDate.getMonth());
+        return 11 - monthsDiff;
+
+      default:
+        return 0;
+    }
   }
 
   private async getTopPerformingCourses() {
@@ -525,9 +581,9 @@ export class AnalyticsService {
     const averageCompletion =
       lessonsCount > 0
         ? Math.round(
-            lessons.reduce((sum, l) => sum + (l?.averageScore || 0), 0) /
-              lessonsCount,
-          )
+          lessons.reduce((sum, l) => sum + (l?.averageScore || 0), 0) /
+          lessonsCount,
+        )
         : 0;
     return { totalViews, totalCompletions, averageCompletion, lessonsCount };
   }
@@ -951,7 +1007,7 @@ export class AnalyticsService {
     return {
       avgResponseTime:
         responseData.reduce((sum, data) => sum + data.responseTime, 0) /
-          responseData.length || 0,
+        responseData.length || 0,
       hourlyBreakdown,
     };
   }
@@ -966,10 +1022,10 @@ export class AnalyticsService {
       totalSessions: sessions.length,
       avgSessionDuration:
         sessions.reduce((sum, session) => sum + session.duration, 0) /
-          sessions.length || 0,
+        sessions.length || 0,
       avgMessagesPerSession:
         sessions.reduce((sum, session) => sum + session.messageCount, 0) /
-          sessions.length || 0,
+        sessions.length || 0,
     };
   }
 

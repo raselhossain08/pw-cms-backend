@@ -51,6 +51,14 @@ export class Course extends Document {
   excerpt: string;
 
   @ApiProperty({
+    example: '<p>Detailed course content with rich text formatting...</p>',
+    description: 'Detailed course content (rich text/HTML)',
+    required: false,
+  })
+  @Prop()
+  content: string;
+
+  @ApiProperty({
     enum: CourseLevel,
     example: CourseLevel.ADVANCED,
     description: 'Course difficulty level',
@@ -142,9 +150,13 @@ export class Course extends Document {
   @Prop({ default: 0 })
   completionRate: number;
 
-  @ApiProperty({ type: String, description: 'Instructor ID' })
+  @ApiProperty({ type: String, description: 'Primary Instructor ID (backward compatibility)' })
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   instructor: Types.ObjectId | User;
+
+  @ApiProperty({ type: [String], description: 'Multiple Instructors IDs' })
+  @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
+  instructors: Types.ObjectId[] | User[];
 
   @ApiProperty({
     type: [String],

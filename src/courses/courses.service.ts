@@ -24,7 +24,7 @@ export class CoursesService {
     @InjectModel(CourseModule.name)
     private courseModuleModel: Model<CourseModule>,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
-  ) {}
+  ) { }
 
   async getRecommendations(
     userId: string,
@@ -129,10 +129,10 @@ export class CoursesService {
           totalLessons: course.totalLessons || course.lessons?.length || 0,
           instructor: course.instructor
             ? {
-                ...course.instructor,
-                id: course.instructor._id.toString(),
-                _id: course.instructor._id.toString(),
-              }
+              ...course.instructor,
+              id: course.instructor._id.toString(),
+              _id: course.instructor._id.toString(),
+            }
             : null,
         })) as any as Course[];
     } catch (error) {
@@ -157,10 +157,10 @@ export class CoursesService {
         totalLessons: course.totalLessons || course.lessons?.length || 0,
         instructor: course.instructor
           ? {
-              ...course.instructor,
-              id: course.instructor._id.toString(),
-              _id: course.instructor._id.toString(),
-            }
+            ...course.instructor,
+            id: course.instructor._id.toString(),
+            _id: course.instructor._id.toString(),
+          }
           : null,
       })) as any as Course[];
     }
@@ -224,12 +224,6 @@ export class CoursesService {
     createCourseDto: CreateCourseDto,
     instructorId: string,
   ): Promise<Course> {
-    console.log(
-      'Creating course with DTO:',
-      JSON.stringify(createCourseDto, null, 2),
-    );
-    console.log('Thumbnail URL:', createCourseDto.thumbnail);
-
     const cleanTitle = (createCourseDto.title || '').toLowerCase().trim();
     let slug = (createCourseDto.slug || '')
       .toLowerCase()
@@ -281,15 +275,38 @@ export class CoursesService {
       courseData.isFree = courseData.isFree || false;
     }
 
+    // Determine instructors
+    let finalInstructorId: string;
+    let finalInstructors: Types.ObjectId[];
+
+    if (createCourseDto.instructors && createCourseDto.instructors.length > 0) {
+      // Use instructors from DTO
+      finalInstructors = createCourseDto.instructors.map(id => new Types.ObjectId(id));
+      finalInstructorId = createCourseDto.instructors[0]; // First one is primary
+    } else if (createCourseDto.instructor) {
+      // Use single instructor from DTO
+      finalInstructorId = createCourseDto.instructor;
+      finalInstructors = [new Types.ObjectId(finalInstructorId)];
+    } else {
+      // Fallback to logged-in user
+      finalInstructorId = instructorId;
+      finalInstructors = [new Types.ObjectId(instructorId)];
+    }
+
     const course = new this.courseModel({
       ...courseData,
       slug,
       duration,
-      instructor: new Types.ObjectId(instructorId),
+      instructor: new Types.ObjectId(finalInstructorId),
+      instructors: finalInstructors,
     });
 
     const savedCourse = await course.save();
-    console.log('Saved course thumbnail:', savedCourse.thumbnail);
+
+    // Populate instructors before returning
+    await savedCourse.populate('instructor', 'firstName lastName email avatar');
+    await savedCourse.populate('instructors', 'firstName lastName email avatar');
+
     return savedCourse;
   }
 
@@ -328,6 +345,7 @@ export class CoursesService {
       this.courseModel
         .find(query)
         .populate('instructor', 'firstName lastName email avatar')
+        .populate('instructors', 'firstName lastName email avatar')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -348,11 +366,18 @@ export class CoursesService {
       totalLessons: course.totalLessons || course.lessons?.length || 0,
       instructor: course.instructor
         ? {
-            ...course.instructor,
-            id: course.instructor._id.toString(),
-            _id: course.instructor._id.toString(),
-          }
+          ...course.instructor,
+          id: course.instructor._id.toString(),
+          _id: course.instructor._id.toString(),
+        }
         : null,
+      instructors: course.instructors && Array.isArray(course.instructors)
+        ? course.instructors.map((inst: any) => ({
+          ...inst,
+          id: inst._id.toString(),
+          _id: inst._id.toString(),
+        }))
+        : [],
     }));
 
     return { courses: serializedCourses, total };
@@ -367,6 +392,10 @@ export class CoursesService {
       .findById(id)
       .populate(
         'instructor',
+        'firstName lastName email avatar bio certifications flightHours',
+      )
+      .populate(
+        'instructors',
         'firstName lastName email avatar bio certifications flightHours',
       )
       .populate({
@@ -392,6 +421,10 @@ export class CoursesService {
       // .findOne({ slug, status: CourseStatus.PUBLISHED })
       .populate(
         'instructor',
+        'firstName lastName email avatar bio certifications flightHours',
+      )
+      .populate(
+        'instructors',
         'firstName lastName email avatar bio certifications flightHours',
       )
       .populate({
@@ -440,12 +473,6 @@ export class CoursesService {
       courseData.isFree = false;
     }
 
-    console.log(
-      'Updating course with DTO:',
-      JSON.stringify(courseData, null, 2),
-    );
-    console.log('Thumbnail URL:', updateCourseDto.thumbnail);
-
     const course = await this.findById(id);
 
     if (
@@ -485,15 +512,27 @@ export class CoursesService {
       updateData.isFree = false;
     }
 
+    // Handle instructor field conversion
+    if (updateData.instructor) {
+      updateData.instructor = new Types.ObjectId(updateData.instructor);
+    }
+
+    // Handle instructors array conversion
+    if (updateData.instructors && Array.isArray(updateData.instructors)) {
+      updateData.instructors = updateData.instructors.map(
+        (id: string) => new Types.ObjectId(id)
+      );
+    }
+
     const updatedCourse = await this.courseModel
-      .findByIdAndUpdate(id, updateData, { new: true })
-      .populate('instructor', 'firstName lastName email avatar');
+      .findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
+      .populate('instructor', 'firstName lastName email avatar')
+      .populate('instructors', 'firstName lastName email avatar');
 
     if (!updatedCourse) {
       throw new NotFoundException('Course not found');
     }
 
-    console.log('Updated course thumbnail:', updatedCourse.thumbnail);
     return updatedCourse;
   }
 
@@ -540,10 +579,10 @@ export class CoursesService {
       totalLessons: course.totalLessons || course.lessons?.length || 0,
       instructor: course.instructor
         ? {
-            ...course.instructor,
-            id: course.instructor._id.toString(),
-            _id: course.instructor._id.toString(),
-          }
+          ...course.instructor,
+          id: course.instructor._id.toString(),
+          _id: course.instructor._id.toString(),
+        }
         : null,
     })) as any;
   }
@@ -1600,9 +1639,9 @@ export class CoursesService {
       avgDuration:
         lessons.length > 0
           ? Math.round(
-              lessons.reduce((sum, l) => sum + (l.duration || 0), 0) /
-                lessons.length,
-            )
+            lessons.reduce((sum, l) => sum + (l.duration || 0), 0) /
+            lessons.length,
+          )
           : 0,
       lessonsByType: {
         video: lessons.filter((l) => l.type === 'video').length,
@@ -1617,9 +1656,9 @@ export class CoursesService {
       avgCompletionRate:
         lessons.length > 0
           ? Math.round(
-              lessons.reduce((sum, l) => sum + (l.completionCount || 0), 0) /
-                lessons.length,
-            )
+            lessons.reduce((sum, l) => sum + (l.completionCount || 0), 0) /
+            lessons.length,
+          )
           : 0,
       enrollmentTrend: [], // Placeholder for time-series data
       revenueByMonth: [], // Placeholder for revenue trends
