@@ -195,4 +195,23 @@ export class CreateUserDto {
   })
   @IsOptional()
   showPhone?: boolean;
+
+  @ApiProperty({
+    example: 'Web Development',
+    description: 'Instructor specialization',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  specialization?: string;
+
+  @ApiProperty({
+    example: 'intermediate',
+    description: 'Instructor experience level',
+    enum: ['expert', 'advanced', 'intermediate'],
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  experience?: string;
 }

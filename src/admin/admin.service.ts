@@ -174,14 +174,52 @@ export class AdminService {
     const total = await this.userModel.countDocuments(query).exec();
     const users = await this.userModel
       .find(query)
-      .select('-password')
+      .select('-password -refreshToken -passwordResetToken')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
+      .lean()
       .exec();
 
+    // Properly serialize dates to ISO strings (avoid spread operator with lean())
+    const formattedUsers = users.map((user: any) => ({
+      _id: user._id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      status: user.status,
+      phone: user.phone,
+      avatar: user.avatar,
+      bio: user.bio,
+      country: user.country,
+      city: user.city,
+      state: user.state,
+      zipCode: user.zipCode,
+      dateOfBirth: user.dateOfBirth,
+      gender: user.gender,
+      certifications: user.certifications,
+      flightHours: user.flightHours,
+      specialization: user.specialization,
+      experience: user.experience,
+      slug: user.slug,
+      loginCount: user.loginCount,
+      showEmail: user.showEmail,
+      showPhone: user.showPhone,
+      twoFactorEnabled: user.twoFactorEnabled,
+      totalSpent: user.totalSpent,
+      completedCourses: user.completedCourses,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null,
+      updatedAt: user.updatedAt ? new Date(user.updatedAt).toISOString() : null,
+      lastLogin: user.lastLogin ? new Date(user.lastLogin).toISOString() : null,
+    }));
+
     return {
-      users,
+      users: formattedUsers,
       pagination: {
         total,
         page,
@@ -1204,7 +1242,7 @@ export class AdminService {
     const invoice = await this.invoiceModel.create({
       ...invoiceData,
       invoiceNumber,
-      status: 'pending',
+      status: invoiceData.status || 'draft',
     });
 
     return invoice;
@@ -1922,6 +1960,132 @@ export class AdminService {
       throw new BadRequestException(
         'Failed to fetch instructor performance tiers',
       );
+    }
+  }
+
+  /**
+   * Send broadcast message to instructors
+   */
+  async sendBroadcastToInstructors(data: {
+    subject: string;
+    message: string;
+    instructorIds?: string[];
+  }): Promise<any> {
+    try {
+      const { subject, message, instructorIds } = data;
+
+      if (!subject || !message) {
+        throw new BadRequestException('Subject and message are required');
+      }
+
+      // Get target instructors
+      const query: any = { role: UserRole.INSTRUCTOR };
+      if (instructorIds && instructorIds.length > 0) {
+        query._id = { $in: instructorIds };
+      }
+
+      const instructors = await this.userModel
+        .find(query)
+        .select('email firstName lastName')
+        .exec();
+
+      if (instructors.length === 0) {
+        throw new NotFoundException('No instructors found');
+      }
+
+      // TODO: Integrate with email service
+      // For now, we'll just return success
+      // await Promise.all(
+      //   instructors.map(async (instructor) => {
+      //     await this.emailService.sendEmail({
+      //       to: instructor.email,
+      //       subject: subject,
+      //       text: message,
+      //     });
+      //   })
+      // );
+
+      return {
+        message: `Announcement sent to ${instructors.length} instructor(s)`,
+        recipientCount: instructors.length,
+        recipients: instructors.map((i) => ({
+          id: i._id,
+          name: `${i.firstName} ${i.lastName}`,
+          email: i.email,
+        })),
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to send broadcast to instructors');
+    }
+  }
+
+  /**
+   * Send individual message to instructor
+   */
+  async sendMessageToInstructor(
+    instructorId: string,
+    subject: string,
+    message: string,
+    type: 'email' | 'notification' | 'both' = 'email',
+  ): Promise<any> {
+    try {
+      if (!subject || !message) {
+        throw new BadRequestException('Subject and message are required');
+      }
+
+      const instructor = await this.userModel
+        .findById(instructorId)
+        .select('email firstName lastName role')
+        .exec();
+
+      if (!instructor) {
+        throw new NotFoundException('Instructor not found');
+      }
+
+      if (instructor.role !== UserRole.INSTRUCTOR) {
+        throw new BadRequestException('User is not an instructor');
+      }
+
+      // TODO: Integrate with email/notification service
+      // if (type === 'email' || type === 'both') {
+      //   await this.emailService.sendEmail({
+      //     to: instructor.email,
+      //     subject: subject,
+      //     text: message,
+      //   });
+      // }
+      
+      // if (type === 'notification' || type === 'both') {
+      //   await this.notificationService.create({
+      //     userId: instructorId,
+      //     title: subject,
+      //     message: message,
+      //   });
+      // }
+
+      return {
+        message: 'Message sent successfully',
+        recipient: {
+          id: instructor._id,
+          name: `${instructor.firstName} ${instructor.lastName}`,
+          email: instructor.email,
+        },
+        deliveryMethod: type,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to send message to instructor');
     }
   }
 

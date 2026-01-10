@@ -435,6 +435,29 @@ export class AdminController {
     return this.adminService.getInstructorPerformanceTiers();
   }
 
+  @Post('instructors/broadcast')
+  sendBroadcastToInstructors(
+    @Body('subject') subject: string,
+    @Body('message') message: string,
+    @Body('instructorIds') instructorIds?: string[],
+  ) {
+    return this.adminService.sendBroadcastToInstructors({
+      subject,
+      message,
+      instructorIds,
+    });
+  }
+
+  @Post('instructors/:id/message')
+  sendMessageToInstructor(
+    @Param('id') id: string,
+    @Body('subject') subject: string,
+    @Body('message') message: string,
+    @Body('type') type: 'email' | 'notification' | 'both' = 'email',
+  ) {
+    return this.adminService.sendMessageToInstructor(id, subject, message, type);
+  }
+
   // ==================== STUDENT MANAGEMENT ====================
 
   @Get('students/stats')

@@ -160,6 +160,23 @@ export class Order extends Document {
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
 
+// Configure toJSON to handle dates properly
+OrderSchema.set('toJSON', {
+  transform: function (doc, ret: any) {
+    // Remove empty objects for optional date fields
+    if (!ret.paidAt || (typeof ret.paidAt === 'object' && Object.keys(ret.paidAt).length === 0)) {
+      ret.paidAt = undefined;
+    }
+    if (!ret.createdAt || (typeof ret.createdAt === 'object' && Object.keys(ret.createdAt).length === 0)) {
+      ret.createdAt = undefined;
+    }
+    if (!ret.updatedAt || (typeof ret.updatedAt === 'object' && Object.keys(ret.updatedAt).length === 0)) {
+      ret.updatedAt = undefined;
+    }
+    return ret;
+  },
+});
+
 // Pre-save hook to generate order number
 OrderSchema.pre('save', async function (next) {
   if (this.isNew) {

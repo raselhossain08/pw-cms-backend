@@ -31,13 +31,20 @@ import { BulkDeleteDto, BulkToggleDto } from './dto/bulk-operations.dto';
 @ApiTags('Coupons')
 @Controller('coupons')
 export class CouponsController {
-  constructor(private readonly couponsService: CouponsService) {}
+  constructor(private readonly couponsService: CouponsService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Create coupon' })
+  @ApiOperation({
+    summary: 'Create coupon',
+    description:
+      'Create a new coupon with optional expiration date. ' +
+      'The expiresAt field should be in ISO 8601 format (e.g., 2024-12-31T23:59:59.000Z). ' +
+      'All dates are stored and returned in UTC timezone. ' +
+      'If expiresAt is not provided or empty, the coupon will not expire.',
+  })
   async create(@Body() body: CreateCouponDto) {
     return this.couponsService.create(body);
   }
@@ -138,7 +145,14 @@ export class CouponsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Update coupon' })
+  @ApiOperation({
+    summary: 'Update coupon',
+    description:
+      'Update an existing coupon. ' +
+      'The expiresAt field should be in ISO 8601 format (e.g., 2024-12-31T23:59:59.000Z). ' +
+      'To remove the expiration date, send an empty string or null for expiresAt. ' +
+      'All dates are stored and returned in UTC timezone.',
+  })
   async update(@Param('id') id: string, @Body() body: UpdateCouponDto) {
     return this.couponsService.update(id, body);
   }

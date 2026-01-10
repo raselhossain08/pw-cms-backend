@@ -17,7 +17,7 @@ async function seedCoupons() {
       isActive: true,
       maxUses: 100,
       minPurchaseAmount: 0,
-      expiresAt: new Date('2026-12-31'),
+      expiresAt: new Date('2026-12-31').toISOString(),
     },
     {
       code: 'SAVE20',
@@ -26,7 +26,7 @@ async function seedCoupons() {
       isActive: true,
       maxUses: 50,
       minPurchaseAmount: 100,
-      expiresAt: new Date('2026-12-31'),
+      expiresAt: new Date('2026-12-31').toISOString(),
     },
     {
       code: 'AVIATOR25',
@@ -35,7 +35,7 @@ async function seedCoupons() {
       isActive: true,
       maxUses: 25,
       minPurchaseAmount: 200,
-      expiresAt: new Date('2026-12-31'),
+      expiresAt: new Date('2026-12-31').toISOString(),
     },
     {
       code: 'FLAT50',
@@ -44,7 +44,7 @@ async function seedCoupons() {
       isActive: true,
       maxUses: 75,
       minPurchaseAmount: 150,
-      expiresAt: new Date('2026-12-31'),
+      expiresAt: new Date('2026-12-31').toISOString(),
     },
     {
       code: 'NEWYEAR2026',
@@ -53,7 +53,7 @@ async function seedCoupons() {
       isActive: true,
       maxUses: 200,
       minPurchaseAmount: 0,
-      expiresAt: new Date('2026-01-31'),
+      expiresAt: new Date('2026-01-31').toISOString(),
     },
   ];
 

@@ -364,6 +364,8 @@ export class CoursesService {
       reviews: course.ratingCount || course.reviews || 0,
       ratingCount: course.ratingCount || course.reviews || 0,
       totalLessons: course.totalLessons || course.lessons?.length || 0,
+      createdAt: course.createdAt ? new Date(course.createdAt).toISOString() : null,
+      updatedAt: course.updatedAt ? new Date(course.updatedAt).toISOString() : null,
       instructor: course.instructor
         ? {
           ...course.instructor,

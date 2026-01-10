@@ -15,9 +15,10 @@ export class ProductCategory extends Document {
   @ApiProperty({
     example: 'Electronic devices and accessories',
     description: 'Category description',
+    required: false,
   })
-  @Prop({ required: true, trim: true })
-  description: string;
+  @Prop({ trim: true })
+  description?: string;
 
   @ApiProperty({
     example: 'https://example.com/image.jpg',

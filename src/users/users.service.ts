@@ -3,9 +3,11 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectModel, InjectConnection } from '@nestjs/mongoose';
+import { Model, Types, Connection, ClientSession } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
 import { User, UserRole, UserStatus } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -13,19 +15,101 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) { }
+  private readonly logger = new Logger(UsersService.name);
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    // Check if user already exists
-    const existingUser = await this.userModel.findOne({
-      email: createUserDto.email,
-    });
-    if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+  constructor(
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectConnection() private connection: Connection,
+  ) { }
+
+  /**
+   * Create a new user with comprehensive validation and transaction support
+   * @param createUserDto - User data transfer object
+   * @returns Created user without sensitive fields
+   */
+  async create(createUserDto: CreateUserDto): Promise<any> {
+    const session: ClientSession = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      this.logger.log(`Creating new user with email: ${createUserDto.email}`);
+
+      // Comprehensive input validation
+      this.validateUserInput(createUserDto);
+
+      // Check if user already exists
+      const existingUser = await this.userModel.findOne({
+        email: createUserDto.email.toLowerCase(),
+      }).session(session);
+
+      if (existingUser) {
+        throw new ConflictException(
+          `An instructor with email ${createUserDto.email} already exists`,
+        );
+      }
+
+      // Sanitize and prepare user data
+      const sanitizedData = this.sanitizeUserData(createUserDto);
+
+      // Ensure timestamps are set
+      const userData = {
+        ...sanitizedData,
+        email: createUserDto.email.toLowerCase(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      // Create user within transaction
+      const user = new this.userModel(userData);
+      const savedUser = await user.save({ session });
+
+      // Commit transaction
+      await session.commitTransaction();
+
+      this.logger.log(`User created successfully: ${savedUser._id}`);
+
+      // Return user without sensitive fields - convert to plain object with proper serialization
+      const userObject = savedUser.toObject();
+      const { password, refreshToken, passwordResetToken, ...userWithoutSensitiveData } = userObject;
+
+      // Ensure dates are properly serialized to ISO strings
+      const serializedUser: any = {
+        ...userWithoutSensitiveData,
+        _id: (savedUser._id as any).toString(),
+        createdAt: savedUser.createdAt?.toISOString
+          ? savedUser.createdAt.toISOString()
+          : savedUser.createdAt,
+        updatedAt: savedUser.updatedAt?.toISOString
+          ? savedUser.updatedAt.toISOString()
+          : savedUser.updatedAt,
+      };
+
+      // Debug log to verify specialization is included
+      this.logger.debug('Created user data:', {
+        hasSpecialization: !!serializedUser.specialization,
+        hasExperience: !!serializedUser.experience,
+        specialization: serializedUser.specialization,
+        experience: serializedUser.experience,
+      });
+
+      return serializedUser;
+    } catch (error) {
+      // Rollback transaction on error
+      await session.abortTransaction();
+      this.logger.error(`Failed to create user: ${error.message}`, error.stack);
+
+      // Re-throw known exceptions
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // Wrap unknown errors
+      throw new InternalServerErrorException(
+        'Failed to create user. Please try again.',
+      );
+    } finally {
+      session.endSession();
     }
-
-    const user = new this.userModel(createUserDto);
-    return await user.save();
   }
 
   async findAll(
@@ -61,7 +145,15 @@ export class UsersService {
       this.userModel.countDocuments(query),
     ]);
 
-    return { users, total };
+    // Ensure createdAt, updatedAt, and name are properly formatted
+    const formattedUsers = users.map((user: any) => ({
+      ...user,
+      name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      createdAt: user.createdAt || new Date(),
+      updatedAt: user.updatedAt || new Date(),
+    }));
+
+    return { users: formattedUsers, total };
   }
 
   async findById(id: string): Promise<User> {
@@ -80,26 +172,270 @@ export class UsersService {
     return await this.userModel.findOne({ email });
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
-    if (updateUserDto.email) {
-      const existingUser = await this.userModel.findOne({
-        email: updateUserDto.email,
-        _id: { $ne: id },
+  /**
+   * Update user with comprehensive validation, transaction support, and audit logging
+   * @param id - User ID
+   * @param updateUserDto - Update data transfer object
+   * @returns Updated user without sensitive fields
+   */
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<any> {
+    const session: ClientSession = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      this.logger.log(`Updating user: ${id}`);
+
+      // Validate ID format
+      if (!Types.ObjectId.isValid(id)) {
+        throw new BadRequestException('Invalid user ID format');
+      }
+
+      // Validate input data
+      this.validateUserInput(updateUserDto, true);
+
+      // Get the old user data for audit logging and validation
+      const oldUser = await this.userModel.findById(id).lean().session(session);
+      if (!oldUser) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Validate email uniqueness if being updated
+      if (updateUserDto.email) {
+        const existingUser = await this.userModel.findOne({
+          email: updateUserDto.email.toLowerCase(),
+          _id: { $ne: id },
+        }).session(session);
+
+        if (existingUser) {
+          throw new ConflictException(
+            `An instructor with email ${updateUserDto.email} already exists`,
+          );
+        }
+        updateUserDto.email = updateUserDto.email.toLowerCase();
+      }
+
+      // Sanitize update data
+      const sanitizedData = this.sanitizeUserData(updateUserDto);
+
+      // Update the user with updatedAt timestamp
+      const user = await this.userModel
+        .findByIdAndUpdate(
+          id,
+          {
+            ...sanitizedData,
+            updatedAt: new Date(),
+          },
+          { new: true, session, runValidators: true },
+        )
+        .select('-password -refreshToken -passwordResetToken')
+        .lean();
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Commit transaction
+      await session.commitTransaction();
+
+      // Ensure all fields are properly serialized
+      const serializedUser = {
+        ...user,
+        _id: user._id.toString(),
+        createdAt: user.createdAt?.toISOString ? user.createdAt.toISOString() : user.createdAt,
+        updatedAt: user.updatedAt?.toISOString ? user.updatedAt.toISOString() : user.updatedAt,
+      };
+
+      // Debug log to verify specialization is included
+      this.logger.debug('Serialized user data:', {
+        hasSpecialization: !!serializedUser.specialization,
+        hasExperience: !!serializedUser.experience,
+        specialization: serializedUser.specialization,
+        experience: serializedUser.experience,
       });
-      if (existingUser) {
-        throw new ConflictException('User with this email already exists');
+
+      // Log the changes for audit trail
+      const changes = this.getChanges(oldUser, sanitizedData);
+      this.logger.log(`User updated successfully: ${id}`);
+      this.logger.debug('User update audit log:', {
+        userId: id,
+        timestamp: new Date().toISOString(),
+        changes,
+        updatedBy: 'system', // In production, get from request context
+        fieldsModified: Object.keys(changes).length,
+      });
+
+      return serializedUser;
+    } catch (error) {
+      // Rollback transaction on error
+      await session.abortTransaction();
+      this.logger.error(`Failed to update user ${id}: ${error.message}`, error.stack);
+
+      // Re-throw known exceptions
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      // Wrap unknown errors
+      throw new InternalServerErrorException(
+        'Failed to update user. Please try again.',
+      );
+    } finally {
+      session.endSession();
+    }
+  }
+
+  /**
+   * Comprehensive input validation for all field types
+   * @param data - User data to validate
+   * @param isUpdate - Whether this is an update operation
+   */
+  private validateUserInput(data: CreateUserDto | UpdateUserDto, isUpdate = false): void {
+    // Email validation
+    if (data.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(data.email)) {
+        throw new BadRequestException('Invalid email format');
       }
     }
 
-    const user = await this.userModel
-      .findByIdAndUpdate(id, updateUserDto, { new: true })
-      .select('-password -refreshToken -passwordResetToken');
-
-    if (!user) {
-      throw new NotFoundException('User not found');
+    // Phone validation
+    if (data.phone) {
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      if (!phoneRegex.test(data.phone.replace(/[\s\-()]/g, ''))) {
+        throw new BadRequestException(
+          'Invalid phone number format. Please use international format',
+        );
+      }
     }
 
-    return user;
+    // Name validation
+    if (data.firstName && data.firstName.trim().length < 2) {
+      throw new BadRequestException('First name must be at least 2 characters');
+    }
+    if (data.lastName && data.lastName.trim().length < 2) {
+      throw new BadRequestException('Last name must be at least 2 characters');
+    }
+
+    // Number field validation
+    if (data.flightHours !== undefined) {
+      if (typeof data.flightHours !== 'number' || data.flightHours < 0) {
+        throw new BadRequestException('Flight hours must be a positive number');
+      }
+    }
+
+    // Array validation
+    if (data.certifications !== undefined) {
+      if (!Array.isArray(data.certifications)) {
+        throw new BadRequestException('Certifications must be an array');
+      }
+    }
+
+    // URL validation for avatar and cover photo
+    const urlRegex = /^(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/;
+    if (data.avatar && !urlRegex.test(data.avatar)) {
+      throw new BadRequestException('Invalid avatar URL format');
+    }
+    if (data.coverPhoto && !urlRegex.test(data.coverPhoto)) {
+      throw new BadRequestException('Invalid cover photo URL format');
+    }
+
+    // Bio length validation
+    if (data.bio && data.bio.length > 2000) {
+      throw new BadRequestException('Bio must not exceed 2000 characters');
+    }
+
+    // Specialization validation
+    if (data.specialization !== undefined) {
+      if (data.specialization && typeof data.specialization !== 'string') {
+        throw new BadRequestException('Specialization must be a string');
+      }
+      if (data.specialization && data.specialization.length > 200) {
+        throw new BadRequestException('Specialization must not exceed 200 characters');
+      }
+    }
+
+    // Experience validation
+    if (data.experience !== undefined) {
+      const validExperience = ['expert', 'advanced', 'intermediate'];
+      if (data.experience && !validExperience.includes(data.experience)) {
+        throw new BadRequestException(
+          `Experience must be one of: ${validExperience.join(', ')}`,
+        );
+      }
+    }
+
+    // Required fields for create operation
+    if (!isUpdate) {
+      if (!data.firstName || !data.lastName || !data.email) {
+        throw new BadRequestException('First name, last name, and email are required');
+      }
+    }
+  }
+
+  /**
+   * Sanitize user data to prevent injection and trim strings
+   * @param data - User data to sanitize
+   * @returns Sanitized data
+   */
+  private sanitizeUserData(data: CreateUserDto | UpdateUserDto): any {
+    const sanitized: any = { ...data };
+
+    // Trim string fields
+    if (sanitized.firstName) sanitized.firstName = sanitized.firstName.trim();
+    if (sanitized.lastName) sanitized.lastName = sanitized.lastName.trim();
+    if (sanitized.email) sanitized.email = sanitized.email.trim().toLowerCase();
+    if (sanitized.bio) sanitized.bio = sanitized.bio.trim();
+    if (sanitized.specialization) sanitized.specialization = sanitized.specialization.trim();
+    if (sanitized.country) sanitized.country = sanitized.country.trim();
+    if (sanitized.state) sanitized.state = sanitized.state.trim();
+    if (sanitized.city) sanitized.city = sanitized.city.trim();
+    if (sanitized.experience) sanitized.experience = sanitized.experience.trim().toLowerCase();
+
+    // Remove any potential XSS in string fields
+    const cleanString = (str: string) => str.replace(/<script[^>]*>.*?<\/script>/gi, '');
+    if (sanitized.bio) sanitized.bio = cleanString(sanitized.bio);
+
+    // Ensure numeric fields are numbers
+    if (sanitized.flightHours !== undefined) {
+      sanitized.flightHours = Number(sanitized.flightHours);
+    }
+
+    return sanitized;
+  }
+
+  /**
+   * Helper method to track changes for audit logging
+   * @param oldData - Original data
+   * @param newData - New data
+   * @returns Object containing changes with old and new values
+   */
+  private getChanges(oldData: any, newData: any): Record<string, { old: any; new: any }> {
+    const changes: Record<string, { old: any; new: any }> = {};
+
+    Object.keys(newData).forEach((key) => {
+      if (newData[key] !== undefined && oldData[key] !== newData[key]) {
+        // Handle nested objects
+        if (typeof newData[key] === 'object' && newData[key] !== null) {
+          if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
+            changes[key] = {
+              old: oldData[key],
+              new: newData[key],
+            };
+          }
+        } else {
+          changes[key] = {
+            old: oldData[key],
+            new: newData[key],
+          };
+        }
+      }
+    });
+
+    return changes;
   }
 
   async remove(id: string): Promise<void> {
@@ -210,11 +546,39 @@ export class UsersService {
       .exec();
 
     console.log(`📋 getInstructors() returning ${instructors.length} instructors`);
-    instructors.forEach((i: any) => {
-      console.log(`   - ${i._id}: ${i.firstName} ${i.lastName} (${i.email}) - Status: ${i.status}`);
+    
+    // Explicitly serialize dates to avoid Mongoose lean() issues
+    const result = instructors.map((instructor: any) => {
+      // Convert dates to ISO strings before spreading
+      const createdAt = instructor.createdAt ? new Date(instructor.createdAt).toISOString() : null;
+      const updatedAt = instructor.updatedAt ? new Date(instructor.updatedAt).toISOString() : null;
+      const lastLogin = instructor.lastLogin ? new Date(instructor.lastLogin).toISOString() : null;
+      
+      console.log(`   - ${instructor._id}: ${instructor.firstName} ${instructor.lastName} - createdAt: ${createdAt}`);
+      
+      // Create plain object with serialized dates
+      return {
+        _id: instructor._id,
+        firstName: instructor.firstName,
+        lastName: instructor.lastName,
+        email: instructor.email,
+        phone: instructor.phone,
+        avatar: instructor.avatar,
+        bio: instructor.bio,
+        role: instructor.role,
+        status: instructor.status,
+        isActive: instructor.isActive,
+        emailVerified: instructor.emailVerified,
+        specialization: instructor.specialization,
+        experience: instructor.experience,
+        country: instructor.country,
+        createdAt,
+        updatedAt,
+        lastLogin,
+      };
     });
-
-    return instructors;
+    
+    return result;
   }
 
   async getInstructorBySlug(slug: string): Promise<any> {
