@@ -27,7 +27,7 @@ export class AdminPaymentsService {
     @InjectModel('Payout') private payoutModel: Model<any>,
     @InjectModel('Order') private orderModel: Model<any>,
     @InjectModel('User') private userModel: Model<any>,
-  ) { }
+  ) {}
 
   /**
    * Get all transactions with pagination and filters
@@ -82,7 +82,7 @@ export class AdminPaymentsService {
     const [transactions, total] = await Promise.all([
       this.paymentModel
         .find(query)
-        .populate('user', 'firstName lastName email avatar')
+        .populate('user', 'name email avatar')
         .populate('order', 'orderNumber items')
         .sort(sortOptions)
         .skip(skip)
@@ -91,59 +91,8 @@ export class AdminPaymentsService {
       this.paymentModel.countDocuments(query),
     ]);
 
-    // Clean up empty date objects that may come from lean()
-    const cleanedTransactions = transactions.map((t: any) => {
-      const cleaned = { ...t };
-
-      // Helper function to check if value is an empty object
-      const isEmptyObject = (val: any) => {
-        if (!val) return true;
-        if (val instanceof Date) return false;
-        if (typeof val !== 'object') return false;
-        return Object.keys(val).length === 0;
-      };
-
-      // Helper function to format date properly
-      const formatDate = (val: any) => {
-        if (!val) return undefined;
-        if (val instanceof Date) return val.toISOString();
-        if (typeof val === 'string') return new Date(val).toISOString();
-        if (typeof val === 'object' && val.$date) return new Date(val.$date).toISOString();
-        if (isEmptyObject(val)) return undefined;
-        return undefined;
-      };
-
-      // Process date fields
-      ['createdAt', 'updatedAt', 'processedAt', 'refundedAt'].forEach(field => {
-        if (cleaned[field]) {
-          const formatted = formatDate(cleaned[field]);
-          if (formatted) {
-            cleaned[field] = formatted;
-          } else {
-            delete cleaned[field];
-          }
-        } else if (isEmptyObject(cleaned[field])) {
-          delete cleaned[field];
-        }
-      });
-
-      // Ensure we always have createdAt from _id if available
-      if (!cleaned.createdAt && cleaned._id) {
-        try {
-          // Extract timestamp from MongoDB ObjectId
-          const timestamp = cleaned._id.getTimestamp();
-          cleaned.createdAt = timestamp.toISOString();
-        } catch (e) {
-          // Fallback if _id is not a valid ObjectId
-          cleaned.createdAt = new Date().toISOString();
-        }
-      }
-
-      return cleaned;
-    });
-
     return {
-      transactions: cleanedTransactions,
+      transactions,
       page,
       limit,
       total,
@@ -157,7 +106,7 @@ export class AdminPaymentsService {
   async getTransactionById(id: string) {
     const transaction = await this.paymentModel
       .findById(id)
-      .populate('user', 'firstName lastName email avatar phone')
+      .populate('user', 'name email avatar phone')
       .populate({
         path: 'order',
         populate: {
@@ -305,8 +254,7 @@ export class AdminPaymentsService {
     const [invoices, total] = await Promise.all([
       this.invoiceModel
         .find(query)
-        .populate('user', 'firstName lastName email avatar')
-        .populate('order')
+        .populate('user', 'name email avatar')
         .populate('course', 'title thumbnail')
         .sort(sortOptions)
         .skip(skip)
@@ -315,75 +263,8 @@ export class AdminPaymentsService {
       this.invoiceModel.countDocuments(query),
     ]);
 
-    // Clean up empty date objects that may come from lean()
-    const cleanedInvoices = invoices.map((inv: any) => {
-      const cleaned = { ...inv };
-
-      // Helper function to check if value is an empty object
-      const isEmptyObject = (val: any) => {
-        if (!val) return true;
-        if (val instanceof Date) return false;
-        if (typeof val !== 'object') return false;
-        return Object.keys(val).length === 0;
-      };
-
-      // Helper function to format date properly
-      const formatDate = (val: any) => {
-        if (!val) return undefined;
-        if (val instanceof Date) return val.toISOString();
-        if (typeof val === 'string') return new Date(val).toISOString();
-        if (typeof val === 'object' && val.$date) return new Date(val.$date).toISOString();
-        if (isEmptyObject(val)) return undefined;
-        return undefined;
-      };
-
-      // Process date fields
-      ['createdAt', 'updatedAt', 'invoiceDate', 'dueDate', 'paidAt'].forEach(field => {
-        if (cleaned[field]) {
-          const formatted = formatDate(cleaned[field]);
-          if (formatted) {
-            cleaned[field] = formatted;
-          } else {
-            delete cleaned[field];
-          }
-        } else if (isEmptyObject(cleaned[field])) {
-          delete cleaned[field];
-        }
-      });
-
-      // Ensure we always have createdAt from _id if available
-      if (!cleaned.createdAt && cleaned._id) {
-        try {
-          // Extract timestamp from MongoDB ObjectId
-          const timestamp = cleaned._id.getTimestamp();
-          cleaned.createdAt = timestamp.toISOString();
-        } catch (e) {
-          // Fallback if _id is not a valid ObjectId
-          cleaned.createdAt = new Date().toISOString();
-        }
-      }
-
-      // Clean nested order dates if populated
-      if (cleaned.order && typeof cleaned.order === 'object') {
-        ['createdAt', 'updatedAt', 'paidAt'].forEach(field => {
-          if (cleaned.order[field]) {
-            const formatted = formatDate(cleaned.order[field]);
-            if (formatted) {
-              cleaned.order[field] = formatted;
-            } else {
-              delete cleaned.order[field];
-            }
-          } else if (isEmptyObject(cleaned.order[field])) {
-            delete cleaned.order[field];
-          }
-        });
-      }
-
-      return cleaned;
-    });
-
     return {
-      invoices: cleanedInvoices,
+      invoices,
       page,
       limit,
       total,
@@ -397,7 +278,7 @@ export class AdminPaymentsService {
   async getInvoiceById(id: string) {
     const invoice = await this.invoiceModel
       .findById(id)
-      .populate('user', 'firstName lastName email avatar phone address')
+      .populate('user', 'name email avatar phone address')
       .populate('course', 'title thumbnail instructor')
       .lean();
 
@@ -463,7 +344,6 @@ export class AdminPaymentsService {
       total,
       status,
       notes,
-      invoiceDate: new Date(),
       dueDate: dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days default
       billingInfo: {
         name: billingName || user.name,
@@ -879,7 +759,7 @@ export class AdminPaymentsService {
 
     const transactions = await this.paymentModel
       .find(query)
-      .populate('user', 'firstName lastName email')
+      .populate('user', 'name email')
       .populate('order', 'orderNumber')
       .sort({ createdAt: -1 })
       .lean();
@@ -1017,7 +897,7 @@ export class AdminPaymentsService {
 
     const rows = transactions.map((t) => [
       t.transactionId,
-      t.user ? `${t.user.firstName || ''} ${t.user.lastName || ''}`.trim() : 'N/A',
+      t.user?.name || 'N/A',
       t.user?.email || 'N/A',
       t.amount,
       t.method,

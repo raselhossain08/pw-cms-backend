@@ -112,25 +112,25 @@ export class ProductsController {
     return this.productsService.getProductStats();
   }
 
-  @Get('slug/:slug')
-  @Public()
-  @ApiOperation({ summary: 'Get product by slug' })
-  @ApiResponse({ status: 200, description: 'Product details' })
-  async findBySlug(@Param('slug') slug: string) {
-    const product = await this.productsService.findBySlug(slug);
-    // Increment view count (validation handled in service)
-    await this.productsService.incrementViewCount(product.id);
-    return product;
-  }
-
   @Get(':id')
   @Public()
   @ApiOperation({ summary: 'Get product by ID' })
   @ApiResponse({ status: 200, description: 'Product details' })
   async findOne(@Param('id') id: string) {
-    // Increment view count (only if valid ObjectId format)
+    // Increment view count
     await this.productsService.incrementViewCount(id);
     return this.productsService.findById(id);
+  }
+
+  @Get('slug/:slug')
+  @Public()
+  @ApiOperation({ summary: 'Get product by slug' })
+  @ApiResponse({ status: 200, description: 'Product details' })
+  async findBySlug(@Param('slug') slug: string) {
+    // Increment view count
+    const product = await this.productsService.findBySlug(slug);
+    await this.productsService.incrementViewCount(product.id);
+    return product;
   }
 
   @Patch(':id')

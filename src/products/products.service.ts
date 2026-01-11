@@ -3,7 +3,6 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
-  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -14,8 +13,6 @@ import { User, UserRole } from '../users/entities/user.entity';
 
 @Injectable()
 export class ProductsService {
-  private readonly logger = new Logger(ProductsService.name);
-
   constructor(
     @InjectModel(Product.name) private productModel: Model<Product>,
   ) {}
@@ -213,24 +210,12 @@ export class ProductsService {
   }
 
   async incrementViewCount(id: string): Promise<void> {
-    // Validate ObjectId format to prevent CastError
-    if (!Types.ObjectId.isValid(id)) {
-      this.logger.warn(`Invalid product ID for view count increment: ${id}`);
-      return; // Silently return for invalid IDs
-    }
-    
     await this.productModel.findByIdAndUpdate(id, {
       $inc: { viewCount: 1 },
     });
   }
 
   async incrementInquiryCount(id: string): Promise<void> {
-    // Validate ObjectId format to prevent CastError
-    if (!Types.ObjectId.isValid(id)) {
-      this.logger.warn(`Invalid product ID for inquiry count increment: ${id}`);
-      return; // Silently return for invalid IDs
-    }
-    
     await this.productModel.findByIdAndUpdate(id, {
       $inc: { inquiryCount: 1 },
     });

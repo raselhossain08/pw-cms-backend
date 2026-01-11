@@ -90,19 +90,9 @@ export class Transaction extends Document {
   @Prop()
   orderId: string;
 
-  @ApiProperty({
-    example: '2023-01-01T00:00:00.000Z',
-    description: 'Date when transaction was processed',
-    required: false
-  })
   @Prop()
   processedAt: Date;
 
-  @ApiProperty({
-    example: '2023-01-01T00:00:00.000Z',
-    description: 'Date when transaction was refunded',
-    required: false
-  })
   @Prop()
   refundedAt: Date;
 
@@ -113,62 +103,6 @@ export class Transaction extends Document {
   })
   @Prop()
   failureReason: string;
-
-  // Timestamps from schema
-  @ApiProperty({
-    example: '2023-01-01T00:00:00.000Z',
-    description: 'Date when transaction was created'
-  })
-  createdAt?: Date;
-
-  @ApiProperty({
-    example: '2023-01-01T00:00:00.000Z',
-    description: 'Date when transaction was last updated'
-  })
-  updatedAt?: Date;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
-
-// Configure toJSON to handle dates properly
-TransactionSchema.set('toJSON', {
-  transform: function (doc, ret: any) {
-    // Helper function to check if value is an empty object
-    const isEmptyObject = (val: any) => {
-      if (!val) return true;
-      if (val instanceof Date) return false;
-      if (typeof val !== 'object') return false;
-      return Object.keys(val).length === 0;
-    };
-
-    // Handle date fields properly
-    ['createdAt', 'updatedAt', 'processedAt', 'refundedAt'].forEach(field => {
-      if (ret[field]) {
-        if (ret[field] instanceof Date) {
-          ret[field] = ret[field].toISOString();
-        } else if (isEmptyObject(ret[field])) {
-          // Remove empty objects
-          delete ret[field];
-        } else if (typeof ret[field] === 'object' && ret[field].$date) {
-          // Handle MongoDB date objects
-          ret[field] = new Date(ret[field].$date).toISOString();
-        }
-      }
-    });
-
-    // Remove __v and _id (use id instead)
-    delete ret.__v;
-    if (ret._id) {
-      ret.id = ret._id;
-      delete ret._id;
-    }
-
-    return ret;
-  },
-  virtuals: true
-});
-
-// Add a virtual for id
-TransactionSchema.virtual('id').get(function (this: any) {
-  return this._id?.toString();
-});

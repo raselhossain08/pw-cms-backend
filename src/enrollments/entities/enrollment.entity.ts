@@ -105,7 +105,7 @@ export class Enrollment extends Document {
 
 export const EnrollmentSchema = SchemaFactory.createForClass(Enrollment);
 
-// Transform Maps to Objects and format dates when converting to JSON
+// Transform Maps to Objects when converting to JSON
 EnrollmentSchema.set('toJSON', {
   transform: (doc: any, ret: any) => {
     // Convert Map objects to plain objects
@@ -118,25 +118,6 @@ EnrollmentSchema.set('toJSON', {
     if (ret.lastAccessedLessons instanceof Map) {
       ret.lastAccessedLessons = Object.fromEntries(ret.lastAccessedLessons);
     }
-    
-    // Ensure dates are properly formatted (ISO string format)
-    const dateFields = [
-      'createdAt',
-      'updatedAt',
-      'lastAccessedAt',
-      'completedAt',
-      'expiresAt',
-      'purchaseDate',
-      'refundedAt',
-      'accessRevokedAt',
-    ];
-    
-    dateFields.forEach((field) => {
-      if (ret[field] && ret[field] instanceof Date) {
-        ret[field] = ret[field].toISOString();
-      }
-    });
-    
     return ret;
   },
 });

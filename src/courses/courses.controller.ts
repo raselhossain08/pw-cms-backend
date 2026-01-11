@@ -35,7 +35,7 @@ import { CourseAccessGuard } from './guards/course-access.guard';
 @ApiTags('Courses')
 @Controller('courses')
 export class CoursesController {
-  constructor(private readonly coursesService: CoursesService) { }
+  constructor(private readonly coursesService: CoursesService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -44,9 +44,7 @@ export class CoursesController {
   @ApiOperation({ summary: 'Create a new course' })
   @ApiResponse({ status: 201, description: 'Course created successfully' })
   async create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
-    const course = await this.coursesService.create(createCourseDto, req.user.id);
-    // Convert to plain object to ensure proper serialization
-    return JSON.parse(JSON.stringify(course));
+    return this.coursesService.create(createCourseDto, req.user.id);
   }
 
   @Get()
@@ -186,11 +184,9 @@ export class CoursesController {
   @ApiResponse({ status: 200, description: 'Course details' })
   async findOne(@Param('id') id: string) {
     const course = await this.coursesService.findById(id);
-    // Convert to plain object to ensure proper serialization including instructors array
-    const plainCourse = JSON.parse(JSON.stringify(course));
     return {
       success: true,
-      data: plainCourse,
+      data: course,
     };
   }
 
@@ -204,21 +200,12 @@ export class CoursesController {
     @Body() updateCourseDto: UpdateCourseDto,
     @Req() req,
   ) {
-    const result = await this.coursesService.update(
+    return this.coursesService.update(
       id,
       updateCourseDto,
       req.user.id,
       req.user.role,
     );
-
-    // Convert to plain object to ensure proper serialization including instructors array
-    const plainResult = JSON.parse(JSON.stringify(result));
-
-    return {
-      success: true,
-      message: 'Course updated successfully',
-      data: plainResult,
-    };
   }
 
   @Put(':id')
@@ -231,21 +218,12 @@ export class CoursesController {
     @Body() updateCourseDto: UpdateCourseDto,
     @Req() req,
   ) {
-    const result = await this.coursesService.update(
+    return this.coursesService.update(
       id,
       updateCourseDto,
       req.user.id,
       req.user.role,
     );
-
-    // Convert to plain object to ensure proper serialization including instructors array
-    const plainResult = JSON.parse(JSON.stringify(result));
-
-    return {
-      success: true,
-      message: 'Course updated successfully',
-      data: plainResult,
-    };
   }
 
   @Delete(':id')

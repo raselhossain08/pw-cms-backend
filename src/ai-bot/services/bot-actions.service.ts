@@ -22,7 +22,7 @@ export class BotActionsService {
     @InjectModel(Order.name) private orderModel: Model<Order>,
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Blog.name) private blogModel: Model<BlogDocument>,
-  ) {}
+  ) { }
 
   // Course Actions
   async searchCourses(query: string, filters?: any): Promise<any[]> {
@@ -768,7 +768,7 @@ export class BotActionsService {
         !user ||
         (user.role !== 'admin' &&
           user.role !== 'super_admin' &&
-          course.instructor.toString() !== userId)
+          !course.instructors.map(id => id.toString()).includes(userId))
       ) {
         return { success: false, error: 'Permission denied' };
       }
@@ -806,7 +806,7 @@ export class BotActionsService {
         !user ||
         (user.role !== 'admin' &&
           user.role !== 'super_admin' &&
-          course.instructor.toString() !== userId)
+          !course.instructors.map(id => id.toString()).includes(userId))
       ) {
         return { success: false, error: 'Permission denied' };
       }

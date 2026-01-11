@@ -34,7 +34,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.map(id => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -150,7 +150,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.map(id => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -232,7 +232,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.map(id => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -250,7 +250,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.map(id => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -285,7 +285,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.map(id => id.toString()).includes(userId)
     ) {
       query.status = 'published';
     }
@@ -303,7 +303,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.map(id => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -328,7 +328,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.map(id => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only duplicate your own modules');
     }
@@ -368,7 +368,7 @@ export class CourseModulesService {
       if (
         userRole !== UserRole.ADMIN &&
         userRole !== UserRole.SUPER_ADMIN &&
-        course.instructor.toString() !== userId
+        !course.instructors.map(id => id.toString()).includes(userId)
       ) {
         throw new ForbiddenException('You can only delete your own modules');
       }
@@ -400,7 +400,7 @@ export class CourseModulesService {
       if (
         userRole !== UserRole.ADMIN &&
         userRole !== UserRole.SUPER_ADMIN &&
-        course.instructor.toString() !== userId
+        !course.instructors.map(id => id.toString()).includes(userId)
       ) {
         throw new ForbiddenException('You can only update your own modules');
       }

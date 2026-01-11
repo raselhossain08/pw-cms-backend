@@ -59,7 +59,7 @@ export class CoursesService {
       // Score and fetch courses
       const courses = await this.courseModel
         .find(recommendationQuery)
-        .populate('instructor', 'firstName lastName')
+        .populate('instructors', 'firstName lastName email avatar')
         .limit(limit * 3) // Fetch more to score and filter
         .lean()
         .exec();
@@ -127,20 +127,13 @@ export class CoursesService {
           reviews: course.ratingCount || course.reviews || 0,
           ratingCount: course.ratingCount || course.reviews || 0,
           totalLessons: course.totalLessons || course.lessons?.length || 0,
-          instructor: course.instructor
-            ? {
-              ...course.instructor,
-              id: course.instructor._id.toString(),
-              _id: course.instructor._id.toString(),
-            }
-            : null,
         })) as any as Course[];
     } catch (error) {
       console.error('Error getting recommendations:', error);
       // Fallback to popular/featured courses
       const fallbackCourses = await this.courseModel
         .find({ status: CourseStatus.PUBLISHED })
-        .populate('instructor', 'firstName lastName')
+        .populate('instructors', 'firstName lastName email avatar')
         .sort({ totalEnrollments: -1, rating: -1 })
         .limit(limit)
         .lean()
@@ -155,13 +148,6 @@ export class CoursesService {
         reviews: course.ratingCount || course.reviews || 0,
         ratingCount: course.ratingCount || course.reviews || 0,
         totalLessons: course.totalLessons || course.lessons?.length || 0,
-        instructor: course.instructor
-          ? {
-            ...course.instructor,
-            id: course.instructor._id.toString(),
-            _id: course.instructor._id.toString(),
-          }
-          : null,
       })) as any as Course[];
     }
   }
@@ -172,7 +158,7 @@ export class CoursesService {
         courseIds.map((id) =>
           this.courseModel
             .findById(id)
-            .populate('instructor', 'firstName lastName email')
+            .populate('instructors', 'firstName lastName email')
             .lean()
             .exec(),
         ),
@@ -224,6 +210,13 @@ export class CoursesService {
     createCourseDto: CreateCourseDto,
     instructorId: string,
   ): Promise<Course> {
+    console.log(
+      'Creating course with DTO:',
+      JSON.stringify(createCourseDto, null, 2),
+    );
+    console.log('Thumbnail URL:', createCourseDto.thumbnail);
+    console.log('Content length:', createCourseDto.content?.length || 0);
+
     const cleanTitle = (createCourseDto.title || '').toLowerCase().trim();
     let slug = (createCourseDto.slug || '')
       .toLowerCase()
@@ -275,38 +268,32 @@ export class CoursesService {
       courseData.isFree = courseData.isFree || false;
     }
 
-    // Determine instructors
-    let finalInstructorId: string;
-    let finalInstructors: Types.ObjectId[];
+    // Handle multiple instructors
+    let instructorsArray: Types.ObjectId[] = [];
 
+    // Add instructors from DTO if provided
     if (createCourseDto.instructors && createCourseDto.instructors.length > 0) {
-      // Use instructors from DTO
-      finalInstructors = createCourseDto.instructors.map(id => new Types.ObjectId(id));
-      finalInstructorId = createCourseDto.instructors[0]; // First one is primary
-    } else if (createCourseDto.instructor) {
-      // Use single instructor from DTO
-      finalInstructorId = createCourseDto.instructor;
-      finalInstructors = [new Types.ObjectId(finalInstructorId)];
-    } else {
-      // Fallback to logged-in user
-      finalInstructorId = instructorId;
-      finalInstructors = [new Types.ObjectId(instructorId)];
+      instructorsArray = createCourseDto.instructors.map(id => new Types.ObjectId(id));
+    }
+
+    // Ensure the creating instructor (from JWT) is included as primary instructor
+    const primaryInstructorId = new Types.ObjectId(instructorId);
+
+    // Add primary instructor to instructors array if not already included
+    if (!instructorsArray.some(id => id.equals(primaryInstructorId))) {
+      instructorsArray.unshift(primaryInstructorId); // Add as first instructor
     }
 
     const course = new this.courseModel({
       ...courseData,
       slug,
       duration,
-      instructor: new Types.ObjectId(finalInstructorId),
-      instructors: finalInstructors,
+      instructors: instructorsArray.length > 0 ? instructorsArray : [primaryInstructorId],
     });
 
     const savedCourse = await course.save();
-
-    // Populate instructors before returning
-    await savedCourse.populate('instructor', 'firstName lastName email avatar');
-    await savedCourse.populate('instructors', 'firstName lastName email avatar');
-
+    console.log('Saved course thumbnail:', savedCourse.thumbnail);
+    console.log('Saved course content length:', savedCourse.content?.length || 0);
     return savedCourse;
   }
 
@@ -338,13 +325,12 @@ export class CoursesService {
     }
 
     if (instructorId) {
-      query.instructor = new Types.ObjectId(instructorId);
+      query.instructors = { $in: [new Types.ObjectId(instructorId)] };
     }
 
     const [courses, total] = await Promise.all([
       this.courseModel
         .find(query)
-        .populate('instructor', 'firstName lastName email avatar')
         .populate('instructors', 'firstName lastName email avatar')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -364,20 +350,12 @@ export class CoursesService {
       reviews: course.ratingCount || course.reviews || 0,
       ratingCount: course.ratingCount || course.reviews || 0,
       totalLessons: course.totalLessons || course.lessons?.length || 0,
-      createdAt: course.createdAt ? new Date(course.createdAt).toISOString() : null,
-      updatedAt: course.updatedAt ? new Date(course.updatedAt).toISOString() : null,
-      instructor: course.instructor
-        ? {
-          ...course.instructor,
-          id: course.instructor._id.toString(),
-          _id: course.instructor._id.toString(),
-        }
-        : null,
+      // Transform instructors array to include proper id fields
       instructors: course.instructors && Array.isArray(course.instructors)
-        ? course.instructors.map((inst: any) => ({
-          ...inst,
-          id: inst._id.toString(),
-          _id: inst._id.toString(),
+        ? course.instructors.map((instructor: any) => ({
+          ...instructor,
+          id: instructor._id?.toString() || instructor.toString(),
+          _id: instructor._id?.toString() || instructor.toString(),
         }))
         : [],
     }));
@@ -392,10 +370,6 @@ export class CoursesService {
 
     const course = await this.courseModel
       .findById(id)
-      .populate(
-        'instructor',
-        'firstName lastName email avatar bio certifications flightHours',
-      )
       .populate(
         'instructors',
         'firstName lastName email avatar bio certifications flightHours',
@@ -421,10 +395,6 @@ export class CoursesService {
       .findOne({ slug })
       // Temporarily removed status filter to allow draft courses in development
       // .findOne({ slug, status: CourseStatus.PUBLISHED })
-      .populate(
-        'instructor',
-        'firstName lastName email avatar bio certifications flightHours',
-      )
       .populate(
         'instructors',
         'firstName lastName email avatar bio certifications flightHours',
@@ -475,12 +445,18 @@ export class CoursesService {
       courseData.isFree = false;
     }
 
+    console.log(
+      'Updating course with DTO:',
+      JSON.stringify(courseData, null, 2),
+    );
+    console.log('Thumbnail URL:', updateCourseDto.thumbnail);
+
     const course = await this.findById(id);
 
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException('You can only update your own courses');
     }
@@ -514,27 +490,15 @@ export class CoursesService {
       updateData.isFree = false;
     }
 
-    // Handle instructor field conversion
-    if (updateData.instructor) {
-      updateData.instructor = new Types.ObjectId(updateData.instructor);
-    }
-
-    // Handle instructors array conversion
-    if (updateData.instructors && Array.isArray(updateData.instructors)) {
-      updateData.instructors = updateData.instructors.map(
-        (id: string) => new Types.ObjectId(id)
-      );
-    }
-
     const updatedCourse = await this.courseModel
-      .findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
-      .populate('instructor', 'firstName lastName email avatar')
+      .findByIdAndUpdate(id, updateData, { new: true })
       .populate('instructors', 'firstName lastName email avatar');
 
     if (!updatedCourse) {
       throw new NotFoundException('Course not found');
     }
 
+    console.log('Updated course thumbnail:', updatedCourse.thumbnail);
     return updatedCourse;
   }
 
@@ -544,7 +508,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException('You can only delete your own courses');
     }
@@ -563,7 +527,7 @@ export class CoursesService {
         status: CourseStatus.PUBLISHED,
         isFeatured: true,
       })
-      .populate('instructor', 'firstName lastName email avatar')
+      .populate('instructors', 'firstName lastName email avatar')
       .sort({ rating: -1, studentCount: -1 })
       .limit(limit)
       .lean()
@@ -579,13 +543,14 @@ export class CoursesService {
       reviews: course.ratingCount || course.reviews || 0,
       ratingCount: course.ratingCount || course.reviews || 0,
       totalLessons: course.totalLessons || course.lessons?.length || 0,
-      instructor: course.instructor
-        ? {
-          ...course.instructor,
-          id: course.instructor._id.toString(),
-          _id: course.instructor._id.toString(),
-        }
-        : null,
+      // Transform instructors array to include proper id fields
+      instructors: course.instructors && Array.isArray(course.instructors)
+        ? course.instructors.map((instructor: any) => ({
+          ...instructor,
+          id: instructor._id?.toString() || instructor.toString(),
+          _id: instructor._id?.toString() || instructor.toString(),
+        }))
+        : [],
     })) as any;
   }
 
@@ -613,16 +578,16 @@ export class CoursesService {
   ): Promise<Lesson> {
     const course = await this.findById(courseId);
 
-    // Handle both populated and unpopulated instructor
-    const courseInstructorId = (course.instructor as any)._id
-      ? (course.instructor as any)._id.toString()
-      : course.instructor.toString();
-
     // Allow admins and super_admins to add lessons to any course
     const isAdmin =
       userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN;
 
-    if (courseInstructorId !== instructorId && !isAdmin) {
+    // Check if user is one of the course instructors
+    const isInstructor = course.instructors.some(instructor =>
+      instructor.toString() === instructorId
+    );
+
+    if (!isInstructor && !isAdmin) {
       throw new ForbiddenException(
         'You can only add lessons to your own courses',
       );
@@ -684,7 +649,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       query.status = 'published';
     }
@@ -705,7 +670,7 @@ export class CoursesService {
     const lesson = await this.lessonModel
       .findById(lessonId)
       .populate('module', 'title')
-      .populate('course', 'title instructor')
+      .populate('course', 'title instructors')
       .exec();
 
     if (!lesson) {
@@ -714,14 +679,14 @@ export class CoursesService {
 
     // Check if user has access to the lesson
     const course = lesson.course as any;
-    const courseInstructorId = course.instructor?._id
-      ? course.instructor._id.toString()
-      : course.instructor?.toString();
+    const isInstructor = course.instructors && course.instructors.some((instructor: any) =>
+      instructor.toString() === userId
+    );
 
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      courseInstructorId !== userId &&
+      !isInstructor &&
       lesson.status !== 'published'
     ) {
       throw new ForbiddenException('You do not have access to this lesson');
@@ -746,7 +711,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only update lessons in your own courses',
@@ -786,7 +751,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only delete lessons in your own courses',
@@ -810,7 +775,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only reorder lessons in your own courses',
@@ -854,7 +819,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only update lessons in your own courses',
@@ -887,7 +852,7 @@ export class CoursesService {
       if (
         userRole !== UserRole.ADMIN &&
         userRole !== UserRole.SUPER_ADMIN &&
-        course.instructor.toString() !== userId
+        !course.instructors.some(instructor => instructor.toString() === userId)
       ) {
         throw new ForbiddenException('You can only delete your own lessons');
       }
@@ -919,7 +884,7 @@ export class CoursesService {
       if (
         userRole !== UserRole.ADMIN &&
         userRole !== UserRole.SUPER_ADMIN &&
-        course.instructor.toString() !== userId
+        !course.instructors.some(instructor => instructor.toString() === userId)
       ) {
         throw new ForbiddenException('You can only update your own lessons');
       }
@@ -962,7 +927,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only duplicate lessons in your own courses',
@@ -1037,7 +1002,7 @@ export class CoursesService {
     ) {
       // Get courses where user is instructor
       const instructorCourses = await this.courseModel
-        .find({ instructor: new Types.ObjectId(user.id) })
+        .find({ instructors: { $in: [new Types.ObjectId(user.id)] } })
         .select('_id')
         .exec();
 
@@ -1165,9 +1130,12 @@ export class CoursesService {
   async getEnrollmentsByCountry(): Promise<any[]> {
     return await this.courseModel.aggregate([
       {
+        $unwind: '$instructors',
+      },
+      {
         $lookup: {
           from: 'users',
-          localField: 'instructor',
+          localField: 'instructors',
           foreignField: '_id',
           as: 'instructor',
         },
@@ -1196,7 +1164,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException('You can only publish your own courses');
     }
@@ -1214,7 +1182,7 @@ export class CoursesService {
         },
         { new: true },
       )
-      .populate('instructor', 'firstName lastName email avatar')
+      .populate('instructors', 'firstName lastName email avatar')
       .exec();
 
     if (!updated) {
@@ -1234,7 +1202,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException('You can only unpublish your own courses');
     }
@@ -1252,7 +1220,7 @@ export class CoursesService {
         },
         { new: true },
       )
-      .populate('instructor', 'firstName lastName email avatar')
+      .populate('instructors', 'firstName lastName email avatar')
       .exec();
 
     if (!updated) {
@@ -1266,7 +1234,7 @@ export class CoursesService {
     const originalCourse = await this.findById(id);
 
     // Check if user is instructor of original course or admin
-    if (originalCourse.instructor.toString() !== userId) {
+    if (!originalCourse.instructors.some(instructor => instructor.toString() === userId)) {
       throw new ForbiddenException('You can only duplicate your own courses');
     }
 
@@ -1324,7 +1292,7 @@ export class CoursesService {
 
     const final = await this.courseModel
       .findById(saved._id)
-      .populate('instructor', 'firstName lastName email avatar')
+      .populate('instructors', 'firstName lastName email avatar')
       .exec();
     if (!final) {
       throw new NotFoundException('Duplicated course not found');
@@ -1346,7 +1314,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.SUPER_ADMIN &&
       userRole !== UserRole.ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You do not have permission to toggle this course status',
@@ -1379,7 +1347,7 @@ export class CoursesService {
         if (
           userRole !== UserRole.SUPER_ADMIN &&
           userRole !== UserRole.ADMIN &&
-          course.instructor.toString() !== userId
+          !course.instructors.some(instructor => instructor.toString() === userId)
         ) {
           continue; // Skip courses user doesn't have permission to delete
         }
@@ -1411,7 +1379,7 @@ export class CoursesService {
         if (
           userRole !== UserRole.SUPER_ADMIN &&
           userRole !== UserRole.ADMIN &&
-          course.instructor.toString() !== userId
+          !course.instructors.some(instructor => instructor.toString() === userId)
         ) {
           continue; // Skip courses user doesn't have permission to update
         }
@@ -1450,7 +1418,7 @@ export class CoursesService {
         if (
           userRole !== UserRole.SUPER_ADMIN &&
           userRole !== UserRole.ADMIN &&
-          course.instructor.toString() !== userId
+          !course.instructors.some(instructor => instructor.toString() === userId)
         ) {
           continue; // Skip courses user doesn't have permission to publish
         }
@@ -1483,7 +1451,7 @@ export class CoursesService {
         if (
           userRole !== UserRole.SUPER_ADMIN &&
           userRole !== UserRole.ADMIN &&
-          course.instructor.toString() !== userId
+          !course.instructors.some(instructor => instructor.toString() === userId)
         ) {
           continue; // Skip courses user doesn't have permission to unpublish
         }
@@ -1517,12 +1485,12 @@ export class CoursesService {
 
     // If not admin/super_admin, only show their own courses
     if (user && user.role === UserRole.INSTRUCTOR) {
-      query.instructor = new Types.ObjectId(user.id);
+      query.instructors = { $in: [new Types.ObjectId(user.id)] };
     }
 
     const courses = await this.courseModel
       .find(query)
-      .populate('instructor', 'firstName lastName email')
+      .populate('instructors', 'firstName lastName email')
       .lean();
 
     if (format === 'csv') {
@@ -1618,7 +1586,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only view analytics for your own courses',
@@ -1694,7 +1662,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      course.instructor.toString() !== userId
+      !course.instructors.some(instructor => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only view analytics for lessons in your own courses',
@@ -1719,7 +1687,7 @@ export class CoursesService {
   async getPreview(courseId: string): Promise<any> {
     const course = await this.courseModel
       .findById(courseId)
-      .populate('instructor', 'firstName lastName avatar email')
+      .populate('instructors', 'firstName lastName avatar email')
       .lean();
 
     if (!course) {

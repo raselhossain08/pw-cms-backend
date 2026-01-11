@@ -24,17 +24,17 @@ export class CreateProductCategoryDto {
   @MaxLength(100)
   name: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'Electronic devices and accessories',
     description: 'Category description',
-    minLength: 3,
+    minLength: 10,
     maxLength: 500,
   })
   @IsString()
-  @IsOptional()
-  @MinLength(3)
+  @IsNotEmpty()
+  @MinLength(10)
   @MaxLength(500)
-  description?: string;
+  description: string;
 
   @ApiPropertyOptional({
     example: 'https://example.com/image.jpg',

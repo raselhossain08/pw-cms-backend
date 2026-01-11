@@ -39,6 +39,13 @@ export class Course extends Document {
   @Prop({ required: true })
   description: string;
 
+  @ApiProperty({
+    example: 'Detailed course content with curriculum, modules, and comprehensive information...',
+    description: 'Detailed course content',
+  })
+  @Prop()
+  content: string;
+
   @ApiProperty({ example: 'atp-certification-course', description: 'URL slug' })
   @Prop({ required: true, unique: true })
   slug: string;
@@ -49,14 +56,6 @@ export class Course extends Document {
   })
   @Prop()
   excerpt: string;
-
-  @ApiProperty({
-    example: '<p>Detailed course content with rich text formatting...</p>',
-    description: 'Detailed course content (rich text/HTML)',
-    required: false,
-  })
-  @Prop()
-  content: string;
 
   @ApiProperty({
     enum: CourseLevel,
@@ -150,13 +149,13 @@ export class Course extends Document {
   @Prop({ default: 0 })
   completionRate: number;
 
-  @ApiProperty({ type: String, description: 'Primary Instructor ID (backward compatibility)' })
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  instructor: Types.ObjectId | User;
-
-  @ApiProperty({ type: [String], description: 'Multiple Instructors IDs' })
-  @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
-  instructors: Types.ObjectId[] | User[];
+  @ApiProperty({
+    type: [String],
+    description: 'Course instructors',
+    required: true,
+  })
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], required: true })
+  instructors: Types.ObjectId[];
 
   @ApiProperty({
     type: [String],
@@ -224,7 +223,7 @@ export class Course extends Document {
 export const CourseSchema = SchemaFactory.createForClass(Course);
 
 // Performance indexes for common queries
-CourseSchema.index({ instructor: 1, status: 1 }); // For instructor courses
+CourseSchema.index({ instructors: 1, status: 1 }); // For instructor courses
 CourseSchema.index({ status: 1, isFeatured: 1 }); // For featured courses
 CourseSchema.index({ categories: 1 }); // For category filtering
 CourseSchema.index({ createdAt: -1 }); // For recent courses

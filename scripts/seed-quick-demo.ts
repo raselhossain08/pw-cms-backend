@@ -30,7 +30,6 @@ async function bootstrap() {
         }
 
         // Single demo course
-        const instructorId = (instructor as any)._id.toString();
         const course = await coursesService.create(
             {
                 title: 'Modern Web Development Complete Guide',
@@ -42,9 +41,8 @@ async function bootstrap() {
                 duration: 360,
                 isFeatured: true,
                 maxStudents: 100,
-                instructor: instructorId, // Add required instructor field
             },
-            instructorId,
+            (instructor as any)._id.toString(),
         );
 
         console.log(`✓ Course: ${course.title}`);

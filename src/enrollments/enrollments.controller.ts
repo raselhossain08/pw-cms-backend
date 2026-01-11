@@ -23,12 +23,6 @@ import {
   CreateEnrollmentAdminDto,
 } from './dto/create-enrollment.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
-import {
-  UpdateEnrollmentDto,
-  BulkUpdateStatusDto,
-  ExtendAccessDto,
-  SendMessageDto,
-} from './dto/update-enrollment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../shared/decorators/roles.decorator';
@@ -247,7 +241,7 @@ export class EnrollmentsController {
   @ApiResponse({ status: 200, description: 'Enrollment updated' })
   async updateEnrollmentAdmin(
     @Param('id') id: string,
-    @Body() updateData: UpdateEnrollmentDto,
+    @Body() updateData: any,
   ) {
     return this.enrollmentsService.updateEnrollmentAdmin(id, updateData);
   }
@@ -430,7 +424,9 @@ export class EnrollmentsController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Bulk update enrollment status (admin)' })
   @ApiResponse({ status: 200, description: 'Enrollments status updated' })
-  async bulkUpdateStatus(@Body() body: BulkUpdateStatusDto) {
+  async bulkUpdateStatus(
+    @Body() body: { ids: string[]; status: EnrollmentStatus },
+  ) {
     return this.enrollmentsService.bulkUpdateStatus(body.ids, body.status);
   }
 
@@ -441,7 +437,7 @@ export class EnrollmentsController {
   @ApiResponse({ status: 200, description: 'Message sent' })
   async sendMessage(
     @Param('id') id: string,
-    @Body() body: SendMessageDto,
+    @Body() body: { subject: string; message: string },
   ) {
     return this.enrollmentsService.sendMessageToStudent({
       enrollmentId: id,
@@ -475,76 +471,5 @@ export class EnrollmentsController {
   @ApiResponse({ status: 200, description: 'Payment details' })
   async getPaymentDetails(@Param('id') id: string) {
     return this.enrollmentsService.getPaymentDetails(id);
-  }
-
-  // ==================== Quick Actions ====================
-  // Get available courses that user hasn't enrolled in yet
-
-  @Get('available-courses')
-  @ApiOperation({ summary: 'Get available courses for enrollment' })
-  @ApiQuery({ name: 'category', required: false, type: String })
-  @ApiQuery({ name: 'level', required: false, type: String })
-  @ApiQuery({ name: 'isFree', required: false, type: Boolean })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Available courses' })
-  async getAvailableCourses(
-    @Req() req,
-    @Query('category') category?: string,
-    @Query('level') level?: string,
-    @Query('isFree') isFree?: boolean,
-    @Query('search') search?: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-  ) {
-    return this.enrollmentsService.getAvailableCourses(req.user.id, {
-      category,
-      level,
-      isFree,
-      search,
-      page,
-      limit,
-    });
-  }
-
-  @Post(':id/download-materials')
-  @ApiOperation({ summary: 'Get download links for course materials' })
-  @ApiResponse({ status: 200, description: 'Download links retrieved' })
-  async downloadMaterials(@Param('id') id: string, @Req() req) {
-    return this.enrollmentsService.getDownloadMaterials(id, req.user.id);
-  }
-
-  @Post(':id/resend-welcome')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSTRUCTOR)
-  @ApiOperation({ summary: 'Resend welcome email to student' })
-  @ApiResponse({ status: 200, description: 'Welcome email sent' })
-  async resendWelcomeEmail(@Param('id') id: string) {
-    return this.enrollmentsService.resendWelcomeEmail(id);
-  }
-
-  @Patch('admin/:id/extend-access')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Extend course access period' })
-  @ApiResponse({ status: 200, description: 'Access extended' })
-  async extendAccess(
-    @Param('id') id: string,
-    @Body() body: ExtendAccessDto,
-  ) {
-    return this.enrollmentsService.extendAccess(id, body.days, body.reason);
-  }
-
-  @Post('admin/:id/reset-progress')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Reset enrollment progress' })
-  @ApiResponse({ status: 200, description: 'Progress reset' })
-  async resetProgress(
-    @Param('id') id: string,
-    @Body('reason') reason?: string,
-  ) {
-    return this.enrollmentsService.resetProgress(id, reason);
   }
 }

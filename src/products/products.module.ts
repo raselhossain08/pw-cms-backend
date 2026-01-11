@@ -17,7 +17,7 @@ import {
       { name: ProductCategory.name, schema: ProductCategorySchema },
     ]),
   ],
-  controllers: [ProductCategoriesController, ProductsController],
+  controllers: [ProductsController, ProductCategoriesController],
   providers: [ProductsService, ProductCategoriesService],
   exports: [ProductsService, ProductCategoriesService],
 })

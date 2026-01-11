@@ -202,18 +202,8 @@ export class CreateCourseDto {
   language?: string;
 
   @ApiProperty({
-    example: '507f1f77bcf86cd799439011',
-    description: 'Primary Instructor ID (MongoDB ObjectId)',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  instructor?: string;
-
-
-  @ApiProperty({
-    example: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'],
-    description: 'Multiple Instructors IDs (MongoDB ObjectIds)',
+    example: ['60d21b4667d0d8992e610c85', '60d21b4667d0d8992e610c86'],
+    description: 'Array of instructor IDs for multiple instructors',
     required: false,
   })
   @IsArray()
@@ -221,5 +211,3 @@ export class CreateCourseDto {
   @IsOptional()
   instructors?: string[];
 }
-
-

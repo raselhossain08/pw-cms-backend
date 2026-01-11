@@ -57,7 +57,7 @@ export class PaymentsService {
     private couponsService: CouponsService,
     private mailService: MailService,
     private enrollmentsService: EnrollmentsService,
-  ) { }
+  ) {}
 
   async createPaymentIntent(
     createPaymentIntentDto: CreatePaymentIntentDto,
@@ -275,17 +275,10 @@ export class PaymentsService {
   async createTransaction(
     transactionData: Partial<Transaction>,
   ): Promise<Transaction> {
-    const now = new Date();
     const transaction = new this.transactionModel({
       transactionId: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       ...transactionData,
-      // Ensure timestamps are set even if not provided
-      ...(transactionData.status === TransactionStatus.COMPLETED && {
-        processedAt: transactionData.processedAt || now,
-      }),
     });
-
-    // The schema's timestamps: true will automatically set createdAt and updatedAt
     return await transaction.save();
   }
 
@@ -638,54 +631,42 @@ export class PaymentsService {
 
     const invoice = new this.invoiceModel({
       invoiceNumber,
-      order: order._id || order.id,
+      order: order.id,
       user: order.user,
-      amount: order.subtotal || 0,
-      tax: order.tax || 0,
-      total: order.total || 0,
+      amount: order.subtotal,
+      tax: order.tax,
+      total: order.total,
       status: 'paid',
       invoiceDate: new Date(),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      dueDate: new Date(),
       billingInfo: order.billingAddress
         ? {
-          companyName: `${order.billingAddress.firstName || ''} ${order.billingAddress.lastName || ''}`.trim() || 'N/A',
-          address: order.billingAddress.street || 'N/A',
-          city: order.billingAddress.city || 'N/A',
-          state: order.billingAddress.state || 'N/A',
-          zipCode: order.billingAddress.zipCode || 'N/A',
-          country: order.billingAddress.country || 'US',
-          taxId: '', // Tax ID not available in billing address
-        }
+            companyName: `${order.billingAddress.firstName} ${order.billingAddress.lastName}`,
+            address: order.billingAddress.street,
+            city: order.billingAddress.city,
+            state: order.billingAddress.state,
+            zipCode: order.billingAddress.zipCode,
+            country: order.billingAddress.country,
+            taxId: '',
+          }
         : {
-          companyName: 'Personal Wings',
-          address: '123 Aviation Way',
-          city: 'Sky Harbor',
-          state: 'AZ',
-          zipCode: '85034',
-          country: 'US',
-          taxId: 'TAX-123456',
-        },
-      items: order.courses && Array.isArray(order.courses)
-        ? await Promise.all(
-          order.courses.map(async (courseId) => {
-            const course = await this.coursesService.findById(courseId);
-            return {
-              description: course?.title || 'Course Enrollment',
-              quantity: 1,
-              unitPrice: course?.price || 0,
-              total: course?.price || 0,
-            };
-          })
-        )
-        : [
-          {
-            description: 'Course Enrollment',
-            quantity: 1,
-            unitPrice: order.total || 0,
-            total: order.total || 0,
+            companyName: 'Personal Wings',
+            address: '123 Aviation Way',
+            city: 'Sky Harbor',
+            state: 'AZ',
+            zipCode: '85034',
+            country: 'US',
+            taxId: 'TAX-123456',
           },
-        ],
-      paidAt: order.paidAt || new Date(),
+      items: [
+        {
+          description: 'Course Enrollment',
+          quantity: 1,
+          unitPrice: order.subtotal,
+          total: order.subtotal,
+        },
+      ],
+      paidAt: order.paidAt,
     });
 
     return await invoice.save();
@@ -1425,27 +1406,27 @@ export class PaymentsService {
       coupon: appliedCoupon ? appliedCoupon._id.toString() : undefined,
       billingAddress: billingAddress
         ? {
-          firstName: billingAddress.firstName || firstName || '',
-          lastName: billingAddress.lastName || lastName || '',
-          email: billingAddress.email || email || '',
-          phone: billingAddress.phone || phone || '',
-          street: billingAddress.address || billingAddress.street || '',
-          city: billingAddress.city || '',
-          state: billingAddress.state || '',
-          country: billingAddress.country || '',
-          zipCode: billingAddress.zipCode || '',
-        }
+            firstName: billingAddress.firstName || firstName || '',
+            lastName: billingAddress.lastName || lastName || '',
+            email: billingAddress.email || email || '',
+            phone: billingAddress.phone || phone || '',
+            street: billingAddress.address || billingAddress.street || '',
+            city: billingAddress.city || '',
+            state: billingAddress.state || '',
+            country: billingAddress.country || '',
+            zipCode: billingAddress.zipCode || '',
+          }
         : {
-          firstName: firstName || '',
-          lastName: lastName || '',
-          email: email || '',
-          phone: phone || '',
-          street: '',
-          city: '',
-          state: '',
-          country: '',
-          zipCode: '',
-        },
+            firstName: firstName || '',
+            lastName: lastName || '',
+            email: email || '',
+            phone: phone || '',
+            street: '',
+            city: '',
+            state: '',
+            country: '',
+            zipCode: '',
+          },
     } as any);
 
     // Handle payment based on method and test mode
