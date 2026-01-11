@@ -229,4 +229,70 @@ export class CourseModulesController {
   async getStats(@Param('id') id: string) {
     return this.modulesService.getModuleStats(id);
   }
+
+  @Post(':id/lessons/:lessonId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Add lesson to module' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lesson added to module successfully',
+  })
+  async addLessonToModule(
+    @Param('id') moduleId: string,
+    @Param('lessonId') lessonId: string,
+    @Req() req,
+  ) {
+    return this.modulesService.addLessonToModule(
+      moduleId,
+      lessonId,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Delete(':id/lessons/:lessonId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Remove lesson from module' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lesson removed from module successfully',
+  })
+  async removeLessonFromModule(
+    @Param('id') moduleId: string,
+    @Param('lessonId') lessonId: string,
+    @Req() req,
+  ) {
+    return this.modulesService.removeLessonFromModule(
+      moduleId,
+      lessonId,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Post(':id/lessons/bulk-add')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Add multiple lessons to module' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lessons added to module successfully',
+  })
+  async addLessonsToModule(
+    @Param('id') moduleId: string,
+    @Body() body: { lessonIds: string[] },
+    @Req() req,
+  ) {
+    return this.modulesService.addLessonsToModule(
+      moduleId,
+      body.lessonIds,
+      req.user.id,
+      req.user.role,
+    );
+  }
 }

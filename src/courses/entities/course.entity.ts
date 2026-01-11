@@ -40,7 +40,8 @@ export class Course extends Document {
   description: string;
 
   @ApiProperty({
-    example: 'Detailed course content with curriculum, modules, and comprehensive information...',
+    example:
+      'Detailed course content with curriculum, modules, and comprehensive information...',
     description: 'Detailed course content',
   })
   @Prop()

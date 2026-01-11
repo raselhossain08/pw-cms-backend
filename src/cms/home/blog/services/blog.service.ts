@@ -10,7 +10,7 @@ export class BlogService {
   constructor(
     @InjectModel(Blog.name) private blogModel: Model<BlogDocument>,
     private cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   async create(createBlogDto: CreateBlogDto): Promise<Blog> {
     const blog = new this.blogModel(createBlogDto);
@@ -69,8 +69,14 @@ export class BlogService {
 
         // Deep update for blogs array
         if (updateBlogDto.blogs !== undefined) {
-          console.log('Updating blogs array, count:', updateBlogDto.blogs.length);
-          console.log('Blog titles:', updateBlogDto.blogs.map(b => b.title));
+          console.log(
+            'Updating blogs array, count:',
+            updateBlogDto.blogs.length,
+          );
+          console.log(
+            'Blog titles:',
+            updateBlogDto.blogs.map((b) => b.title),
+          );
 
           // Properly mark the array as modified for Mongoose
           blog.blogs = updateBlogDto.blogs as any;
@@ -113,7 +119,7 @@ export class BlogService {
       const saved = await blog.save();
       console.log('Blog saved successfully');
       console.log('Saved blogs count:', saved.blogs?.length || 0);
-      console.log('Saved blog titles:', saved.blogs?.map(b => b.title) || []);
+      console.log('Saved blog titles:', saved.blogs?.map((b) => b.title) || []);
       return saved;
     } catch (error) {
       console.error('Error in blog service update:', error);

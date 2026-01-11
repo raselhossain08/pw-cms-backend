@@ -42,7 +42,7 @@ export class AdminService {
     @InjectModel(Assignment.name) private assignmentModel: Model<Assignment>,
     @Inject(SecurityMiddleware) private securityMiddleware: SecurityMiddleware,
     private integrationsService: IntegrationsService,
-  ) { }
+  ) {}
 
   // ==================== INTEGRATIONS MANAGEMENT ====================
   async getAllIntegrations() {
@@ -178,6 +178,7 @@ export class AdminService {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
+      .lean()
       .exec();
 
     return {
@@ -528,8 +529,8 @@ export class AdminService {
       completionRate:
         item.enrollmentCount > 0
           ? parseFloat(
-            ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
-          )
+              ((item.completionCount / item.enrollmentCount) * 100).toFixed(2),
+            )
           : 0,
     }));
   }
@@ -681,7 +682,6 @@ export class AdminService {
     };
   }
 
-
   // ==================== CONTENT MODERATION ====================
   async getFlaggedContent(page = 1, limit = 20): Promise<any> {
     const reviews = await this.reviewModel
@@ -700,7 +700,7 @@ export class AdminService {
         limit,
         totalPages: Math.ceil(
           (await this.reviewModel.countDocuments({ flagged: true }).exec()) /
-          limit,
+            limit,
         ),
       },
     };
@@ -810,8 +810,8 @@ export class AdminService {
         completionRate:
           activeEnrollments > 0
             ? parseFloat(
-              ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
-            )
+                ((completedEnrollments / activeEnrollments) * 100).toFixed(2),
+              )
             : 0,
       },
     };
@@ -1124,9 +1124,9 @@ export class AdminService {
         refundRate:
           stats.successfulPayments > 0
             ? (
-              (stats.refundedPayments / stats.successfulPayments) *
-              100
-            ).toFixed(2)
+                (stats.refundedPayments / stats.successfulPayments) *
+                100
+              ).toFixed(2)
             : '0.00',
       },
       methodBreakdown: methodBreakdown.map((m) => ({
@@ -1503,7 +1503,7 @@ export class AdminService {
         avgStudentProgress:
           enrollments.length > 0
             ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-            enrollments.length
+              enrollments.length
             : 0,
       };
     } catch (error) {
@@ -1642,7 +1642,12 @@ export class AdminService {
         throw new BadRequestException('No instructor IDs provided');
       }
 
-      const validStatuses = [UserStatus.ACTIVE, UserStatus.INACTIVE, UserStatus.PENDING, UserStatus.SUSPENDED];
+      const validStatuses = [
+        UserStatus.ACTIVE,
+        UserStatus.INACTIVE,
+        UserStatus.PENDING,
+        UserStatus.SUSPENDED,
+      ];
       if (!validStatuses.includes(status as UserStatus)) {
         throw new BadRequestException('Invalid status');
       }
@@ -1727,7 +1732,7 @@ export class AdminService {
           const avgRating =
             courses.length > 0
               ? courses.reduce((sum, c) => sum + (c.rating || 0), 0) /
-              courses.length
+                courses.length
               : 0;
 
           return {
@@ -1823,10 +1828,16 @@ export class AdminService {
             .countDocuments({ role: UserRole.INSTRUCTOR })
             .exec(),
           active: await this.userModel
-            .countDocuments({ role: UserRole.INSTRUCTOR, status: UserStatus.ACTIVE })
+            .countDocuments({
+              role: UserRole.INSTRUCTOR,
+              status: UserStatus.ACTIVE,
+            })
             .exec(),
           pending: await this.userModel
-            .countDocuments({ role: UserRole.INSTRUCTOR, status: UserStatus.PENDING })
+            .countDocuments({
+              role: UserRole.INSTRUCTOR,
+              status: UserStatus.PENDING,
+            })
             .exec(),
         },
       };
@@ -1949,7 +1960,10 @@ export class AdminService {
         .exec();
 
       const suspendedStudents = await this.userModel
-        .countDocuments({ role: UserRole.STUDENT, status: UserStatus.SUSPENDED })
+        .countDocuments({
+          role: UserRole.STUDENT,
+          status: UserStatus.SUSPENDED,
+        })
         .exec();
 
       // Get enrollment stats
@@ -2027,7 +2041,7 @@ export class AdminService {
       ).length;
       const avgProgress =
         enrollments.reduce((sum, e) => sum + e.progress, 0) /
-        totalEnrollments || 0;
+          totalEnrollments || 0;
       const totalTimeSpent = enrollments.reduce(
         (sum, e) => sum + (e.totalTimeSpent || 0),
         0,
@@ -2052,7 +2066,7 @@ export class AdminService {
       const avgScore =
         quizScores.length > 0
           ? quizScores.reduce((sum, score) => sum + score, 0) /
-          quizScores.length
+            quizScores.length
           : 0;
 
       // Get recent activity
@@ -2179,7 +2193,7 @@ export class AdminService {
           notStarted: enrollments.filter((e) => e.progress === 0).length,
           avgProgress:
             enrollments.reduce((sum, e) => sum + e.progress, 0) /
-            enrollments.length || 0,
+              enrollments.length || 0,
         },
         quizzes: {
           total: totalQuizzes,
@@ -2197,7 +2211,7 @@ export class AdminService {
           avgGrade:
             assignmentScores.length > 0
               ? assignmentScores.reduce((sum, s) => sum + s, 0) /
-              assignmentScores.length
+                assignmentScores.length
               : 0,
         },
         timeSpent: {
@@ -2207,7 +2221,7 @@ export class AdminService {
           ),
           avg:
             enrollments.reduce((sum, e) => sum + (e.totalTimeSpent || 0), 0) /
-            enrollments.length || 0,
+              enrollments.length || 0,
         },
       };
     } catch (error) {
@@ -2345,7 +2359,7 @@ export class AdminService {
           const avgProgress =
             enrollments.length > 0
               ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-              enrollments.length
+                enrollments.length
               : 0;
 
           const completedCourses = enrollments.filter(
@@ -2638,7 +2652,7 @@ export class AdminService {
           const avgCompletion =
             enrollments.length > 0
               ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-              enrollments.length
+                enrollments.length
               : 0;
 
           const completedCourses = enrollments.filter(
@@ -2937,19 +2951,19 @@ export class AdminService {
           course: e.course,
           progress: e.progress,
           status: e.status,
-          enrolledAt: (e as any).createdAt,
+          enrolledAt: e.createdAt,
         })),
         orders: orders.map((o: any) => ({
           id: o._id,
           total: o.total,
           status: o.status,
-          createdAt: (o as any).createdAt,
+          createdAt: o.createdAt,
         })),
         reviews: reviews.map((r: any) => ({
-          course: (r as any).course,
+          course: r.course,
           rating: r.rating,
           comment: r.comment,
-          createdAt: (r as any).createdAt,
+          createdAt: r.createdAt,
         })),
       };
     } catch (error) {

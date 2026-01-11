@@ -46,6 +46,9 @@ export class SanitizeInterceptor implements NestInterceptor {
   private sanitizeObject(obj: any): any {
     // Convert Mongo ObjectId to string
     if (obj && typeof obj === 'object') {
+      if (obj instanceof Date) {
+        return obj;
+      }
       const isObjectId =
         obj._bsontype === 'ObjectID' || typeof obj.toHexString === 'function';
       if (isObjectId) {
@@ -106,6 +109,10 @@ export class SanitizeInterceptor implements NestInterceptor {
     depth = 0,
   ): any {
     if (!obj || typeof obj !== 'object') {
+      return obj;
+    }
+
+    if (obj instanceof Date) {
       return obj;
     }
 

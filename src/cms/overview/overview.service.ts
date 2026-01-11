@@ -36,7 +36,7 @@ export class OverviewService {
     private termsConditionsModel: Model<TermsConditions>,
     @InjectModel(TopBar.name) private topBarModel: Model<TopBar>,
     @InjectModel(Footer.name) private footerModel: Model<Footer>,
-  ) { }
+  ) {}
 
   async getStats() {
     const [
@@ -96,12 +96,12 @@ export class OverviewService {
           published:
             blogs.length > 0
               ? blogs[0]?.blogs?.filter((b: any) => b.status === 'published')
-                ?.length || 0
+                  ?.length || 0
               : 0,
           draft:
             blogs.length > 0
               ? blogs[0]?.blogs?.filter((b: any) => b.status === 'draft')
-                ?.length || 0
+                  ?.length || 0
               : 0,
         },
         aboutSection: {

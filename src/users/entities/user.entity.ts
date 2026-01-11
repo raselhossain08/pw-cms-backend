@@ -234,7 +234,6 @@ export class User extends Document {
   createdAt: Date;
   updatedAt: Date;
 
-
   // Virtuals
   fullName: string;
 }

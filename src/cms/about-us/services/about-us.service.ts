@@ -9,7 +9,7 @@ export class AboutUsService {
   constructor(
     @InjectModel(AboutUs.name)
     private aboutUsModel: Model<AboutUs>,
-  ) { }
+  ) {}
 
   async create(createAboutUsDto: CreateAboutUsDto): Promise<AboutUs> {
     const createdAboutUs = new this.aboutUsModel(createAboutUsDto);

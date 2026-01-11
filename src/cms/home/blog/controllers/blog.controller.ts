@@ -29,7 +29,7 @@ export class BlogController {
   constructor(
     private readonly blogService: BlogService,
     @InjectModel(User.name) private userModel: Model<User>,
-  ) { }
+  ) {}
 
   @Get()
   async getBlog() {

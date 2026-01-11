@@ -28,8 +28,14 @@ import { Invoice, InvoiceSchema } from '../payments/entities/invoice.entity';
 import { Payout, PayoutSchema } from '../payments/entities/payout.entity';
 import { SecurityMiddleware } from '../shared/middleware/security.middleware';
 import { IntegrationsModule } from '../integrations/integrations.module';
-import { ActivityLog, ActivityLogSchema } from '../activity-logs/entities/activity-log.entity';
-import { Assignment, AssignmentSchema } from '../certificates/entities/additional.entity';
+import {
+  ActivityLog,
+  ActivityLogSchema,
+} from '../activity-logs/entities/activity-log.entity';
+import {
+  Assignment,
+  AssignmentSchema,
+} from '../certificates/entities/additional.entity';
 
 @Module({
   imports: [
@@ -63,4 +69,4 @@ import { Assignment, AssignmentSchema } from '../certificates/entities/additiona
   ],
   exports: [AdminService, AdminPaymentsService, AdminInstructorsService],
 })
-export class AdminModule { }
+export class AdminModule {}

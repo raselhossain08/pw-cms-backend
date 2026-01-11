@@ -186,4 +186,4 @@ export class CreateAboutUsDto {
   seo: SeoMetaDto;
 }
 
-export class UpdateAboutUsDto extends PartialType(CreateAboutUsDto) { }
+export class UpdateAboutUsDto extends PartialType(CreateAboutUsDto) {}

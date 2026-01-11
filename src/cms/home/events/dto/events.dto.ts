@@ -226,4 +226,4 @@ export class CreateEventsDto {
   seo?: SeoMetaDto;
 }
 
-export class UpdateEventsDto extends PartialType(CreateEventsDto) { }
+export class UpdateEventsDto extends PartialType(CreateEventsDto) {}

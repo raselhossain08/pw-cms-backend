@@ -14,7 +14,7 @@ export class TestimonialsService {
     @InjectModel(Testimonials.name)
     private testimonialsModel: Model<Testimonials>,
     private cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   async create(
     createTestimonialsDto: CreateTestimonialsDto,

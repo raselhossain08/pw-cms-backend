@@ -29,7 +29,7 @@ import {
 @ApiTags('Testimonials')
 @Controller('cms/home/testimonials')
 export class TestimonialsController {
-  constructor(private readonly testimonialsService: TestimonialsService) { }
+  constructor(private readonly testimonialsService: TestimonialsService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get testimonials' })

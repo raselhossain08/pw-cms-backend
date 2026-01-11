@@ -34,7 +34,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.map(id => id.toString()).includes(userId)
+      !course.instructors.map((id) => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -150,7 +150,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.map(id => id.toString()).includes(userId)
+      !course.instructors.map((id) => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -232,7 +232,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.map(id => id.toString()).includes(userId)
+      !course.instructors.map((id) => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -250,7 +250,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.map(id => id.toString()).includes(userId)
+      !course.instructors.map((id) => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -285,7 +285,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.map(id => id.toString()).includes(userId)
+      !course.instructors.map((id) => id.toString()).includes(userId)
     ) {
       query.status = 'published';
     }
@@ -303,7 +303,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.map(id => id.toString()).includes(userId)
+      !course.instructors.map((id) => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only modify your own courses');
     }
@@ -328,7 +328,7 @@ export class CourseModulesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.map(id => id.toString()).includes(userId)
+      !course.instructors.map((id) => id.toString()).includes(userId)
     ) {
       throw new ForbiddenException('You can only duplicate your own modules');
     }
@@ -368,7 +368,7 @@ export class CourseModulesService {
       if (
         userRole !== UserRole.ADMIN &&
         userRole !== UserRole.SUPER_ADMIN &&
-        !course.instructors.map(id => id.toString()).includes(userId)
+        !course.instructors.map((id) => id.toString()).includes(userId)
       ) {
         throw new ForbiddenException('You can only delete your own modules');
       }
@@ -400,7 +400,7 @@ export class CourseModulesService {
       if (
         userRole !== UserRole.ADMIN &&
         userRole !== UserRole.SUPER_ADMIN &&
-        !course.instructors.map(id => id.toString()).includes(userId)
+        !course.instructors.map((id) => id.toString()).includes(userId)
       ) {
         throw new ForbiddenException('You can only update your own modules');
       }
@@ -553,5 +553,131 @@ export class CourseModulesService {
     );
 
     return { modules: withCounts, total };
+  }
+
+  async addLessonToModule(
+    moduleId: string,
+    lessonId: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<any> {
+    const module = await this.moduleModel.findById(moduleId).populate('course');
+    if (!module) throw new NotFoundException('Module not found');
+
+    const lesson = await this.lessonModel.findById(lessonId);
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    const course: any = module.course;
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.SUPER_ADMIN &&
+      !course.instructors.map((id) => id.toString()).includes(userId)
+    ) {
+      throw new ForbiddenException('You can only modify your own courses');
+    }
+
+    // Check if lesson belongs to the same course
+    if (lesson.course.toString() !== course._id.toString()) {
+      throw new BadRequestException(
+        'Lesson must belong to the same course as the module',
+      );
+    }
+
+    // Update lesson's module reference
+    lesson.module = new Types.ObjectId(moduleId);
+    await lesson.save();
+
+    return {
+      message: 'Lesson added to module successfully',
+      lesson: lesson,
+      module: module,
+    };
+  }
+
+  async removeLessonFromModule(
+    moduleId: string,
+    lessonId: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<any> {
+    const module = await this.moduleModel.findById(moduleId).populate('course');
+    if (!module) throw new NotFoundException('Module not found');
+
+    const lesson = await this.lessonModel.findById(lessonId);
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    const course: any = module.course;
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.SUPER_ADMIN &&
+      !course.instructors.map((id) => id.toString()).includes(userId)
+    ) {
+      throw new ForbiddenException('You can only modify your own courses');
+    }
+
+    // Check if lesson is actually in this module
+    if (!lesson.module || lesson.module.toString() !== moduleId) {
+      throw new BadRequestException('Lesson is not in this module');
+    }
+
+    // Remove lesson's module reference (set to null/undefined)
+    lesson.module = undefined;
+    await lesson.save();
+
+    return {
+      message: 'Lesson removed from module successfully',
+      lesson: lesson,
+      module: module,
+    };
+  }
+
+  async addLessonsToModule(
+    moduleId: string,
+    lessonIds: string[],
+    userId: string,
+    userRole: UserRole,
+  ): Promise<any> {
+    const module = await this.moduleModel.findById(moduleId).populate('course');
+    if (!module) throw new NotFoundException('Module not found');
+
+    const course: any = module.course;
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.SUPER_ADMIN &&
+      !course.instructors.map((id) => id.toString()).includes(userId)
+    ) {
+      throw new ForbiddenException('You can only modify your own courses');
+    }
+
+    const lessons = await this.lessonModel.find({
+      _id: { $in: lessonIds.map((id) => new Types.ObjectId(id)) },
+    });
+
+    if (lessons.length !== lessonIds.length) {
+      throw new NotFoundException('Some lessons not found');
+    }
+
+    // Validate all lessons belong to the same course
+    const invalidLessons = lessons.filter(
+      (lesson) => lesson.course.toString() !== course._id.toString(),
+    );
+    if (invalidLessons.length > 0) {
+      throw new BadRequestException(
+        'All lessons must belong to the same course as the module',
+      );
+    }
+
+    // Update all lessons' module reference
+    await this.lessonModel.updateMany(
+      { _id: { $in: lessonIds.map((id) => new Types.ObjectId(id)) } },
+      { module: new Types.ObjectId(moduleId) },
+    );
+
+    return {
+      message: `${lessons.length} lesson${lessons.length > 1 ? 's' : ''} added to module successfully`,
+      addedCount: lessons.length,
+      module: module,
+      lessons: lessons,
+    };
   }
 }

@@ -23,7 +23,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   // Helper method to parse JSON fields
   private parseJsonField(field: any): any[] {
@@ -89,7 +89,10 @@ export class EventsController {
     console.log('Files keys:', Object.keys(files || {}));
     console.log('Title:', body.title);
     console.log('Subtitle:', body.subtitle);
-    console.log('Sample body data:', JSON.stringify(body, null, 2).substring(0, 500));
+    console.log(
+      'Sample body data:',
+      JSON.stringify(body, null, 2).substring(0, 500),
+    );
     console.log('Events[0][title]:', body['events[0][title]']);
     console.log('Events[0][id]:', body['events[0][id]']);
     console.log('body.events type:', typeof body.events);
@@ -108,7 +111,7 @@ export class EventsController {
 
         // Handle image upload for this event
         const imageFileKey = `events[${index}][image]`;
-        let imageUrl = event.image || '';
+        const imageUrl = event.image || '';
 
         if (files[imageFileKey]?.[0]) {
           console.log(`Uploading image for event ${index}`);
@@ -150,7 +153,10 @@ export class EventsController {
       console.log('Using fallback FormData parsing...');
       let eventIndex = 0;
       // Check if event exists (either by title or id being present)
-      while (body[`events[${eventIndex}][title]`] !== undefined || body[`events[${eventIndex}][id]`] !== undefined) {
+      while (
+        body[`events[${eventIndex}][title]`] !== undefined ||
+        body[`events[${eventIndex}][id]`] !== undefined
+      ) {
         console.log(`\n--- Parsing Event ${eventIndex} ---`);
         console.log(`Title: ${body[`events[${eventIndex}][title]`]}`);
         console.log(`ID: ${body[`events[${eventIndex}][id]`]}`);
@@ -203,7 +209,9 @@ export class EventsController {
 
         try {
           if (body[`events[${eventIndex}][instructors]`]) {
-            instructors = JSON.parse(body[`events[${eventIndex}][instructors]`]);
+            instructors = JSON.parse(
+              body[`events[${eventIndex}][instructors]`],
+            );
           }
         } catch (e) {
           console.error('Failed to parse instructors:', e);
@@ -245,7 +253,7 @@ export class EventsController {
     console.log(`\nTotal events parsed: ${events.length}`);
 
     // Parse SEO data
-    const seo = Array.isArray(body.seo) ? {} : (body.seo || {});
+    const seo = Array.isArray(body.seo) ? {} : body.seo || {};
     if (!Array.isArray(body.seo)) {
       seo.title = body.seo?.title || body['seo[title]'] || '';
       seo.description = body.seo?.description || body['seo[description]'] || '';

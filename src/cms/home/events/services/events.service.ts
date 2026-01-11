@@ -6,16 +6,13 @@ import { CreateEventsDto, UpdateEventsDto } from '../dto/events.dto';
 
 @Injectable()
 export class EventsService {
-  constructor(@InjectModel(Events.name) private eventsModel: Model<Events>) { }
+  constructor(@InjectModel(Events.name) private eventsModel: Model<Events>) {}
 
   /**
    * Get events section (Public)
    */
   async getEvents(): Promise<Events> {
-    let events = await this.eventsModel
-      .findOne()
-      .select('-__v')
-      .lean();
+    let events = await this.eventsModel.findOne().select('-__v').lean();
 
     if (!events) {
       // Create initial events document if it doesn't exist
@@ -25,7 +22,8 @@ export class EventsService {
         events: [],
         seo: {
           title: 'Events',
-          description: 'Join our upcoming aviation events and training sessions',
+          description:
+            'Join our upcoming aviation events and training sessions',
           keywords: 'aviation events, pilot training, aviation community',
           ogImage: '',
         },
@@ -57,7 +55,8 @@ export class EventsService {
         events: dto.events || [],
         seo: dto.seo || {
           title: 'Events',
-          description: 'Join our upcoming aviation events and training sessions',
+          description:
+            'Join our upcoming aviation events and training sessions',
           keywords: 'aviation events, pilot training, aviation community',
           ogImage: '',
         },
@@ -73,7 +72,10 @@ export class EventsService {
         events.events = dto.events as any;
       }
       if (dto.seo !== undefined) events.seo = dto.seo as any;
-      console.log('After assignment - events count:', events.events?.length || 0);
+      console.log(
+        'After assignment - events count:',
+        events.events?.length || 0,
+      );
     }
 
     console.log('=== About to save ===');

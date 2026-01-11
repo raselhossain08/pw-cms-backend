@@ -17,7 +17,9 @@ describe('Instructor Specialization Management (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     connection = moduleFixture.get<Connection>(getConnectionToken());
@@ -30,7 +32,8 @@ describe('Instructor Specialization Management (e2e)', () => {
         password: process.env.ADMIN_PASSWORD || 'admin123',
       });
 
-    adminToken = loginResponse.body.accessToken || loginResponse.body.access_token;
+    adminToken =
+      loginResponse.body.accessToken || loginResponse.body.access_token;
   });
 
   afterAll(async () => {
@@ -81,9 +84,11 @@ describe('Instructor Specialization Management (e2e)', () => {
         .expect(201);
 
       expect(response.body.specialization).toBe(longSpecialization);
-      
+
       // Clean up
-      await connection.collection('users').deleteOne({ _id: response.body._id });
+      await connection
+        .collection('users')
+        .deleteOne({ _id: response.body._id });
     });
 
     it('should reject specialization longer than 200 characters', async () => {
@@ -105,7 +110,7 @@ describe('Instructor Specialization Management (e2e)', () => {
 
     it('should accept valid experience levels', async () => {
       const validExperiences = ['expert', 'advanced', 'intermediate'];
-      
+
       for (const experience of validExperiences) {
         const createDto = {
           firstName: 'Test',
@@ -123,9 +128,11 @@ describe('Instructor Specialization Management (e2e)', () => {
           .expect(201);
 
         expect(response.body.experience).toBe(experience);
-        
+
         // Clean up
-        await connection.collection('users').deleteOne({ _id: response.body._id });
+        await connection
+          .collection('users')
+          .deleteOne({ _id: response.body._id });
       }
     });
 
@@ -161,9 +168,11 @@ describe('Instructor Specialization Management (e2e)', () => {
         .expect(201);
 
       expect(response.body.specialization).toBeUndefined();
-      
+
       // Clean up
-      await connection.collection('users').deleteOne({ _id: response.body._id });
+      await connection
+        .collection('users')
+        .deleteOne({ _id: response.body._id });
     });
   });
 
@@ -306,7 +315,7 @@ describe('Instructor Specialization Management (e2e)', () => {
   });
 
   describe('GET /admin/instructors - Filter by specialization', () => {
-    let instructorIds: string[] = [];
+    const instructorIds: string[] = [];
 
     beforeAll(async () => {
       // Create test instructors with different specializations
@@ -350,7 +359,7 @@ describe('Instructor Specialization Management (e2e)', () => {
 
       expect(response.body.instructors).toBeInstanceOf(Array);
       expect(response.body.instructors.length).toBeGreaterThanOrEqual(2);
-      
+
       response.body.instructors.forEach((instructor: any) => {
         if (instructorIds.includes(instructor._id)) {
           expect(instructor.specialization).toBe('Web Development');
@@ -410,7 +419,7 @@ describe('Instructor Specialization Management (e2e)', () => {
 
     it('should handle special characters in specialization', async () => {
       const specialization = 'C++ & C# Programming (Advanced)';
-      
+
       const createResponse = await request(app.getHttpServer())
         .post('/admin/instructors')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -425,12 +434,14 @@ describe('Instructor Specialization Management (e2e)', () => {
       expect(createResponse.body.specialization).toBe(specialization);
 
       // Clean up
-      await connection.collection('users').deleteOne({ _id: createResponse.body._id });
+      await connection
+        .collection('users')
+        .deleteOne({ _id: createResponse.body._id });
     });
 
     it('should handle unicode characters in specialization', async () => {
       const specialization = 'Web开发 & Design 设计';
-      
+
       const createResponse = await request(app.getHttpServer())
         .post('/admin/instructors')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -445,7 +456,9 @@ describe('Instructor Specialization Management (e2e)', () => {
       expect(createResponse.body.specialization).toBe(specialization);
 
       // Clean up
-      await connection.collection('users').deleteOne({ _id: createResponse.body._id });
+      await connection
+        .collection('users')
+        .deleteOne({ _id: createResponse.body._id });
     });
   });
 });

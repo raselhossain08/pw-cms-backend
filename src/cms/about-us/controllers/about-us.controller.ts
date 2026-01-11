@@ -44,7 +44,7 @@ export class AboutUsController {
   constructor(
     private readonly aboutUsService: AboutUsService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -113,7 +113,7 @@ export class AboutUsController {
   @ApiOperation({
     summary: 'Get About Us page (Public)',
     description:
-      'Retrieves the About Us page or creates a default one if it doesn\'t exist - accessible without authentication',
+      "Retrieves the About Us page or creates a default one if it doesn't exist - accessible without authentication",
   })
   @ApiResponse({
     status: 200,

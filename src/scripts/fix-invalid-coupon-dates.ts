@@ -25,21 +25,30 @@ async function fixInvalidDates() {
 
       // Check expiresAt
       if (couponAny.expiresAt !== null && couponAny.expiresAt !== undefined) {
-        if (typeof couponAny.expiresAt === 'object' && Object.keys(couponAny.expiresAt).length === 0) {
+        if (
+          typeof couponAny.expiresAt === 'object' &&
+          Object.keys(couponAny.expiresAt).length === 0
+        ) {
           // It's an empty object - remove it
           updates.$unset = updates.$unset || {};
           updates.$unset.expiresAt = '';
           needsUpdate = true;
-          console.log(`❌ Coupon ${couponAny.code}: Has empty object in expiresAt`);
+          console.log(
+            `❌ Coupon ${couponAny.code}: Has empty object in expiresAt`,
+          );
         } else if (couponAny.expiresAt instanceof Date) {
           if (isNaN(couponAny.expiresAt.getTime())) {
             // It's an invalid date
             updates.$unset = updates.$unset || {};
             updates.$unset.expiresAt = '';
             needsUpdate = true;
-            console.log(`❌ Coupon ${couponAny.code}: Has invalid date in expiresAt`);
+            console.log(
+              `❌ Coupon ${couponAny.code}: Has invalid date in expiresAt`,
+            );
           } else {
-            console.log(`✓ Coupon ${couponAny.code}: Valid expiresAt - ${couponAny.expiresAt.toISOString()}`);
+            console.log(
+              `✓ Coupon ${couponAny.code}: Valid expiresAt - ${couponAny.expiresAt.toISOString()}`,
+            );
           }
         } else if (typeof couponAny.expiresAt === 'string') {
           // Try to parse it
@@ -48,9 +57,13 @@ async function fixInvalidDates() {
             updates.$unset = updates.$unset || {};
             updates.$unset.expiresAt = '';
             needsUpdate = true;
-            console.log(`❌ Coupon ${couponAny.code}: Has invalid date string in expiresAt`);
+            console.log(
+              `❌ Coupon ${couponAny.code}: Has invalid date string in expiresAt`,
+            );
           } else {
-            console.log(`✓ Coupon ${couponAny.code}: Valid expiresAt - ${date.toISOString()}`);
+            console.log(
+              `✓ Coupon ${couponAny.code}: Valid expiresAt - ${date.toISOString()}`,
+            );
           }
         }
       } else {
@@ -58,7 +71,11 @@ async function fixInvalidDates() {
       }
 
       // Check createdAt
-      if (couponAny.createdAt && typeof couponAny.createdAt === 'object' && Object.keys(couponAny.createdAt).length === 0) {
+      if (
+        couponAny.createdAt &&
+        typeof couponAny.createdAt === 'object' &&
+        Object.keys(couponAny.createdAt).length === 0
+      ) {
         updates.$unset = updates.$unset || {};
         updates.$unset.createdAt = '';
         needsUpdate = true;
@@ -66,7 +83,11 @@ async function fixInvalidDates() {
       }
 
       // Check updatedAt
-      if (couponAny.updatedAt && typeof couponAny.updatedAt === 'object' && Object.keys(couponAny.updatedAt).length === 0) {
+      if (
+        couponAny.updatedAt &&
+        typeof couponAny.updatedAt === 'object' &&
+        Object.keys(couponAny.updatedAt).length === 0
+      ) {
         updates.$unset = updates.$unset || {};
         updates.$unset.updatedAt = '';
         needsUpdate = true;
@@ -78,7 +99,7 @@ async function fixInvalidDates() {
         await couponModel.updateOne(
           { _id: couponAny._id },
           updates,
-          { timestamps: false } // Disable automatic timestamp updates
+          { timestamps: false }, // Disable automatic timestamp updates
         );
         console.log(`  ✅ Fixed coupon ${couponAny.code}`);
         fixedCount++;
@@ -88,13 +109,12 @@ async function fixInvalidDates() {
     console.log('\n📊 Summary:');
     console.log(`   Total coupons: ${allCoupons.length}`);
     console.log(`   Coupons fixed: ${fixedCount}`);
-    
+
     if (fixedCount > 0) {
       console.log('\n✅ Successfully fixed all invalid date fields!');
     } else {
       console.log('\n✅ No invalid dates found. All coupons are clean!');
     }
-    
   } catch (error) {
     console.error('❌ Error fixing coupon dates:', error);
     process.exit(1);

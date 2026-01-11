@@ -24,7 +24,7 @@ export class CoursesService {
     @InjectModel(CourseModule.name)
     private courseModuleModel: Model<CourseModule>,
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
-  ) { }
+  ) {}
 
   async getRecommendations(
     userId: string,
@@ -273,7 +273,9 @@ export class CoursesService {
 
     // Add instructors from DTO if provided
     if (createCourseDto.instructors && createCourseDto.instructors.length > 0) {
-      instructorsArray = createCourseDto.instructors.map(id => new Types.ObjectId(id));
+      instructorsArray = createCourseDto.instructors.map(
+        (id) => new Types.ObjectId(id),
+      );
     }
 
     const course = new this.courseModel({
@@ -285,7 +287,10 @@ export class CoursesService {
 
     const savedCourse = await course.save();
     console.log('Saved course thumbnail:', savedCourse.thumbnail);
-    console.log('Saved course content length:', savedCourse.content?.length || 0);
+    console.log(
+      'Saved course content length:',
+      savedCourse.content?.length || 0,
+    );
     return savedCourse;
   }
 
@@ -343,13 +348,14 @@ export class CoursesService {
       ratingCount: course.ratingCount || course.reviews || 0,
       totalLessons: course.totalLessons || course.lessons?.length || 0,
       // Transform instructors array to include proper id fields
-      instructors: course.instructors && Array.isArray(course.instructors)
-        ? course.instructors.map((instructor: any) => ({
-          ...instructor,
-          id: instructor._id?.toString() || instructor.toString(),
-          _id: instructor._id?.toString() || instructor.toString(),
-        }))
-        : [],
+      instructors:
+        course.instructors && Array.isArray(course.instructors)
+          ? course.instructors.map((instructor: any) => ({
+              ...instructor,
+              id: instructor._id?.toString() || instructor.toString(),
+              _id: instructor._id?.toString() || instructor.toString(),
+            }))
+          : [],
     }));
 
     return { courses: serializedCourses, total };
@@ -448,7 +454,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException('You can only update your own courses');
     }
@@ -500,7 +506,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException('You can only delete your own courses');
     }
@@ -536,13 +542,14 @@ export class CoursesService {
       ratingCount: course.ratingCount || course.reviews || 0,
       totalLessons: course.totalLessons || course.lessons?.length || 0,
       // Transform instructors array to include proper id fields
-      instructors: course.instructors && Array.isArray(course.instructors)
-        ? course.instructors.map((instructor: any) => ({
-          ...instructor,
-          id: instructor._id?.toString() || instructor.toString(),
-          _id: instructor._id?.toString() || instructor.toString(),
-        }))
-        : [],
+      instructors:
+        course.instructors && Array.isArray(course.instructors)
+          ? course.instructors.map((instructor: any) => ({
+              ...instructor,
+              id: instructor._id?.toString() || instructor.toString(),
+              _id: instructor._id?.toString() || instructor.toString(),
+            }))
+          : [],
     })) as any;
   }
 
@@ -575,8 +582,8 @@ export class CoursesService {
       userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN;
 
     // Check if user is one of the course instructors
-    const isInstructor = course.instructors.some(instructor =>
-      instructor.toString() === instructorId
+    const isInstructor = course.instructors.some(
+      (instructor) => instructor.toString() === instructorId,
     );
 
     if (!isInstructor && !isAdmin) {
@@ -641,7 +648,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       query.status = 'published';
     }
@@ -671,9 +678,11 @@ export class CoursesService {
 
     // Check if user has access to the lesson
     const course = lesson.course as any;
-    const isInstructor = course.instructors && course.instructors.some((instructor: any) =>
-      instructor.toString() === userId
-    );
+    const isInstructor =
+      course.instructors &&
+      course.instructors.some(
+        (instructor: any) => instructor.toString() === userId,
+      );
 
     if (
       userRole !== UserRole.ADMIN &&
@@ -703,7 +712,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only update lessons in your own courses',
@@ -743,7 +752,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only delete lessons in your own courses',
@@ -767,7 +776,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only reorder lessons in your own courses',
@@ -811,7 +820,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only update lessons in your own courses',
@@ -844,7 +853,9 @@ export class CoursesService {
       if (
         userRole !== UserRole.ADMIN &&
         userRole !== UserRole.SUPER_ADMIN &&
-        !course.instructors.some(instructor => instructor.toString() === userId)
+        !course.instructors.some(
+          (instructor) => instructor.toString() === userId,
+        )
       ) {
         throw new ForbiddenException('You can only delete your own lessons');
       }
@@ -876,7 +887,9 @@ export class CoursesService {
       if (
         userRole !== UserRole.ADMIN &&
         userRole !== UserRole.SUPER_ADMIN &&
-        !course.instructors.some(instructor => instructor.toString() === userId)
+        !course.instructors.some(
+          (instructor) => instructor.toString() === userId,
+        )
       ) {
         throw new ForbiddenException('You can only update your own lessons');
       }
@@ -919,7 +932,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only duplicate lessons in your own courses',
@@ -1156,7 +1169,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException('You can only publish your own courses');
     }
@@ -1194,7 +1207,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException('You can only unpublish your own courses');
     }
@@ -1226,7 +1239,11 @@ export class CoursesService {
     const originalCourse = await this.findById(id);
 
     // Check if user is instructor of original course or admin
-    if (!originalCourse.instructors.some(instructor => instructor.toString() === userId)) {
+    if (
+      !originalCourse.instructors.some(
+        (instructor) => instructor.toString() === userId,
+      )
+    ) {
       throw new ForbiddenException('You can only duplicate your own courses');
     }
 
@@ -1306,7 +1323,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.SUPER_ADMIN &&
       userRole !== UserRole.ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You do not have permission to toggle this course status',
@@ -1339,7 +1356,9 @@ export class CoursesService {
         if (
           userRole !== UserRole.SUPER_ADMIN &&
           userRole !== UserRole.ADMIN &&
-          !course.instructors.some(instructor => instructor.toString() === userId)
+          !course.instructors.some(
+            (instructor) => instructor.toString() === userId,
+          )
         ) {
           continue; // Skip courses user doesn't have permission to delete
         }
@@ -1371,7 +1390,9 @@ export class CoursesService {
         if (
           userRole !== UserRole.SUPER_ADMIN &&
           userRole !== UserRole.ADMIN &&
-          !course.instructors.some(instructor => instructor.toString() === userId)
+          !course.instructors.some(
+            (instructor) => instructor.toString() === userId,
+          )
         ) {
           continue; // Skip courses user doesn't have permission to update
         }
@@ -1410,7 +1431,9 @@ export class CoursesService {
         if (
           userRole !== UserRole.SUPER_ADMIN &&
           userRole !== UserRole.ADMIN &&
-          !course.instructors.some(instructor => instructor.toString() === userId)
+          !course.instructors.some(
+            (instructor) => instructor.toString() === userId,
+          )
         ) {
           continue; // Skip courses user doesn't have permission to publish
         }
@@ -1443,7 +1466,9 @@ export class CoursesService {
         if (
           userRole !== UserRole.SUPER_ADMIN &&
           userRole !== UserRole.ADMIN &&
-          !course.instructors.some(instructor => instructor.toString() === userId)
+          !course.instructors.some(
+            (instructor) => instructor.toString() === userId,
+          )
         ) {
           continue; // Skip courses user doesn't have permission to unpublish
         }
@@ -1578,7 +1603,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only view analytics for your own courses',
@@ -1601,9 +1626,9 @@ export class CoursesService {
       avgDuration:
         lessons.length > 0
           ? Math.round(
-            lessons.reduce((sum, l) => sum + (l.duration || 0), 0) /
-            lessons.length,
-          )
+              lessons.reduce((sum, l) => sum + (l.duration || 0), 0) /
+                lessons.length,
+            )
           : 0,
       lessonsByType: {
         video: lessons.filter((l) => l.type === 'video').length,
@@ -1618,9 +1643,9 @@ export class CoursesService {
       avgCompletionRate:
         lessons.length > 0
           ? Math.round(
-            lessons.reduce((sum, l) => sum + (l.completionCount || 0), 0) /
-            lessons.length,
-          )
+              lessons.reduce((sum, l) => sum + (l.completionCount || 0), 0) /
+                lessons.length,
+            )
           : 0,
       enrollmentTrend: [], // Placeholder for time-series data
       revenueByMonth: [], // Placeholder for revenue trends
@@ -1654,7 +1679,7 @@ export class CoursesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.SUPER_ADMIN &&
-      !course.instructors.some(instructor => instructor.toString() === userId)
+      !course.instructors.some((instructor) => instructor.toString() === userId)
     ) {
       throw new ForbiddenException(
         'You can only view analytics for lessons in your own courses',

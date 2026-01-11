@@ -48,7 +48,7 @@ export class AboutSectionController {
   constructor(
     private readonly aboutSectionService: AboutSectionService,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   @Get()
   @Public()
@@ -313,25 +313,33 @@ export class AboutSectionController {
   ) {
     try {
       this.logger.log('Processing about section upload with media');
-      this.logger.log(`Body type: ${typeof body}, Is object: ${body && typeof body === 'object'}`);
+      this.logger.log(
+        `Body type: ${typeof body}, Is object: ${body && typeof body === 'object'}`,
+      );
       this.logger.log(`Body constructor: ${body?.constructor?.name}`);
       this.logger.log(`Full body: ${JSON.stringify(body, null, 2)}`);
       this.logger.log(`FormData keys: ${JSON.stringify(Object.keys(body))}`);
 
       // Log all highlights keys
-      const highlightKeys = Object.keys(body).filter(k => k.startsWith('highlights['));
+      const highlightKeys = Object.keys(body).filter((k) =>
+        k.startsWith('highlights['),
+      );
       this.logger.log(`Highlight keys: ${highlightKeys.join(', ')}`);
 
       // Log all stats keys
-      const statKeys = Object.keys(body).filter(k => k.startsWith('stats['));
+      const statKeys = Object.keys(body).filter((k) => k.startsWith('stats['));
       this.logger.log(`Stat keys: ${statKeys.join(', ')}`);
 
       // Log sample values
       if (highlightKeys.length > 0) {
-        this.logger.log(`Sample highlight value [highlights[0][icon]]: ${body['highlights[0][icon]']}`);
+        this.logger.log(
+          `Sample highlight value [highlights[0][icon]]: ${body['highlights[0][icon]']}`,
+        );
       }
       if (statKeys.length > 0) {
-        this.logger.log(`Sample stat value [stats[0][value]]: ${body['stats[0][value]']}`);
+        this.logger.log(
+          `Sample stat value [stats[0][value]]: ${body['stats[0][value]']}`,
+        );
       }
       // Validate file if provided
       if (files?.image?.[0]) {
@@ -383,7 +391,9 @@ export class AboutSectionController {
 
       // Check if highlights is already parsed as an array (modern body parser)
       if (Array.isArray(body.highlights)) {
-        this.logger.log(`Using pre-parsed highlights array with ${body.highlights.length} items`);
+        this.logger.log(
+          `Using pre-parsed highlights array with ${body.highlights.length} items`,
+        );
         highlights = body.highlights.map((h: any) => ({
           icon: h.icon || '',
           label: h.label || '',
@@ -410,9 +420,12 @@ export class AboutSectionController {
 
       // Check if stats is already parsed as an array (modern body parser)
       if (Array.isArray(body.stats)) {
-        this.logger.log(`Using pre-parsed stats array with ${body.stats.length} items`);
+        this.logger.log(
+          `Using pre-parsed stats array with ${body.stats.length} items`,
+        );
         stats = body.stats.map((s: any) => {
-          const value = typeof s.value === 'number' ? s.value : parseInt(s.value);
+          const value =
+            typeof s.value === 'number' ? s.value : parseInt(s.value);
           if (isNaN(value)) {
             throw new BadRequestException(`Invalid stat value: ${s.value}`);
           }
@@ -430,7 +443,9 @@ export class AboutSectionController {
         while (body[`stats[${statIndex}][value]`]) {
           const value = parseInt(body[`stats[${statIndex}][value]`]);
           if (isNaN(value)) {
-            throw new BadRequestException(`Invalid stat value at index ${statIndex}`);
+            throw new BadRequestException(
+              `Invalid stat value at index ${statIndex}`,
+            );
           }
           stats.push({
             value,
@@ -468,14 +483,14 @@ export class AboutSectionController {
       // Parse SEO metadata - check if already parsed or use indexed format
       let seo:
         | {
-          title: string;
-          description: string;
-          keywords: string;
-          ogImage: string;
-          ogTitle: string;
-          ogDescription: string;
-          canonicalUrl: string;
-        }
+            title: string;
+            description: string;
+            keywords: string;
+            ogImage: string;
+            ogTitle: string;
+            ogDescription: string;
+            canonicalUrl: string;
+          }
         | undefined = undefined;
 
       if (body.seo && typeof body.seo === 'object') {
@@ -516,14 +531,20 @@ export class AboutSectionController {
         isActive: body.isActive === 'true' || body.isActive === true,
       };
 
-      this.logger.log(`Creating DTO with highlights: ${JSON.stringify(highlights)}`);
+      this.logger.log(
+        `Creating DTO with highlights: ${JSON.stringify(highlights)}`,
+      );
       this.logger.log(`Creating DTO with stats: ${JSON.stringify(stats)}`);
       this.logger.log('Upserting about section with parsed data');
       const result =
         await this.aboutSectionService.upsertAboutSection(createDto);
 
-      this.logger.log(`Service returned highlights: ${JSON.stringify(result.highlights)}`);
-      this.logger.log(`Service returned stats: ${JSON.stringify(result.stats)}`);
+      this.logger.log(
+        `Service returned highlights: ${JSON.stringify(result.highlights)}`,
+      );
+      this.logger.log(
+        `Service returned stats: ${JSON.stringify(result.stats)}`,
+      );
       this.logger.log('About section updated successfully with media');
       return {
         success: true,

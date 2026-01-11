@@ -28,6 +28,7 @@
     "seed:events": "ts-node -r tsconfig-paths/register src/scripts/seed-events.ts",
     "seed:testimonials": "ts-node -r tsconfig-paths/register src/scripts/seed-testimonials.ts",
     "seed:blog": "ts-node -r tsconfig-paths/register src/cms/home/blog/scripts/seed-blog.ts",
+    "migrate:timestamps": "ts-node -r tsconfig-paths/register scripts/migrate-user-timestamps.ts",
     "seed:lessons-modules": "ts-node -r tsconfig-paths/register scripts/seed-lessons-modules.ts",
     "seed:quick-demo": "ts-node -r tsconfig-paths/register scripts/seed-quick-demo.ts",
     "seed:courses": "ts-node -r tsconfig-paths/register src/scripts/seed-courses.ts",

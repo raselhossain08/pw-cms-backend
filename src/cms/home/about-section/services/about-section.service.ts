@@ -22,7 +22,7 @@ export class AboutSectionService {
   constructor(
     @InjectModel(AboutSection.name)
     private aboutSectionModel: Model<AboutSection>,
-  ) { }
+  ) {}
 
   /**
    * Cache helper methods
@@ -124,7 +124,9 @@ export class AboutSectionService {
         throw new InternalServerErrorException('About Section upsert failed');
       }
 
-      this.logger.log(`Updated highlights count: ${updated.highlights?.length || 0}`);
+      this.logger.log(
+        `Updated highlights count: ${updated.highlights?.length || 0}`,
+      );
       this.logger.log(`Updated stats count: ${updated.stats?.length || 0}`);
 
       // Clear cache after successful update

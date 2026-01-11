@@ -19,7 +19,7 @@ import { UserRole } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   // ==================== INTEGRATIONS MANAGEMENT ====================
   @Get('integrations')
@@ -50,7 +50,6 @@ export class AdminController {
   getSystemHealth() {
     return this.adminService.getSystemHealth();
   }
-
 
   // ==================== COURSE MANAGEMENT ====================
   @Get('courses')
@@ -277,7 +276,6 @@ export class AdminController {
   bulkDeleteUsers(@Body('userIds') userIds: string[]) {
     return this.adminService.bulkDeleteUsers(userIds);
   }
-
 
   // ==================== CONTENT MODERATION ====================
   @Get('content/flagged')
@@ -577,7 +575,6 @@ export class AdminController {
   bulkDeactivateUsers(@Body('ids') ids: string[]) {
     return this.adminService.bulkDeactivateUsers(ids);
   }
-
 
   @Post('users/:id/send-verification-email')
   sendVerificationEmail(@Param('id') id: string) {
