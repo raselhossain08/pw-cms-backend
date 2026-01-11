@@ -19,7 +19,7 @@ export class EnrollmentsService {
   constructor(
     @InjectModel(Enrollment.name) private enrollmentModel: Model<Enrollment>,
     @InjectModel(Course.name) private courseModel: Model<Course>,
-  ) {}
+  ) { }
 
   async enroll(
     createEnrollmentDto: CreateEnrollmentDto,
@@ -290,7 +290,7 @@ export class EnrollmentsService {
       averageProgress:
         enrollments.length > 0
           ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-            enrollments.length
+          enrollments.length
           : 0,
     };
 
@@ -332,9 +332,9 @@ export class EnrollmentsService {
       .populate('student', 'firstName lastName email avatar name')
       .populate({
         path: 'course',
-        select: 'title description thumbnail instructor',
+        select: 'title description thumbnail instructors',
         populate: {
-          path: 'instructor',
+          path: 'instructors',
           select: 'firstName lastName name',
         },
       });
@@ -1129,7 +1129,7 @@ export class EnrollmentsService {
     const enrollment = await this.enrollmentModel
       .findById(enrollmentId)
       .populate('student', 'firstName lastName email')
-      .populate('course', 'title instructor');
+      .populate('course', 'title instructors');
 
     if (!enrollment) {
       throw new NotFoundException('Enrollment not found');
@@ -1308,6 +1308,163 @@ export class EnrollmentsService {
       paymentDate:
         order.paidAt || ((enrollment as any).createdAt as Date) || new Date(),
       accessType: 'paid',
+    };
+  }
+
+  /**
+   * Get available courses (courses not yet enrolled in by the user)
+   */
+  async getAvailableCourses(
+    userId: string,
+    params: {
+      category?: string;
+      level?: string;
+      isFree?: boolean;
+      search?: string;
+      page?: number;
+      limit?: number;
+    } = {},
+  ): Promise<{
+    courses: Array<{
+      _id: string;
+      title: string;
+      slug: string;
+      description?: string;
+      thumbnail?: string;
+      price: number;
+      originalPrice?: number;
+      isFree: boolean;
+      rating: number;
+      reviewCount: number;
+      studentCount: number;
+      level: string;
+      duration: string;
+      totalLessons: number;
+      instructor: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        avatar?: string;
+      };
+      category: {
+        _id: string;
+        name: string;
+      };
+    }>;
+    total: number;
+    enrolled: number;
+    available: number;
+  }> {
+    const page = params.page || 1;
+    const limit = params.limit || 10;
+    const skip = (page - 1) * limit;
+
+    // Build course filter
+    const courseFilter: any = { status: 'published' };
+
+    if (params.category) {
+      courseFilter['categories.name'] = { $regex: params.category, $options: 'i' };
+    }
+
+    if (params.level) {
+      courseFilter.level = params.level;
+    }
+
+    if (params.isFree !== undefined) {
+      courseFilter.isFree = params.isFree;
+    }
+
+    if (params.search) {
+      courseFilter.$or = [
+        { title: { $regex: params.search, $options: 'i' } },
+        { description: { $regex: params.search, $options: 'i' } },
+        { 'categories.name': { $regex: params.search, $options: 'i' } },
+      ];
+    }
+
+    // Get user's enrolled course IDs
+    const userEnrollments = await this.enrollmentModel
+      .find({ student: userId })
+      .select('course')
+      .lean();
+
+    const enrolledCourseIds = userEnrollments.map(enrollment => enrollment.course.toString());
+
+    // Get total count of published courses
+    const totalCourses = await this.courseModel.countDocuments(courseFilter);
+
+    // Get available courses (excluding enrolled ones)
+    const availableCourses = await this.courseModel
+      .find({
+        ...courseFilter,
+        _id: { $nin: enrolledCourseIds }
+      })
+      .select('title slug description thumbnail price originalPrice isFree rating reviewCount studentCount level duration instructors categories')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Transform the courses to match the expected format
+    const transformedCourses = await Promise.all(availableCourses.map(async (course: any) => {
+      // Get instructor details separately to avoid type issues
+      const instructorId = course.instructors?.[0];
+      let instructorDetails = {
+        _id: '',
+        firstName: '',
+        lastName: '',
+        avatar: ''
+      };
+
+      if (instructorId) {
+        const instructor = await this.courseModel.db.collection('users').findOne({
+          _id: instructorId
+        }, { projection: { firstName: 1, lastName: 1, avatar: 1 } });
+
+        if (instructor) {
+          instructorDetails = {
+            _id: instructor._id.toString(),
+            firstName: instructor.firstName || '',
+            lastName: instructor.lastName || '',
+            avatar: instructor.avatar || ''
+          };
+        }
+      }
+
+      // Get total lessons count
+      const totalLessons = await this.courseModel.db.collection('lessons').countDocuments({
+        'module.course': course._id,
+        status: 'published'
+      });
+
+      return {
+        _id: course._id.toString(),
+        title: course.title,
+        slug: course.slug,
+        description: course.description,
+        thumbnail: course.thumbnail,
+        price: course.price,
+        originalPrice: course.originalPrice,
+        isFree: course.isFree,
+        rating: course.rating || 0,
+        reviewCount: course.reviewCount || 0,
+        studentCount: course.studentCount || 0,
+        level: course.level,
+        duration: course.duration.toString(),
+        totalLessons: totalLessons,
+        instructor: instructorDetails,
+        category: {
+          _id: course.categories?.[0] || '',
+          name: course.categories?.[0] || '',
+        }
+      };
+    }));
+
+    return {
+      courses: transformedCourses,
+      total: totalCourses,
+      enrolled: enrolledCourseIds.length,
+      available: totalCourses - enrolledCourseIds.length,
     };
   }
 }

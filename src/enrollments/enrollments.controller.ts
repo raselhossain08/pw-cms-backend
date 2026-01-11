@@ -34,7 +34,7 @@ import { EnrollmentStatus } from './entities/enrollment.entity';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class EnrollmentsController {
-  constructor(private readonly enrollmentsService: EnrollmentsService) {}
+  constructor(private readonly enrollmentsService: EnrollmentsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Enroll in a course (free or paid with order)' })
@@ -78,6 +78,34 @@ export class EnrollmentsController {
   @ApiResponse({ status: 200, description: 'User statistics' })
   async getMyStats(@Req() req) {
     return this.enrollmentsService.getUserStats(req.user.id);
+  }
+
+  @Get('available-courses')
+  @ApiOperation({ summary: 'Get available courses (courses not yet enrolled in)' })
+  @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiQuery({ name: 'level', required: false, type: String })
+  @ApiQuery({ name: 'isFree', required: false, type: Boolean })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'List of available courses' })
+  async getAvailableCourses(
+    @Req() req,
+    @Query('category') category?: string,
+    @Query('level') level?: string,
+    @Query('isFree') isFree?: boolean,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.enrollmentsService.getAvailableCourses(req.user.id, {
+      category,
+      level,
+      isFree,
+      search,
+      page,
+      limit,
+    });
   }
 
   @Get('course/:courseId')
