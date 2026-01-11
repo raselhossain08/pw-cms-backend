@@ -276,19 +276,11 @@ export class CoursesService {
       instructorsArray = createCourseDto.instructors.map(id => new Types.ObjectId(id));
     }
 
-    // Ensure the creating instructor (from JWT) is included as primary instructor
-    const primaryInstructorId = new Types.ObjectId(instructorId);
-
-    // Add primary instructor to instructors array if not already included
-    if (!instructorsArray.some(id => id.equals(primaryInstructorId))) {
-      instructorsArray.unshift(primaryInstructorId); // Add as first instructor
-    }
-
     const course = new this.courseModel({
       ...courseData,
       slug,
       duration,
-      instructors: instructorsArray.length > 0 ? instructorsArray : [primaryInstructorId],
+      instructors: instructorsArray,
     });
 
     const savedCourse = await course.save();
